@@ -1,4 +1,6 @@
 {
 	"name": "monio",
-	"version": "0.0.0"
+	"description": "async-capable IO Monad (including \"do\" style) for JS",
+	"version": "0.0.1",
+	"main": "index.js"
 }
