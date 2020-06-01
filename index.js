@@ -480,8 +480,8 @@ var IO = (function DefineIO() {
     // *********************
 
     function map(fn) {
-      return IO(() => {
-        var res = effect();
+      return IO(v => {
+        var res = effect(v);
         return (
           _isPromise(res) ?
             res.then(fn) :
@@ -491,12 +491,12 @@ var IO = (function DefineIO() {
     }
 
     function chain(fn) {
-      return IO(() => {
-        var res = effect();
+      return IO(v => {
+        var res = effect(v);
         return (
           _isPromise(res) ?
-            res.then(fn).then(v => v.run()) :
-            fn(res).run()
+            res.then(fn).then(v2 => v2.run(v)) :
+            fn(res).run(v)
         );
       });
     }
@@ -505,8 +505,8 @@ var IO = (function DefineIO() {
       return m.map(effect);
     }
 
-    function run() {
-      return effect();
+    function run(v) {
+      return effect(v);
     }
 
     function _inspect() {
@@ -614,3 +614,6 @@ var IO = (function DefineIO() {
   }
 
 })();
+
+// aliases
+var RIO = IO, Reader = RIO;
