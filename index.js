@@ -1,7 +1,7 @@
 var Just = (function DefineJust() {
   const brand = {};
 
-  return Object.assign(Just, {
+  return Object.assign(Just,{
     of: Just, pure: Just, unit: Just, is,
   });
 
@@ -55,7 +55,7 @@ var Just = (function DefineJust() {
 var Nothing = (function DefineNothing() {
   const brand = {};
 
-  return Object.assign(Nothing, {
+  return Object.assign(Nothing,{
     of: Nothing, pure: Nothing, unit: Nothing,
     is, isEmpty,
   });
@@ -106,7 +106,7 @@ var Maybe = (function DefineMaybe() {
   Object.assign(MaybeJust,Just);
   Object.assign(MaybeNothing,Nothing);
 
-  return Object.assign(Maybe, {
+  return Object.assign(Maybe,{
     Just: MaybeJust, Nothing: MaybeNothing, of: Maybe,
     pure: Maybe, unit: Maybe, is, from,
   });
@@ -132,7 +132,7 @@ var Maybe = (function DefineMaybe() {
     }
     else if (isJust) {
       // intentional monad violation, to extract its value
-      val = mn.chain((v) => v);
+      val = mn.chain(v => v);
     }
     // isNothing
     else {
@@ -175,7 +175,7 @@ var Maybe = (function DefineMaybe() {
       );
     }
 
-    function fold(asNothing, asJust) {
+    function fold(asNothing,asJust) {
       return (
         isJust ?
           asJust(val) :
@@ -217,7 +217,7 @@ var Either = (function DefineEither() {
   Left.is = LeftIs;
   Right.is = RightIs;
 
-  return Object.assign(Either, {
+  return Object.assign(Either,{
     Left, Right, of: Right, pure: Right,
     unit: Right, is, fromFoldable,
   });
@@ -259,7 +259,7 @@ var Either = (function DefineEither() {
     function map(fn) {
       return (
         isRight ?
-          LeftOrRight(fn(val), isRight) :
+          LeftOrRight(fn(val),isRight) :
           publicAPI
       );
     }
@@ -276,7 +276,7 @@ var Either = (function DefineEither() {
       return m.map(val);
     }
 
-    function fold(asLeft, asRight) {
+    function fold(asLeft,asRight) {
       return (
         isRight ?
           asRight(val) :
@@ -309,7 +309,7 @@ var Either = (function DefineEither() {
   }
 
   function fromFoldable(m) {
-    return m.fold(Left, Right);
+    return m.fold(Left,Right);
   }
 
 })();
@@ -353,8 +353,8 @@ var AsyncEither = (function defineAsyncEither() {
     // *********************
 
     function map(v) {
-      var handle = (m) => {
-        var _doMap = (fn) => {
+      var handle = m => {
+        var _doMap = fn => {
           // note: intentionally using chain() here
           var res = m.chain(fn);
           return (
@@ -379,8 +379,8 @@ var AsyncEither = (function defineAsyncEither() {
     }
 
     function chain(v) {
-      var handle = (m) => {
-        var _doChain = (fn) => {
+      var handle = m => {
+        var _doChain = fn => {
           var res = m.chain(fn);
           return (
             is(res) ? res.fold(v => v,v => v) :
@@ -406,8 +406,8 @@ var AsyncEither = (function defineAsyncEither() {
       return m.map(pr);
     }
 
-    function fold(asLeft, asRight) {
-      var handle = (whichSide) => (m) => m.fold(
+    function fold(asLeft,asRight) {
+      var handle = whichSide => m => m.fold(
         v => Promise.reject(whichSide(v)),
         whichSide
       );
@@ -465,7 +465,7 @@ var AsyncEither = (function defineAsyncEither() {
 var IO = (function DefineIO() {
   const brand = {};
 
-  return Object.assign(IO, { of, is, do: $do, doEither, });
+  return Object.assign(IO,{ of, is, do: $do, doEither, });
 
   // **************************
 
@@ -545,10 +545,10 @@ var IO = (function DefineIO() {
     }));
   }
 
-  function $do(block,...args) {
-    var it = block(...args);
+  function $do(block) {
+    return IO(v => {
+      var it = getIterator(block,v);
 
-    return IO(() => {
       return (async function next(v){
         var resp = it.next(_isPromise(v) ? await v : v);
         return (
@@ -560,10 +560,10 @@ var IO = (function DefineIO() {
     });
   }
 
-  function doEither(block, ...args) {
-    var it = block(...args);
+  function doEither(block) {
+    return IO(v => {
+      var it = getIterator(block,v);
 
-    return IO(() => {
       return (async function next(v){
         try {
           v = _isPromise(v) ? await v : v;
@@ -601,7 +601,15 @@ var IO = (function DefineIO() {
     });
   }
 
-  function monadFlatMap(m, fn) {
+  function getIterator(block,v) {
+    return (
+      typeof block == "function" ? block(v) :
+      (block && typeof block == "object" && typeof block.next == "function") ? block :
+      undefined
+    );
+  }
+
+  function monadFlatMap(m,fn) {
     return m[
       "flatMap" in m ? "flatMap" :
       "chain" in m ? "chain" :
