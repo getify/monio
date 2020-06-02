@@ -531,13 +531,13 @@ var IO = (function DefineIO() {
     return v && typeof v._is == "function" && v._is(brand);
   }
 
-  function processNext(next,respVal) {
+  function processNext(next,respVal,outerV) {
     return (new Promise(async (resv,rej) => {
       try {
         await monadFlatMap(
           (_isPromise(respVal) ? await respVal : respVal),
           v => IO(() => next(v).then(resv,rej))
-        ).run();
+        ).run(outerV);
       }
       catch (err) {
         rej(err);
@@ -546,23 +546,23 @@ var IO = (function DefineIO() {
   }
 
   function $do(block) {
-    return IO(v => {
-      var it = getIterator(block,v);
+    return IO(outerV => {
+      var it = getIterator(block,outerV);
 
       return (async function next(v){
         var resp = it.next(_isPromise(v) ? await v : v);
         return (
           resp.done ?
             resp.value :
-            processNext(next,resp.value)
+            processNext(next,resp.value,outerV)
         );
       })();
     });
   }
 
   function doEither(block) {
-    return IO(v => {
-      var it = getIterator(block,v);
+    return IO(outerV => {
+      var it = getIterator(block,outerV);
 
       return (async function next(v){
         try {
@@ -586,7 +586,7 @@ var IO = (function DefineIO() {
                   respVal :
                   Either.Right(respVal)
               ) :
-              processNext(next,respVal)
+              processNext(next,respVal,outerV)
               .catch(next)
           );
         }
