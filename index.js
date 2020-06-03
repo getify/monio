@@ -10,7 +10,7 @@ var Just = (function DefineJust() {
   function Just(val) {
     var publicAPI = {
       map, chain, flatMap: chain, bind: chain,
-      ap, _inspect, _is,
+      ap, concat, _inspect, _is,
       [Symbol.toStringTag]: "Just",
     };
     return publicAPI;
@@ -28,6 +28,10 @@ var Just = (function DefineJust() {
 
     function ap(m) {
       return m.map(val);
+    }
+
+    function concat(m) {
+      return m.map(v => val.concat(v));
     }
 
     function _inspect() {
@@ -65,7 +69,7 @@ var Nothing = (function DefineNothing() {
   function Nothing() {
     var publicAPI = {
       map: noop, chain: noop, flatMap: noop, bind: noop,
-      ap: noop, _inspect, _is,
+      ap: noop, concat: noop, _inspect, _is,
       [Symbol.toStringTag]: "Nothing",
     };
     return publicAPI;
@@ -175,6 +179,14 @@ var Maybe = (function DefineMaybe() {
       );
     }
 
+    function concat(m) {
+      return (
+        isJust ?
+          m.map(v => val.concat(v)) :
+          publicAPI
+      );
+    }
+
     function fold(asNothing,asJust) {
       return (
         isJust ?
@@ -247,7 +259,7 @@ var Either = (function DefineEither() {
   function LeftOrRight(val,isRight = true) {
     var publicAPI = {
       map, chain, flatMap: chain, bind: chain,
-      ap, fold, _inspect, _is, _is_right,
+      ap, concat, fold, _inspect, _is, _is_right,
       get [Symbol.toStringTag]() {
         return `Either:${isRight ? "Right" : "Left"}`;
       },
@@ -273,7 +285,19 @@ var Either = (function DefineEither() {
     }
 
     function ap(m) {
-      return m.map(val);
+      return (
+        isRight ?
+          m.map(val) :
+          publicAPI
+      );
+    }
+
+    function concat(m) {
+      return (
+        isRight ?
+          m.map(v => val.concat(v)) :
+          publicAPI
+      );
     }
 
     function fold(asLeft,asRight) {
@@ -345,7 +369,7 @@ var AsyncEither = (function defineAsyncEither() {
     pr = _splitPromise(pr);
 
     var publicAPI = { map, chain, flatMap: chain, bind: chain,
-      ap, fold, _inspect, _is,
+      ap, concat, fold, _inspect, _is,
       [Symbol.toStringTag]: "AsyncEither",
     };
     return publicAPI;
@@ -404,6 +428,10 @@ var AsyncEither = (function defineAsyncEither() {
 
     function ap(m) {
       return m.map(pr);
+    }
+
+    function concat(m) {
+      return m.map(v => pr.then(val => val.concat(v)));
     }
 
     function fold(asLeft,asRight) {
@@ -472,7 +500,7 @@ var IO = (function DefineIO() {
   function IO(effect) {
     var publicAPI = {
       map, chain, flatMap: chain, bind: chain,
-      ap, run, _inspect, _is,
+      ap, concat, run, _inspect, _is,
       [Symbol.toStringTag]: "IO",
     };
     return publicAPI;
@@ -503,6 +531,18 @@ var IO = (function DefineIO() {
 
     function ap(m) {
       return m.map(effect);
+    }
+
+    function concat(m) {
+      return IO(v => {
+        var res = effect(v);
+        var res2 = m.run(v);
+        return (
+          (_isPromise(res) || _isPromise(res2)) ?
+            Promise.all([ res, res2 ]).then(([ v1, v2 ]) => v1.concat(v2)) :
+            res.concat(res2)
+        );
+      });
     }
 
     function run(v) {
