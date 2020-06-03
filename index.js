@@ -551,6 +551,7 @@ var IO = (function DefineIO() {
 
       return (async function next(v){
         var resp = it.next(_isPromise(v) ? await v : v);
+        resp = _isPromise(resp) ? await resp : resp;
         return (
           resp.done ?
             resp.value :
@@ -572,6 +573,7 @@ var IO = (function DefineIO() {
               it.throw(v) :
               it.next(v)
           );
+          resp = _isPromise(resp) ? await resp : resp;
           let respVal = (
             resp.done ?
               (
