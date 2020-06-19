@@ -1,3 +1,5 @@
+"use strict";
+
 var Just = (function DefineJust() {
 	const brand = {};
 
