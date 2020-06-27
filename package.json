@@ -1,6 +1,25 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.0.7",
-	"main": "index.js"
+	"version": "0.1.0",
+	"main": "src/index.js",
+	"scripts": {
+		"build": "mkdir -p dist && node_modules/.bin/mz -rue",
+		"prepare": "npm run build"
+	},
+	"devDependencies": {
+		"moduloze": "~0.1.0"
+	},
+	"mz-dependencies": {
+		"index.js": "Monio",
+		"just.js": "Just",
+		"nothing.js": "Nothing",
+		"maybe.js": "Maybe",
+		"either.js": "Either",
+		"async-either.js": "AsyncEither",
+		"io.js": "IO",
+		"io-event-stream.js": "IOEventStream",
+		"lib/util.js": "MonioUtil"
+	}
+
 }
