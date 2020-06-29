@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"main": "src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rue",
@@ -20,6 +20,23 @@
 		"io.js": "IO",
 		"io-event-stream.js": "IOEventStream",
 		"lib/util.js": "MonioUtil"
+	},
+	"exports": {
+		"./esm": "./dist/esm/index.mjs",
+		"./esm/just": "./dist/esm/just.mjs",
+		"./esm/nothing": "./dist/esm/nothing.mjs",
+		"./esm/maybe": "./dist/esm/maybe.mjs",
+		"./esm/either": "./dist/esm/either.mjs",
+		"./esm/async-either": "./dist/esm/async-either.mjs",
+		"./esm/io": "./dist/esm/io.mjs",
+		"./esm/io-event-stream": "./dist/esm/io-event-stream.mjs",
+		"./dist/esm": "./dist/esm/index.mjs",
+		"./dist/esm/just": "./dist/esm/just.mjs",
+		"./dist/esm/nothing": "./dist/esm/nothing.mjs",
+		"./dist/esm/maybe": "./dist/esm/maybe.mjs",
+		"./dist/esm/either": "./dist/esm/either.mjs",
+		"./dist/esm/async-either": "./dist/esm/async-either.mjs",
+		"./dist/esm/io": "./dist/esm/io.mjs",
+		"./dist/esm/io-event-stream": "./dist/esm/io-event-stream.mjs"
 	}
-
 }
