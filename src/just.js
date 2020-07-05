@@ -2,11 +2,9 @@
 
 var brand = {};
 
-var publicAPI = Object.assign(Just,{
+module.exports = Object.assign(Just,{
 	of: Just, pure: Just, unit: Just, is,
 });
-
-module.exports = publicAPI;
 
 
 // **************************

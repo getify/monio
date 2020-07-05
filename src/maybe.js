@@ -8,12 +8,10 @@ var brand = {};
 Object.assign(MaybeJust,Just);
 Object.assign(MaybeNothing,Nothing);
 
-var publicAPI = Object.assign(Maybe,{
+module.exports = Object.assign(Maybe,{
 	Just: MaybeJust, Nothing: MaybeNothing, of: Maybe,
 	pure: Maybe, unit: Maybe, is, from,
 });
-
-module.exports = publicAPI;
 
 
 // **************************

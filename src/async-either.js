@@ -5,13 +5,11 @@ var Either = require("./either.js");
 
 var brand = {};
 
-var publicAPI = Object.assign(AsyncEither,{
+module.exports = Object.assign(AsyncEither,{
 	Left: AsyncLeft, Right: AsyncRight,
 	of: AsyncRight, pure: AsyncRight, unit: AsyncRight,
 	is, fromFoldable, fromPromise,
 });
-
-module.exports = publicAPI;
 
 
 // **************************

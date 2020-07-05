@@ -5,12 +5,10 @@ var brand = {};
 Left.is = LeftIs;
 Right.is = RightIs;
 
-var publicAPI = Object.assign(Either,{
+module.exports = Object.assign(Either,{
 	Left, Right, of: Right, pure: Right,
 	unit: Right, is, fromFoldable,
 });
-
-module.exports = publicAPI;
 
 
 // **************************

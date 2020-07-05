@@ -5,11 +5,9 @@ var Either = require("./either.js");
 
 var brand = {};
 
-var publicAPI = Object.assign(IO,{ of, is, do: $do, doEither, });
-
-module.exports = publicAPI;
-module.exports.RIO = publicAPI;
-module.exports.Reader = publicAPI;
+module.exports = Object.assign(IO,{ of, is, do: $do, doEither, });
+module.exports.RIO = IO;
+module.exports.Reader = IO;
 
 
 // **************************
