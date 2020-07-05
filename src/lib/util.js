@@ -1,5 +1,10 @@
 "use strict";
 
+module.exports = {
+	isFunction,
+	isPromise,
+	curry,
+};
 module.exports.isFunction = isFunction;
 module.exports.isPromise = isPromise;
 module.exports.curry = curry;
