@@ -5,9 +5,11 @@
 	"main": "src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
-		"prepare": "npm run build"
+		"prepare": "npm run build",
+		"test": "jest"
 	},
 	"devDependencies": {
+		"jest": "^26.1.0",
 		"moduloze": "~0.3.1"
 	},
 	"mz-dependencies": {
