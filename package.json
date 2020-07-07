@@ -6,11 +6,11 @@
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
 		"prepare": "npm run build",
-		"test": "jest"
+		"test": "qunit"
 	},
 	"devDependencies": {
-		"jest": "^26.1.0",
-		"moduloze": "~0.3.1"
+		"moduloze": "~0.3.1",
+		"qunit": "^2.10.1"
 	},
 	"mz-dependencies": {
 		"index.js": "Monio",
