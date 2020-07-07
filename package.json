@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"main": "src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
@@ -22,6 +22,13 @@
 		"lib/util.js": "MonioUtil"
 	},
 	"exports": {
+		"./just": "./src/just.js",
+		"./nothing": "./src/nothing.js",
+		"./maybe": "./src/maybe.js",
+		"./either": "./src/either.js",
+		"./async-either": "./src/async-either.js",
+		"./io": "./src/io.js",
+		"./io-event-stream": "./src/io-event-stream.js",
 		"./esm": "./dist/esm/index.mjs",
 		"./esm/just": "./dist/esm/just.mjs",
 		"./esm/nothing": "./dist/esm/nothing.mjs",
