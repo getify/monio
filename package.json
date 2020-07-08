@@ -1,18 +1,20 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.1.6",
+	"version": "0.1.7",
 	"main": "src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
 		"prepare": "npm run build",
 		"test": "qunit",
-		"coverage": "nyc --reporter=html qunit"
+		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text qunit",
+		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js"
 	},
 	"devDependencies": {
+		"coveralls": "~3.1.0",
 		"moduloze": "~0.3.1",
-		"nyc": "^15.1.0",
-		"qunit": "^2.10.1"
+		"nyc": "~15.1.0",
+		"qunit": "~2.10.1"
 	},
 	"mz-dependencies": {
 		"index.js": "Monio",
