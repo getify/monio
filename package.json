@@ -6,10 +6,12 @@
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
 		"prepare": "npm run build",
-		"test": "qunit"
+		"test": "qunit",
+		"coverage": "nyc --reporter=html qunit"
 	},
 	"devDependencies": {
 		"moduloze": "~0.3.1",
+		"nyc": "^15.1.0",
 		"qunit": "^2.10.1"
 	},
 	"mz-dependencies": {
