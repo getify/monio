@@ -61,19 +61,19 @@ qunit.test("#chain", (assert) => {
 		just({ name: "john" }).chain(justProp('name'))._inspect(),
 		just("john")._inspect(),
 		"should return a just with 'john' as a value"
-	)
+	);
 
 	assert.equal(
 		just({ name: "john" }).flatMap(justProp('name'))._inspect(),
 		just("john")._inspect(),
 		"should return a just with 'john' as value"
-	)
+	);
 
 	assert.equal(
 		just({ name: "john" }).bind(justProp('name'))._inspect(),
 		just("john")._inspect(),
 		"should return a just with 'john' as value"
-	)
+	);
 });
 
 qunit.test("#ap", (assert) => {
