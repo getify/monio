@@ -1,10 +1,6 @@
 const just = require("monio/just");
 const qunit = require("qunit");
-
-const identity = x => x;
-const inc = x => x + 1;
-const twice = x => x * 2;
-const justProp = (key) => (obj) => just(obj[key]);
+const { identity, inc, twice, justProp } = require("./utils");
 
 qunit.module("just");
 
