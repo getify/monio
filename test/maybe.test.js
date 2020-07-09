@@ -1,7 +1,8 @@
 const maybe = require("monio/maybe");
 const just = require("monio/just");
 const qunit = require("qunit");
-const { identity, inc, twice, justProp, maybeProp } = require("./utils");
+const { identity, inc, twice, maybeProp } = require("./utils");
+const sinon = require("sinon");
 
 qunit.module("maybe");
 
@@ -64,10 +65,18 @@ qunit.test("#map", (assert) => {
 		"should follow the composition law for a Maybe Just monad"
 	);
 
+	const operation = sinon.fake();
+
 	assert.equal(
-		maybe.Nothing().map(inc)._inspect(),
+		maybe.Nothing().map(operation)._inspect(),
 		maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe Nothing monad"
+	);
+
+	assert.equal(
+		operation.called,
+		false,
+		"should not call operation on an Maybe Nothing monad"
 	);
 });
 
@@ -78,8 +87,10 @@ qunit.test("#chain", (assert) => {
 		"should return a Maybe Just monad with 'john' as value"
 	);
 
+	const operation = sinon.fake();
+
 	assert.equal(
-		maybe.Nothing().chain(maybeProp("name"))._inspect(),
+		maybe.Nothing().chain(operation)._inspect(),
 		maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe Nothing monad"
 	);
@@ -91,7 +102,7 @@ qunit.test("#chain", (assert) => {
 	);
 
 	assert.equal(
-		maybe.Nothing().flatMap(maybeProp("name"))._inspect(),
+		maybe.Nothing().flatMap(operation)._inspect(),
 		maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe Nothing monad"
 	);
@@ -103,9 +114,15 @@ qunit.test("#chain", (assert) => {
 	);
 
 	assert.equal(
-		maybe.Nothing().bind(maybeProp("name"))._inspect(),
+		maybe.Nothing().bind(operation)._inspect(),
 		maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe Nothing monad"
+	);
+
+	assert.equal(
+		operation.called,
+		false,
+		"should not call operation on an Maybe Nothing monad"
 	);
 });
 
@@ -116,10 +133,18 @@ qunit.test("#ap", (assert) => {
 		"should apply a Maybe Just inc monad to the Maybe Just 2 monad"
 	);
 
+	const operation = sinon.fake();
+
 	assert.equal(
-		maybe.Nothing().ap(maybe.Just(2))._inspect(),
+		maybe.Nothing().ap(operation)._inspect(),
 		maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe Nothing monad"
+	);
+
+	assert.equal(
+		operation.called,
+		false,
+		"should not call operation on an Maybe Nothing monad"
 	);
 });
 
