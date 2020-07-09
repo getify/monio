@@ -44,7 +44,7 @@ function Maybe(val) {
 
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		ap, fold, _inspect, _is,
+		ap, concat, fold, _inspect, _is,
 		get [Symbol.toStringTag]() {
 			return `Maybe:${mn[Symbol.toStringTag]}`;
 		},
