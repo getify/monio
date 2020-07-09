@@ -10,7 +10,7 @@ qunit.test("#unit", (assert) => {
 	assert.equal(
 		maybe(1)._inspect(),
 		"Maybe:Just(1)",
-		"should create a Maybe monad via monad"
+		"should create a Maybe monad via constructor"
 	);
 
 	assert.equal(
