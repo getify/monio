@@ -180,7 +180,7 @@ qunit.test("#concat", (assert) => {
 	assert.deepEqual(
 		either([1, 2]).concat([3]),
 		[[1, 2, 3]],
-		"should return an array given a Either Left monad and [3]"
+		"should return an array given a Either Right monad and [3]"
 	);
 
 	assert.equal(
