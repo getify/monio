@@ -43,9 +43,11 @@ Monio also includes several supporting monads/helpers in addition to `IO`:
 * `IOEventStream(..)`: creates an IO instance that produces an "event stream" -- an async-iterable consumable with a `for await..of` loop -- from an event emitter (ie, a DOM element, or a Node EventEmitter instance)
 
 ## For the FP savvy
-Monio models a function `e => IO (Promise a b)`, which is strong enough to capture (optional) environment passing, side effects, async, and error handling without the pain of composing each type separately.
+Monio models a function `e => IO a (Promise b c)`, which is strong enough to capture (optional) environment passing, side effects, async, and error handling without the pain of composing each type separately.
 
-You can think of it as `ReaderT (IOT (Promise|Identity a b))` where `Promise` gets swapped for `Identity` if you're not doing async.
+Typically `IO` does not take an argument, but given one, it acts like an effectful `Reader`. In addition, it can model sync or async functions so the inner `Promise` becomes optional.
+
+In that way, you can think of it as `ReaderT (IOT (Promise|Identity a b))` where `Promise` gets swapped for `Identity` if you're not doing async.
 
 This project is like a JS-style ZIO/RIO where we have all the functionality we need wrapped up in 1 monad.
 
