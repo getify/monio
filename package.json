@@ -1,14 +1,7 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"keywords": [
-		"fp",
-		"monad",
-		"async",
-		"io",
-		"promise"
-	],
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"main": "src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
@@ -59,5 +52,20 @@
 		"./dist/esm/async-either": "./dist/esm/async-either.mjs",
 		"./dist/esm/io": "./dist/esm/io.mjs",
 		"./dist/esm/io-event-stream": "./dist/esm/io-event-stream.mjs"
-	}
+	},
+	"repository": "getify/monio",
+	"keywords": [
+		"fp",
+		"monad",
+		"async",
+		"io",
+		"promise"
+	],
+	"bugs": {
+		"url": "https://github.com/getify/monio/issues",
+		"email": "getify@gmail.com"
+	},
+	"homepage": "https://github.com/getify/monio",
+	"author": "Kyle Simpson <getify@gmail.com>",
+	"license": "MIT"
 }
