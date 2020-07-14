@@ -75,15 +75,8 @@ function Maybe(val) {
 	}
 
 	function _inspect() {
-		return `${publicAPI[Symbol.toStringTag]}(${
-			isJust ? (
-				typeof val == "string" ? JSON.stringify(val) :
-				typeof val == "undefined" ? "" :
-				typeof val == "function" ? (val.name || "anonymous function") :
-				val && typeof val._inspect == "function" ? val._inspect() :
-				val
-			) : ""
-		})`;
+		var v = isJust ? mn._inspect().match(/^Just\((.*)\)$/)[1] : "";
+		return `${publicAPI[Symbol.toStringTag]}(${ v })`;
 	}
 
 	function _is(br) {

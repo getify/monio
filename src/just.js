@@ -37,13 +37,18 @@ function Just(val) {
 	}
 
 	function _inspect() {
-		return `${publicAPI[Symbol.toStringTag]}(${
-			typeof val == "string" ? JSON.stringify(val) :
+		return `${publicAPI[Symbol.toStringTag]}(${ _serialize(val) })`;
+	}
+
+	function _serialize(val) {
+		return (
+			typeof val == "string" ? `"${ val }"` :
 			typeof val == "undefined" ? "" :
 			typeof val == "function" ? (val.name || "anonymous function") :
 			val && typeof val._inspect == "function" ? val._inspect() :
-			val
-		})`;
+			Array.isArray(val) ? `[${ val.map(v => v == null ? String(v) : _serialize(v)) }]` :
+			String(val)
+		);
 	}
 
 	function _is(br) {
