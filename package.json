@@ -1,7 +1,14 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.1.8",
+	"keywords": [
+		"fp",
+		"monad",
+		"async",
+		"io",
+		"promise"
+	],
+	"version": "0.2.0",
 	"main": "src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",

@@ -97,5 +97,5 @@ function is(val) {
 }
 
 function from(val) {
-	return MaybeNothing.isEmpty(val) ? Maybe(MaybeNothing()) : Maybe(val);
+	return MaybeNothing.isEmpty(val) ? MaybeNothing() : Maybe(val);
 }
