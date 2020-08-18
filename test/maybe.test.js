@@ -42,6 +42,13 @@ qunit.test("#unit", (assert) => {
 		maybe.of(1)._inspect(),
 		"should create a Maybe:Just monad from a Just value"
 	);
+
+	assert.equal(
+		maybe.of(maybe.of(1))._inspect(),
+		"Maybe:Just(Maybe:Just(1))",
+		"should create a Maybe:Just(Maybe:Just) monad from a Maybe:Just value"
+	);
+
 });
 
 qunit.test("#Nothing", (assert) => {

@@ -26,8 +26,8 @@ function MaybeNothing() {
 
 function Maybe(val) {
 	var mn = val;
-	var isJust = MaybeJust.is(mn);
-	var isNothing = MaybeNothing.is(mn);
+	var isJust = MaybeJust.is(mn) && !is(mn);
+	var isNothing = MaybeNothing.is(mn) && !is(mn);
 
 	if (!(isJust || isNothing)) {
 		mn = Just(val);
