@@ -16,6 +16,8 @@ Monio ('mo-neo') is an async-capable IO Monad (including "do" style) for JS, wit
 
 * [Event Stream (demo)](https://codepen.io/getify/pen/WNrNYKx?editors=1011)
 
+* [Cached Ajax (demo)](https://codepen.io/getify/pen/VwjyoMY?editors=0011)
+
 ## Overview
 
 Monio balances the power of monads -- often dismissed by the non-FP programmer as academic and convoluted -- while pragmatically embracing the reality of the vast majority of JS programs: paradigm mixture (some OO, some FP, and probably a lot of imperative procedural code).
