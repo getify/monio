@@ -1,8 +1,8 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.3.1",
-	"main": "src/index.js",
+	"version": "0.4.0",
+	"main": "./src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
 		"prepare": "npm run build",
@@ -29,6 +29,7 @@
 		"lib/util.js": "MonioUtil"
 	},
 	"exports": {
+		".": "./src/index.js",
 		"./just": "./src/just.js",
 		"./nothing": "./src/nothing.js",
 		"./maybe": "./src/maybe.js",
