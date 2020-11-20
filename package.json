@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "async-capable IO Monad (including \"do\" style) for JS",
-	"version": "0.4.1",
+	"version": "0.4.2",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "mkdir -p dist && node_modules/.bin/mz -rube",
@@ -14,7 +14,7 @@
 		"coveralls": "~3.1.0",
 		"moduloze": "~0.4.2",
 		"nyc": "~15.1.0",
-		"qunit": "~2.11.3",
+		"qunit": "~2.12.0",
 		"sinon": "~9.2.0"
 	},
 	"mz-dependencies": {

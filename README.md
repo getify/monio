@@ -2,8 +2,6 @@
 
 [![Build Status](https://travis-ci.org/getify/monio.svg?branch=master)](https://travis-ci.org/getify/monio)
 [![npm Module](https://badge.fury.io/js/monio.svg)](https://www.npmjs.org/package/monio)
-[![Dependencies](https://david-dm.org/getify/monio.svg)](https://david-dm.org/getify/monio)
-[![devDependencies](https://david-dm.org/getify/monio/dev-status.svg)](https://david-dm.org/getify/monio?type=dev)
 [![Coverage Status](https://coveralls.io/repos/github/getify/monio/badge.svg?branch=master)](https://coveralls.io/github/getify/monio?branch=master)
 
 Monio ('mo-neo') is an async-capable IO Monad (including "do" style) for JS, with several companion monads thrown in.
