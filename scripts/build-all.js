@@ -42,8 +42,8 @@ console.log("*** Building Monio ***");
 		copyrightHeader = fs.readFileSync(
 			path.join(SRC_DIR,"copyright-header.txt"),
 			{ encoding: "utf8", }
-		).replace(/`/g,"");
-		copyrightHeader = Function("version","year",`return \`${copyrightHeader}\`;`)( version, year );
+		);
+		copyrightHeader = copyrightHeader.replace(/#VERSION#/g,version).replace(/#YEAR#/g,year);
 
 		// run moduloze CLI on the src/ tree
 		await execFileAsync(

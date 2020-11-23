@@ -1,4 +1,4 @@
 /*! Monio: #FILENAME#
-    v${version} (c) ${year} Kyle Simpson
+    v#VERSION# (c) #YEAR# Kyle Simpson
     MIT License: http://getify.mit-license.org
 */
