@@ -10,7 +10,7 @@ module.exports = curry(ioEventStream);
 
 function ioEventStream(el,evtName) {
 	return IO(() => {
-		var { pr, next, } = getDeferred();
+		var stack = [ getDeferred(), ];
 
 		// setup event listener
 		if (isFunction(el.addEventListener)) {
@@ -39,18 +39,24 @@ function ioEventStream(el,evtName) {
 		async function *eventStream() {
 			try {
 				while (true) {
-					yield pr;
+					try {
+						yield stack[0].pr;
+					}
+					finally {
+						stack.shift();
+					}
 				}
 			}
 			finally {
 				eventUnlisten();
+				stack.length = 0;
 			}
 		}
 
 		function handler(evt) {
-			var f = next;
-			({ pr, next, } = getDeferred());
-			f(evt);
+			var last = stack[stack.length - 1];
+			stack.push(getDeferred());
+			last.next(evt);
 		}
 
 	});
