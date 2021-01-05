@@ -6,7 +6,7 @@ var IO = require("./io.js");
 module.exports = curry(ioEventStream);
 module.exports.merge = merge;
 module.exports.zip = zip;
-module.exports.closeStreams = closeStreams;
+module.exports.close = close;
 
 
 // **************************
@@ -144,7 +144,7 @@ function merge(...streams) {
 		}
 		finally {
 			// force-close any remaining streams
-			await closeStreams(streams);
+			await close(streams);
 		}
 	}
 }
@@ -205,7 +205,7 @@ function zip(...streams) {
 		}
 		finally {
 			// force-close any remaining streams
-			await closeStreams(streams);
+			await close(...streams).run();
 		}
 	}
 }
@@ -243,15 +243,17 @@ function pullFromStreams(streams) {
 	);
 }
 
-function closeStreams(streams) {
-	return Promise.all(streams.map(async function closeStream(stream){
-		if (stream && typeof stream.return == "function") {
-			try {
-				return await stream.return();
+function close(...streams) {
+	return IO(() => (
+		Promise.all(streams.map(async function closeStream(stream){
+			if (stream && typeof stream.return == "function") {
+				try {
+					return await stream.return();
+				}
+				catch (err) {}
 			}
-			catch (err) {}
-		}
-	}));
+		}))
+	));
 }
 
 function getDeferred() {
