@@ -19,13 +19,17 @@ function ioEventStream(el,evtName,opts = {}) {
 	} = opts;
 
 	return IO(() => {
-		var stack = [ getDeferred(), ];
+		var prStack;
+		var nextStack;
 		return eventStream();
 
 
 		// ****************************
 
 		async function *eventStream() {
+			prStack = [];
+			nextStack = [];
+
 			// (lazily) setup event listener
 			if (isFunction(el.addEventListener)) {
 				el.addEventListener(evtName,handler,evtOpts);
@@ -39,12 +43,12 @@ function ioEventStream(el,evtName,opts = {}) {
 
 			try {
 				while (true) {
-					try {
-						yield stack[0].pr;
+					if (prStack.length == 0) {
+						let { pr, next, } = getDeferred();
+						prStack.push(pr);
+						nextStack.push(next);
 					}
-					finally {
-						stack.shift();
-					}
+					yield prStack.shift();
 				}
 			}
 			finally {
@@ -58,15 +62,19 @@ function ioEventStream(el,evtName,opts = {}) {
 				else if (isFunction(el.off)) {
 					el.off(evtName,handler);
 				}
-				stack.length = 0;
+				prStack.length = nextStack.length = 0;
 			}
 		}
 
 		function handler(evt) {
-			if (stack.length < bufferSize) {
-				let last = stack[stack.length - 1];
-				stack.push(getDeferred());
-				last.next(evt);
+			if (nextStack.length > 0) {
+				let next = nextStack.shift();
+				next(evt);
+			}
+			else if (prStack.length < bufferSize) {
+				let { pr, next, } = getDeferred();
+				prStack.push(pr);
+				next(evt);
 			}
 			else if (throwBufferOverflow) {
 				let err = new Error("Event stream buffer overflow");
@@ -74,7 +82,6 @@ function ioEventStream(el,evtName,opts = {}) {
 				throw err;
 			}
 		}
-
 	});
 }
 
