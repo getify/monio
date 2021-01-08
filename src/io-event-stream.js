@@ -3,7 +3,7 @@
 var { isFunction, curry, } = require("./lib/util.js");
 var IO = require("./io.js");
 
-module.exports = curry(ioEventStream);
+module.exports = curry(IOEventStream);
 module.exports.merge = merge;
 module.exports.zip = zip;
 module.exports.close = close;
@@ -11,7 +11,7 @@ module.exports.close = close;
 
 // **************************
 
-function ioEventStream(el,evtName,opts = {}) {
+function IOEventStream(el,evtName,opts = {}) {
 	var {
 		bufferSize = 100,
 		throwBufferOverflow = false,
@@ -21,10 +21,22 @@ function ioEventStream(el,evtName,opts = {}) {
 	return IO(() => {
 		var prStack;
 		var nextStack;
-		return eventStream();
+		var forceClosed = Symbol("force closed");
+		var { pr: hasClosed, next: triggerClose, } = getDeferred();
+		var ait = eventStream();
+		var origReturn = ait.return;
+		ait.return = itReturn;
+		return ait;
 
 
 		// ****************************
+
+		function itReturn(...args) {
+			var pr = origReturn.apply(ait,args);
+			triggerClose(forceClosed);
+			ait.return = origReturn;
+			return pr;
+		}
 
 		async function *eventStream() {
 			prStack = [];
@@ -48,7 +60,16 @@ function ioEventStream(el,evtName,opts = {}) {
 						prStack.push(pr);
 						nextStack.push(next);
 					}
-					yield prStack.shift();
+					let res = await Promise.race([
+						hasClosed,
+						prStack.shift(),
+					]);
+					if (res == forceClosed) {
+						return;
+					}
+					else {
+						yield res;
+					}
 				}
 			}
 			finally {
