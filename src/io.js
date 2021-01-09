@@ -87,10 +87,16 @@ function is(v) {
 function processNext(next,respVal,outerV) {
 	return (new Promise(async (resv,rej) => {
 		try {
-			await monadFlatMap(
+			let m = monadFlatMap(
 				(isPromise(respVal) ? await respVal : respVal),
 				v => IO(() => next(v).then(resv,rej))
-			).run(outerV);
+			);
+			if (IO.is(m)) {
+				await m.run(outerV);
+			}
+			else {
+				resv();
+			}
 		}
 		catch (err) {
 			rej(err);
