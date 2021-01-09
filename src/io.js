@@ -84,7 +84,7 @@ function is(v) {
 	return v && typeof v._is == "function" && v._is(brand);
 }
 
-function processNext(next,respVal,outerV) {
+function processNext(next,respVal,outerV,throwEither = false) {
 	return (new Promise(async (resv,rej) => {
 		try {
 			let m = monadFlatMap(
@@ -93,6 +93,9 @@ function processNext(next,respVal,outerV) {
 			);
 			if (IO.is(m)) {
 				await m.run(outerV);
+			}
+			else if (throwEither && Either.Left.is(m)) {
+				rej(m);
 			}
 			else {
 				resv();
@@ -113,7 +116,7 @@ function $do(block) {
 			resp = isPromise(resp) ? await resp : resp;
 			return (resp.done ?
 				resp.value :
-				processNext(next,resp.value,outerV)
+				processNext(next,resp.value,outerV,/*throwEither=*/false)
 			);
 		})();
 	});
@@ -127,7 +130,7 @@ function doEither(block) {
 			try {
 				v = isPromise(v) ? await v : v;
 				let resp = (Either.Left.is(v) ?
-					it.throw(v) :
+					v.fold(err => it.throw(err),()=>{}) :
 					it.next(v)
 				);
 				resp = isPromise(resp) ? await resp : resp;
@@ -143,7 +146,7 @@ function doEither(block) {
 						respVal :
 						Either.Right(respVal)
 					) :
-					processNext(next,respVal,outerV)
+					processNext(next,respVal,outerV,/*throwEither=*/true)
 					.catch(next)
 				);
 			}
