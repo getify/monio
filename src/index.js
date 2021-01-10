@@ -6,6 +6,7 @@ var Maybe = require("./maybe.js");
 var Either = require("./either.js");
 var AsyncEither = require("./async-either.js");
 var IO = require("./io.js");
+var IOHelpers = require("./io-helpers.js");
 var IOEventStream = require("./io-event-stream.js");
 
 module.exports.Just = Just;
@@ -16,4 +17,5 @@ module.exports.AsyncEither = AsyncEither;
 module.exports.IO = IO;
 module.exports.Reader = IO;
 module.exports.RIO = IO;
+module.exports.IOHelpers = IOHelpers;
 module.exports.IOEventStream = IOEventStream;

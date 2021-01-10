@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "Async-capable IO monad for JS",
-	"version": "0.11.0",
+	"version": "0.12.0",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "node scripts/",
@@ -17,7 +17,7 @@
 		"moduloze": "~0.6.2",
 		"nyc": "~15.1.0",
 		"qunit": "~2.13.0",
-		"sinon": "~9.2.2"
+		"sinon": "~9.2.3"
 	},
 	"mz-dependencies": {
 		"index.js": "Monio",
@@ -27,6 +27,7 @@
 		"either.js": "Either",
 		"async-either.js": "AsyncEither",
 		"io.js": "IO",
+		"io-helpers.js": "IOHelpers",
 		"io-event-stream.js": "IOEventStream",
 		"lib/util.js": "MonioUtil"
 	},
@@ -38,6 +39,7 @@
 		"./either": "./src/either.js",
 		"./async-either": "./src/async-either.js",
 		"./io": "./src/io.js",
+		"./io-helpers": "./src/io-helpers.js",
 		"./io-event-stream": "./src/io-event-stream.js",
 		"./esm": "./dist/esm/index.mjs",
 		"./esm/just": "./dist/esm/just.mjs",
@@ -46,6 +48,7 @@
 		"./esm/either": "./dist/esm/either.mjs",
 		"./esm/async-either": "./dist/esm/async-either.mjs",
 		"./esm/io": "./dist/esm/io.mjs",
+		"./esm/io-helpers": "./dist/esm/io-helpers.mjs",
 		"./esm/io-event-stream": "./dist/esm/io-event-stream.mjs"
 	},
 	"repository": "getify/monio",

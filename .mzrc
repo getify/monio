@@ -2,5 +2,8 @@
 	"recursive": true,
 	"from": "src",
 	"to": "dist",
-	".mjs": true
+	".mjs": true,
+	"skip": [
+		"**/copyright-header.txt"
+        ]
 }
