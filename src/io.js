@@ -85,7 +85,7 @@ function is(v) {
 }
 
 function processNext(next,respVal,outerV,throwEither = false) {
-	return (new Promise(async (resv,rej) => {
+	return (new Promise(async function c(resv,rej){
 		try {
 			let m = monadFlatMap(
 				(isPromise(respVal) ? await respVal : respVal),
@@ -98,7 +98,7 @@ function processNext(next,respVal,outerV,throwEither = false) {
 				rej(m);
 			}
 			else {
-				resv();
+				resv(m);
 			}
 		}
 		catch (err) {
@@ -141,14 +141,23 @@ function doEither(block) {
 					) :
 					resp.value
 				);
-				return (resp.done ?
-					(Either.Right.is(respVal) ?
-						respVal :
-						Either.Right(respVal)
-					) :
-					processNext(next,respVal,outerV,/*throwEither=*/true)
-					.catch(next)
-				);
+				if (resp.done) {
+					if (Either.Left.is(respVal)) {
+						throw respVal;
+					}
+					else if (Either.Right.is(respVal)) {
+						return respVal;
+					}
+					else {
+						return Either.Right(respVal);
+					}
+				}
+				else {
+					return (
+						processNext(next,respVal,outerV,/*throwEither=*/true)
+						.catch(next)
+					);
+				}
 			}
 			catch (err) {
 				throw (Either.Left.is(err) ?

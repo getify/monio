@@ -1,6 +1,9 @@
 "use strict";
 
 var { isPromise, } = require("./lib/util.js");
+var IO = require("./io.js");
+var Maybe = require("./maybe.js");
+var Either = require("./either.js");
 
 var returnedValues = new WeakSet();
 
@@ -14,7 +17,6 @@ module.exports.elif = elif;
 module.exports.els = els;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
-module.exports.liftIO = liftIO;
 
 
 // **************************
@@ -101,8 +103,12 @@ function iif(cond,thens,...elses) {
 					// should be the "return" value (if set)
 					// or the result of the if-conditional
 					// expression
-					.chain(v => IO.of(
-						returnedValues.has(v) ? v : res
+					.chain(v => (
+						liftIO(env,v).chain(v => (
+							IO.of(
+								returnedValues.has(v) ? v : res
+							)
+						))
 					))
 				);
 			}
@@ -169,19 +175,22 @@ function liftIO(env,v) {
 		if (IO.is(v)) {
 			return v;
 		}
+		// Either:Left or Maybe:Nothing?
+		else if (Either.Left.is(v) || Maybe.Nothing.is(v)) {
+			// treat as an implicitly "early returned" value
+			let ret = { returned: v, };
+			returnedValues.add(ret);
+			return IO.of(ret);
+		}
 		else {
 			// attempt extracting value to "convert" to an IO
-			let res = (
-				(v && typeof v == "object" && typeof v.then == "function") ?
-					v.fold(IO.of,IO.of) :
-					v.chain(IO.of)
-			);
+			let res = v.chain(IO.of);
 
 			// did "converting" to an IO work?
 			if (IO.is(res)) {
 				return res;
 			}
-			// fallback: wrap the monad in an IO
+			// final fallback: wrap the monad in an IO
 			else {
 				return IO.of(v);
 			}
