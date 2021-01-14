@@ -15,6 +15,7 @@ module.exports.concatIOList = concatIOList;
 module.exports.iif = iif;
 module.exports.elif = elif;
 module.exports.els = els;
+module.exports.iNot = iNot;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
 
@@ -160,6 +161,14 @@ function iReturn(val) {
 			returnedValues.add(ret);
 			return IO.of(ret);
 		})
+		.run(env)
+	));
+}
+
+function iNot(val) {
+	return IO(env => (
+		liftIO(env,val)
+		.chain(v => IO.of(!v))
 		.run(env)
 	));
 }
