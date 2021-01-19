@@ -1,5 +1,7 @@
 "use strict";
 
+var { isFunction, } = require("./lib/util.js");
+
 var brand = {};
 
 module.exports = Object.assign(Just,{
@@ -44,8 +46,8 @@ function Just(val) {
 		return (
 			typeof val == "string" ? `"${ val }"` :
 			typeof val == "undefined" ? "" :
-			typeof val == "function" ? (val.name || "anonymous function") :
-			val && typeof val._inspect == "function" ? val._inspect() :
+			isFunction(val) ? (val.name || "anonymous function") :
+			val && isFunction(val._inspect) ? val._inspect() :
 			Array.isArray(val) ? `[${ val.map(v => v == null ? String(v) : _serialize(v)) }]` :
 			String(val)
 		);
@@ -58,5 +60,5 @@ function Just(val) {
 }
 
 function is(val) {
-	return val && typeof val._is == "function" && val._is(brand);
+	return val && isFunction(val._is) && val._is(brand);
 }

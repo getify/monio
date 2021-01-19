@@ -244,7 +244,7 @@ function pullFromStreams(streams) {
 		.map(function callIter(v,idx){
 			// stream (iterator) waiting for its
 			// next() call?
-			if (v && typeof v.next == "function") {
+			if (v && isFunction(v.next)) {
 				streams[idx] = (async function getNext(){
 					var pr = v.next();
 					try {
@@ -274,7 +274,7 @@ function pullFromStreams(streams) {
 function close(...streams) {
 	return IO(() => (
 		Promise.all(streams.map(async function closeStream(stream){
-			if (stream && typeof stream.return == "function") {
+			if (stream && isFunction(stream.return)) {
 				try {
 					return await stream.return();
 				}

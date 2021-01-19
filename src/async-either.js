@@ -1,6 +1,6 @@
 "use strict";
 
-var { isPromise, } = require("./lib/util.js");
+var { isFunction, isPromise, } = require("./lib/util.js");
 var Either = require("./either.js");
 
 var brand = {};
@@ -111,7 +111,7 @@ function fromPromise(pr) {
 }
 
 function is(val) {
-	return val && typeof val._is == "function" && val._is(brand);
+	return val && isFunction(val._is) && val._is(brand);
 }
 
 function fromFoldable(m) {

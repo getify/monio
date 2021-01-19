@@ -1,5 +1,7 @@
 "use strict";
 
+var { isFunction, } = require("./lib/util.js");
+
 var brand = {};
 
 module.exports = Object.assign(Nothing,{
@@ -35,7 +37,7 @@ function Nothing() {
 }
 
 function is(val) {
-	return val && typeof val._is == "function" && val._is(brand);
+	return val && isFunction(val._is) && val._is(brand);
 }
 
 // default isEmpty(), can be overidden

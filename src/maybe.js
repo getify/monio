@@ -1,5 +1,6 @@
 "use strict";
 
+var { isFunction, } = require("./lib/util.js");
 var Just = require("./just.js");
 var Nothing = require("./nothing.js");
 
@@ -86,7 +87,7 @@ function Maybe(val) {
 }
 
 function is(val) {
-	return val && typeof val._is == "function" && val._is(brand);
+	return val && isFunction(val._is) && val._is(brand);
 }
 
 function from(val) {

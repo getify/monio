@@ -1,6 +1,6 @@
 "use strict";
 
-var { isPromise, } = require("./lib/util.js");
+var { isFunction, isPromise, isMonad, } = require("./lib/util.js");
 var IO = require("./io.js");
 var Maybe = require("./maybe.js");
 var Either = require("./either.js");
@@ -156,10 +156,10 @@ function els(thens) {
 function iReturn(val) {
 	return IO(env => (
 		liftIO(env,val)
-		.chain(v => {
+		.map(v => {
 			var ret = { returned: v, };
 			returnedValues.add(ret);
-			return IO.of(ret);
+			return ret;
 		})
 		.run(env)
 	));
@@ -168,7 +168,7 @@ function iReturn(val) {
 function iNot(val) {
 	return IO(env => (
 		liftIO(env,val)
-		.chain(v => IO.of(!v))
+		.map(not)
 		.run(env)
 	));
 }
@@ -179,7 +179,7 @@ function wasReturned(v) {
 
 function liftIO(env,v) {
 	// monad?
-	if (v && typeof v == "object" && typeof v.chain == "function") {
+	if (isMonad(v)) {
 		// already an IO?
 		if (IO.is(v)) {
 			return v;
@@ -205,12 +205,12 @@ function liftIO(env,v) {
 			}
 		}
 	}
-	// function?
-	else if (typeof v == "function") {
+	// non-monad function?
+	else if (isFunction(v)) {
 		return liftIO(env,v(env));
 	}
 	// iterator?
-	else if (v && typeof v == "object" && typeof v.next == "function") {
+	else if (v && typeof v == "object" && isFunction(v.next)) {
 		return IO.do(v);
 	}
 	// fallback: wrap whatever value this is in an IO

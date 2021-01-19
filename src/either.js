@@ -1,5 +1,6 @@
 "use strict";
 
+var { isFunction, } = require("./lib/util.js");
 var Just = require("./just.js");
 
 var brand = {};
@@ -83,7 +84,7 @@ function LeftOrRight(val,isRight = true) {
 }
 
 function is(val) {
-	return val && typeof val._is == "function" && val._is(brand);
+	return val && isFunction(val._is) && val._is(brand);
 }
 
 function fromFoldable(m) {

@@ -1,6 +1,6 @@
 "use strict";
 
-var { isPromise, } = require("./lib/util.js");
+var { isFunction, isPromise, } = require("./lib/util.js");
 var Either = require("./either.js");
 
 var brand = {};
@@ -64,8 +64,8 @@ function IO(effect) {
 
 	function _inspect() {
 		return `${publicAPI[Symbol.toStringTag]}(${
-			typeof effect == "function" ? (effect.name || "anonymous function") :
-			(effect && typeof effect._inspect == "function") ? effect._inspect() :
+			isFunction(effect) ? (effect.name || "anonymous function") :
+			(effect && isFunction(effect._inspect)) ? effect._inspect() :
 			val
 		})`;
 	}
@@ -81,7 +81,7 @@ function of(v) {
 }
 
 function is(v) {
-	return v && typeof v._is == "function" && v._is(brand);
+	return v && isFunction(v._is) && v._is(brand);
 }
 
 function processNext(next,respVal,outerV,throwEither = false) {
@@ -171,16 +171,12 @@ function doEither(block) {
 
 function getIterator(block,v) {
 	return (
-		typeof block == "function" ? block(v) :
-		(block && typeof block == "object" && typeof block.next == "function") ? block :
+		isFunction(block) ? block(v) :
+		(block && typeof block == "object" && isFunction(block.next)) ? block :
 		undefined
 	);
 }
 
 function monadFlatMap(m,fn) {
-	return m[
-		"flatMap" in m ? "flatMap" :
-		"chain" in m ? "chain" :
-		"bind"
-	](fn);
+	return getMonadFlatMap(m).call(m,fn);
 }
