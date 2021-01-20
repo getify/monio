@@ -1,6 +1,6 @@
 "use strict";
 
-var { isFunction, isPromise, } = require("./lib/util.js");
+var { isFunction, isPromise, getMonadFlatMap, } = require("./lib/util.js");
 var Either = require("./either.js");
 
 var brand = {};

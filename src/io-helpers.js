@@ -168,7 +168,7 @@ function iReturn(val) {
 function iNot(val) {
 	return IO(env => (
 		liftIO(env,val)
-		.map(not)
+		.map(v => !v)
 		.run(env)
 	));
 }

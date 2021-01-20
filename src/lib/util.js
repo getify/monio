@@ -17,11 +17,20 @@ module.exports.curry = curry;
 // **************************
 
 function getMonadFlatMap(m) {
-	return m[
+	var ret = m[
 		"flatMap" in m ? "flatMap" :
 		"chain" in m ? "chain" :
 		"bind"
 	];
+	return (
+		(
+			isFunction(ret) &&
+			ret !== Function.prototype.bind &&
+			ret !== Array.prototype.flatMap
+		) ?
+			ret :
+			undefined
+	);
 }
 
 function isFunction(v) {
