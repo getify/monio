@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "Async-capable IO monad for JS",
-	"version": "0.14.1",
+	"version": "0.14.2",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "node scripts/",
@@ -41,6 +41,7 @@
 		"./io": "./src/io.js",
 		"./io-helpers": "./src/io-helpers.js",
 		"./io-event-stream": "./src/io-event-stream.js",
+		"./util": "./src/lib/util.js",
 		"./esm": "./dist/esm/index.mjs",
 		"./esm/just": "./dist/esm/just.mjs",
 		"./esm/nothing": "./dist/esm/nothing.mjs",
@@ -49,7 +50,8 @@
 		"./esm/async-either": "./dist/esm/async-either.mjs",
 		"./esm/io": "./dist/esm/io.mjs",
 		"./esm/io-helpers": "./dist/esm/io-helpers.mjs",
-		"./esm/io-event-stream": "./dist/esm/io-event-stream.mjs"
+		"./esm/io-event-stream": "./dist/esm/io-event-stream.mjs",
+		"./esm/util": "./dist/esm/lib/util.mjs"
 	},
 	"repository": "getify/monio",
 	"keywords": [
