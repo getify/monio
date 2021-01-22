@@ -3,7 +3,15 @@
 var { isFunction, curry, } = require("./lib/util.js");
 var IO = require("./io.js");
 
-module.exports = curry(IOEventStream,2);
+IOEventStream = Object.assign(
+	curry(IOEventStream,2),
+	{
+		merge,
+		zip,
+		close,
+	}
+);
+module.exports = IOEventStream;
 module.exports.merge = merge;
 module.exports.zip = zip;
 module.exports.close = close;
