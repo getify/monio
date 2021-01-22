@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "Async-capable IO monad for JS",
-	"version": "0.14.5",
+	"version": "0.14.6",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "node scripts/",
@@ -14,7 +14,7 @@
 	},
 	"devDependencies": {
 		"coveralls": "~3.1.0",
-		"moduloze": "~0.6.2",
+		"moduloze": "~0.7.0",
 		"nyc": "~15.1.0",
 		"qunit": "~2.14.0",
 		"sinon": "~9.2.3"
