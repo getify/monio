@@ -75,14 +75,11 @@ function doIOBind(fn,env) {
 }
 
 function listFilterInIO(predicateIO,list) {
-	return list.reduce(
-		(io,el) => io.chain(list => (
-			predicateIO(el)
-			.map(include => (
-				include ? [ ...list, el, ] : list
-			))
-		)),
-		IO.of([])
+	return listConcatIO(
+		list.map(v =>
+			predicateIO(v)
+			.map(include => (include ? [ v, ] : []))
+		)
 	);
 }
 
