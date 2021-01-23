@@ -92,9 +92,9 @@ function listFilterOutIO(predicateIO,list) {
 
 function listConcatIO(list) {
 	return list.reduce(
-		(io,v) => io.map(list => [ ...list, v, ]),
+		(io,v) => io.concat(v),
 		IO.of([])
-	)
+	);
 }
 
 function iif(cond,thens,...elses) {
