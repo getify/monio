@@ -10,5 +10,5 @@ var IO = require("./io.js");
 module.exports.IO = IO;
 module.exports.RIO = IO;
 module.exports.Reader = IO;
-require("./io-helpers.js");
+module.exports.IOHelpers = require("./io-helpers.js");
 module.exports.IOEventStream = require("./io-event-stream.js");

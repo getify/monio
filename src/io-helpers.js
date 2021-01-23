@@ -7,11 +7,30 @@ var Either = require("./either.js");
 
 var returnedValues = new WeakSet();
 
+module.exports = {
+	log,
+	getReader,
+	applyIO,
+	doIO,
+	doIOBind,
+	listFilterInIO,
+	listFilterOutIO,
+	listConcatIO,
+	iif,
+	elif,
+	els,
+	iNot,
+	iReturn,
+	wasReturned,
+};
+module.exports.log = log;
+module.exports.getReader = getReader;
 module.exports.applyIO = applyIO;
 module.exports.doIO = doIO;
 module.exports.doIOBind = doIOBind;
-module.exports.filterIOList = filterIOList;
-module.exports.concatIOList = concatIOList;
+module.exports.listFilterInIO = listFilterInIO;
+module.exports.listFilterOutIO = listFilterOutIO;
+module.exports.listConcatIO = listConcatIO;
 module.exports.iif = iif;
 module.exports.elif = elif;
 module.exports.els = els;
@@ -21,6 +40,14 @@ module.exports.wasReturned = wasReturned;
 
 
 // **************************
+
+function log(...args) {
+	return IO(() => console.log(...args));
+}
+
+function getReader() {
+	return IO(env => env);
+}
 
 function applyIO(io,env) {
 	return IO(() => io.run(env));
@@ -47,7 +74,7 @@ function doIOBind(fn,env) {
 	);
 }
 
-function filterIOList(predicateIO,list) {
+function listFilterInIO(predicateIO,list) {
 	return list.reduce(
 		(io,el) => io.chain(list => (
 			predicateIO(el)
@@ -59,7 +86,11 @@ function filterIOList(predicateIO,list) {
 	);
 }
 
-function concatIOList(list) {
+function listFilterOutIO(predicateIO,list) {
+	return listFilterInIO(iNot(predictateIO),list);
+}
+
+function listConcatIO(list) {
 	return list.reduce(
 		(io,v) => io.map(list => [ ...list, v, ]),
 		IO.of([])
@@ -176,6 +207,10 @@ function iNot(val) {
 function wasReturned(v) {
 	return returnedValues.has(v);
 }
+
+
+// **************************
+// internal use only
 
 function liftIO(env,v) {
 	// monad?
