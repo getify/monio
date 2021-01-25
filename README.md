@@ -4,7 +4,7 @@
 [![npm Module](https://badge.fury.io/js/monio.svg)](https://www.npmjs.org/package/monio)
 [![Coverage Status](https://coveralls.io/repos/github/getify/monio/badge.svg?branch=master)](https://coveralls.io/github/getify/monio?branch=master)
 
-Monio ('mo-neo') is an async-capable IO Monad (including "do" style) for JS, with several companion monads thrown in.
+Monio (mō'ne-yo) is an async-capable IO Monad (including "do" style) for JS, with several companion monads thrown in.
 
 ## See It In Action
 
