@@ -22,6 +22,7 @@ module.exports = {
 	iNot,
 	iReturn,
 	wasReturned,
+	ifReturned,
 };
 module.exports.log = log;
 module.exports.getReader = getReader;
@@ -37,6 +38,7 @@ module.exports.els = els;
 module.exports.iNot = iNot;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
+module.exports.ifReturned = ifReturned;
 
 
 // **************************
@@ -203,6 +205,12 @@ function iNot(val) {
 
 function wasReturned(v) {
 	return returnedValues.has(v);
+}
+
+function ifReturned(iifIO) {
+	return iifIO.map(ifres => (
+		wasReturned(ifres) ? ifres.returned : undefined
+	));
 }
 
 
