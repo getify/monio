@@ -1,6 +1,11 @@
 "use strict";
 
-var { isFunction, isPromise, getMonadFlatMap, } = require("./lib/util.js");
+var {
+	isFunction,
+	isPromise,
+	isMonad,
+	getMonadFlatMap,
+} = require("./lib/util.js");
 var Either = require("./either.js");
 
 var brand = {};
@@ -87,18 +92,55 @@ function is(v) {
 function processNext(next,respVal,outerV,throwEither = false) {
 	return (new Promise(async function c(resv,rej){
 		try {
-			let m = monadFlatMap(
-				(isPromise(respVal) ? await respVal : respVal),
-				v => IO(() => next(v).then(resv,rej))
+			// if respVal is a promise, safely unwrap it
+			let [ nextRespVal, unwrappedType, ] = (
+				isPromise(respVal) ?
+					await safeUnwrap(respVal,throwEither) :
+					[ respVal, "value", ]
 			);
-			if (IO.is(m)) {
+
+			// construct chained monad
+			let m = monadFlatMap(
+				(
+					// ensure we're chaining to a monad
+					(
+						// need to wrap Either:Left error?
+						(
+							throwEither &&
+							unwrappedType == "error" &&
+							Either.Left.is(nextRespVal)
+						) ||
+
+						// need to lift non-monad?
+						!isMonad(nextRespVal)
+					) ?
+						// wrap it in an IO
+						IO.of(nextRespVal) :
+
+						// otherwise, must already be a monad
+						nextRespVal
+				),
+				// chain/flatMap the monad to the "next" IO step
+				v => (
+					IO(() => next(v,unwrappedType).then(resv,rej))
+				)
+			);
+
+			// run the next step of the IO chain
+			try {
 				await m.run(outerV);
 			}
-			else if (throwEither && Either.Left.is(m)) {
-				rej(m);
-			}
-			else {
-				resv(m);
+			catch (err) {
+				// if running the next step produced an
+				// exception, try to inject that error back
+				// into the do-routine; if that is cleanly
+				// handled, resolve the promise with that
+				// result
+				resv(
+					// injected error may not be cleanly
+					// handled, so this might throw instead!
+					await next(err,"error")
+				);
 			}
 		}
 		catch (err) {
@@ -111,13 +153,27 @@ function $do(block) {
 	return IO(outerV => {
 		var it = getIterator(block,outerV);
 
-		return (async function next(v){
-			var resp = it.next(isPromise(v) ? await v : v);
-			resp = isPromise(resp) ? await resp : resp;
-			return (resp.done ?
-				resp.value :
-				processNext(next,resp.value,outerV,/*throwEither=*/false)
+		return (async function next(v,type){
+			var resp = (
+				type === "error" ?
+					it.throw(v) :
+					it.next(v)
 			);
+
+			// if resp is a promise (from async iterator),
+			// unwrap it
+			//
+			// note: this might throw!
+			resp = isPromise(resp) ? await resp : resp;
+
+			// is the iterator done?
+			if (resp.done) {
+				return resp.value;
+			}
+			// otherwise, move onto the next step
+			else {
+				return processNext(next,resp.value,outerV,/*throwEither=*/false);
+			}
 		})();
 	});
 }
@@ -126,40 +182,59 @@ function doEither(block) {
 	return IO(outerV => {
 		var it = getIterator(block,outerV);
 
-		return (async function next(v){
+		return (async function next(v,type){
+			// lift v to an Either (Left or Right) if necessary
+			v = (
+				(type == "error" && !Either.Left.is(v)) ?
+					Either.Left(v) :
+				(type == "value" && !Either.Right.is(v)) ?
+					Either.Right(v) :
+				(!Either.is(v)) ?
+					Either(v) :
+					v
+			);
+
+			// locally catch exception for Either:Left wrapping
 			try {
-				v = isPromise(v) ? await v : v;
-				let resp = (Either.Left.is(v) ?
-					v.fold(err => it.throw(err),()=>{}) :
-					it.next(v)
+				// v already lifted to ensure it's an Either
+				let resp = v.fold(
+					err => it.throw(err),
+					v => it.next(v)
 				);
+
+				// if resp is a promise (from async iterator),
+				// unwrap it
+				//
+				// note: this might throw!
 				resp = isPromise(resp) ? await resp : resp;
-				let respVal = (resp.done ?
-					(isPromise(resp.value) ?
-						await resp.value :
-						resp.value
-					) :
-					resp.value
-				);
+
+				// is the iterator done?
 				if (resp.done) {
-					if (Either.Left.is(respVal)) {
-						throw respVal;
+					// returned an Either:Left (to treat as an
+					// exception)?
+					if (Either.Left.is(resp.value)) {
+						throw resp.value;
 					}
-					else if (Either.Right.is(respVal)) {
-						return respVal;
+					// returned an already Either:Right wrapped
+					// value?
+					else if (Either.Right.is(resp.value)) {
+						return resp.value;
 					}
+					// otherwise, wrap the normal value as an
+					// Either:Right
 					else {
-						return Either.Right(respVal);
+						return Either.Right(resp.value);
 					}
 				}
+				// otherwise, move onto the next step
 				else {
-					return (
-						processNext(next,respVal,outerV,/*throwEither=*/true)
-						.catch(next)
-					);
+					return processNext(next,resp.value,outerV,/*throwEither=*/true);
 				}
 			}
 			catch (err) {
+				// any locally caught exception that's not yet
+				// an Either:Left should be wrapped as such;
+				// then rethrow
 				throw (Either.Left.is(err) ?
 					err :
 					Either.Left(err)
@@ -179,4 +254,17 @@ function getIterator(block,v) {
 
 function monadFlatMap(m,fn) {
 	return getMonadFlatMap(m).call(m,fn);
+}
+
+async function safeUnwrap(v,throwEither) {
+	try {
+		v = isPromise(v) ? await v : v;
+		if (throwEither && Either.Left.is(v)) {
+			throw v;
+		}
+		return [ v, "value", ];
+	}
+	catch (err) {
+		return [ err, "error", ];
+	}
 }
