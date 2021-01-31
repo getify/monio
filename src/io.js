@@ -175,7 +175,13 @@ function $do(block) {
 
 			// is the iterator done?
 			if (resp.done) {
-				return resp.value;
+				return (
+					// if an IO was returned, automatically run it
+					// as if it was yielded before returning
+					IO.is(resp.value) ?
+						resp.value.run(outerV) :
+						resp.value
+				);
 			}
 			// otherwise, move onto the next step
 			else {
@@ -217,20 +223,38 @@ function doEither(block) {
 
 				// is the iterator done?
 				if (resp.done) {
+					let respVal = (
+						// if final value is a promise, unwrap it
+						isPromise(resp.value) ? await resp.value : resp.value
+					);
+					respVal = (
+						// was an IO returned?
+						IO.is(respVal) ?
+							// automatically run the IO
+							// as if it was yielded before
+							// returning
+							respVal.run(outerV) :
+							respVal
+					);
+					respVal = (
+						// if result is (still) a promise, unwrap it
+						isPromise(respVal) ? await respVal : respVal
+					);
+
 					// returned an Either:Left (to treat as an
 					// exception)?
-					if (Either.Left.is(resp.value)) {
-						throw resp.value;
+					if (Either.Left.is(respVal)) {
+						throw respVal;
 					}
 					// returned an already Either:Right wrapped
-					// value?
-					else if (Either.Right.is(resp.value)) {
-						return resp.value;
+					// final value?
+					else if (Either.Right.is(respVal)) {
+						return respVal;
 					}
-					// otherwise, wrap the normal value as an
+					// otherwise, wrap the final value as an
 					// Either:Right
 					else {
-						return Either.Right(resp.value);
+						return Either.Right(respVal);
 					}
 				}
 				// otherwise, move onto the next step
