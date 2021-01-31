@@ -99,31 +99,38 @@ function processNext(next,respVal,outerV,throwEither = false) {
 					[ respVal, "value", ]
 			);
 
-			// construct chained monad
-			let m = monadFlatMap(
-				(
-					// ensure we're chaining to a monad
-					(
-						// need to wrap Either:Left error?
+			// construct chained IO
+			let m = (
+				// Nothing monad should short-circuit to no-op?
+				Nothing.is(nextRespVal) ?
+					IO(() => resv()) :
+
+					// chain the monad
+					monadFlatMap(
 						(
-							throwEither &&
-							unwrappedType == "error" &&
-							Either.Left.is(nextRespVal)
-						) ||
+							// ensure we're chaining to a monad
+							(
+								// need to wrap Either:Left error?
+								(
+									throwEither &&
+									unwrappedType == "error" &&
+									Either.Left.is(nextRespVal)
+								) ||
 
-						// need to lift non-monad?
-						!isMonad(nextRespVal)
-					) ?
-						// wrap it in an IO
-						IO.of(nextRespVal) :
+								// need to lift non-monad?
+								!isMonad(nextRespVal)
+							) ?
+								// wrap it in an IO
+								IO.of(nextRespVal) :
 
-						// otherwise, must already be a monad
-						nextRespVal
-				),
-				// chain/flatMap the monad to the "next" IO step
-				v => (
-					IO(() => next(v,unwrappedType).then(resv,rej))
-				)
+								// otherwise, must already be a monad
+								nextRespVal
+						),
+						// chain/flatMap the monad to the "next" IO step
+						v => (
+							IO(() => next(v,unwrappedType).then(resv,rej))
+						)
+					)
 			);
 
 			// run the next step of the IO chain
