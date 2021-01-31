@@ -12,7 +12,9 @@ module.exports = {
 	getReader,
 	applyIO,
 	doIO,
+	doEIO,
 	doIOBind,
+	doEIOBind,
 	listFilterInIO,
 	listFilterOutIO,
 	listConcatIO,
@@ -28,7 +30,9 @@ module.exports.log = log;
 module.exports.getReader = getReader;
 module.exports.applyIO = applyIO;
 module.exports.doIO = doIO;
+module.exports.doEIO = doEIO;
 module.exports.doIOBind = doIOBind;
+module.exports.doEIOBind = doEIOBind;
 module.exports.listFilterInIO = listFilterInIO;
 module.exports.listFilterOutIO = listFilterOutIO;
 module.exports.listConcatIO = listConcatIO;
@@ -63,6 +67,14 @@ function doIO(fn,...args) {
 	);
 }
 
+function doEIO(fn,...args) {
+	return (
+		(args.length > 0) ?
+			IO(env => IO.doEither(fn(env,...args)).run(env)) :
+			IO.doEither(fn)
+	);
+}
+
 function doIOBind(fn,env) {
 	var fnDoIO = IO(() => IO.do(fn).run(env));
 	return (
@@ -72,6 +84,19 @@ function doIOBind(fn,env) {
 					IO.do(fn(env,...args)).run(env))
 				) :
 				fnDoIO
+		)
+	);
+}
+
+function doEIOBind(fn,env) {
+	var fnDoEIO = IO(() => IO.doEither(fn).run(env));
+	return (
+		(...args) => (
+			(args.length > 0) ?
+				IO(() => (
+					IO.doEither(fn(env,...args)).run(env))
+				) :
+				fnDoEIO
 		)
 	);
 }
