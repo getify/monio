@@ -68,11 +68,13 @@ To use monads/helpers from Monio, first import them:
 * ESM in Node:
 
    ```js
-   import { Maybe, IO } from "monio/esm";
+   import { Maybe, IO } from "monio";
 
    // or:
-   import Just from "monio/esm/just";
+   import Just from "monio/just";
    ```
+
+   **Note:** As of v0.20.0, the previously required ESM import specifier segment `/esm` in **Monio** `import` paths has been deprecated (and will eventually be removed), in favor of unified import specifier paths via [Node Conditional Exports](https://nodejs.org/api/packages.html#packages_conditional_exports). For ESM `import` statements, always use the specifier style `"monio"` or `"monio/just"`, instead of `"monio/esm"` and `"monio/esm/just"`, respectively.
 
 * ESM in browser:
 
