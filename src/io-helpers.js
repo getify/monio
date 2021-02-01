@@ -10,6 +10,7 @@ var returnedValues = new WeakSet();
 module.exports = {
 	log,
 	getReader,
+	waitAll,
 	applyIO,
 	doIO,
 	doEIO,
@@ -28,6 +29,7 @@ module.exports = {
 };
 module.exports.log = log;
 module.exports.getReader = getReader;
+module.exports.waitAll = waitAll;
 module.exports.applyIO = applyIO;
 module.exports.doIO = doIO;
 module.exports.doEIO = doEIO;
@@ -53,6 +55,14 @@ function log(...args) {
 
 function getReader() {
 	return IO(env => env);
+}
+
+function waitAll(...list) {
+	return IO(env =>
+		Promise.all(
+			list.map(v => liftIO(env,v).run(env))
+		)
+	);
 }
 
 function applyIO(io,env) {
@@ -270,7 +280,8 @@ function liftIO(env,v) {
 			}
 		}
 	}
-	// non-monad function?
+	// non-monad function? (assume do-routine that needs env
+	// passed to it as first argument)
 	else if (isFunction(v)) {
 		return liftIO(env,v(env));
 	}
