@@ -34,6 +34,7 @@ function IOEventStream(el,evtName,opts = {}) {
 		var ait = eventStream();
 		var origReturn = ait.return;
 		ait.return = itReturn;
+		ait.closed = false;
 		return ait;
 
 
@@ -41,6 +42,7 @@ function IOEventStream(el,evtName,opts = {}) {
 
 		function itReturn(...args) {
 			var pr = origReturn.apply(ait,args);
+			ait.closed = true;
 			triggerClose(forceClosed);
 			ait.return = origReturn;
 			return pr;
