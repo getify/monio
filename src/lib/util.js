@@ -6,12 +6,14 @@ module.exports = {
 	isPromise,
 	isMonad,
 	curry,
+	liftM,
 };
 module.exports.getMonadFlatMap = getMonadFlatMap;
 module.exports.isFunction = isFunction;
 module.exports.isPromise = isPromise;
 module.exports.isMonad = isMonad;
 module.exports.curry = curry;
+module.exports.liftM = liftM;
 
 
 // **************************
@@ -63,4 +65,8 @@ function curry(fn,arity = fn.length) {
             }
         };
     })([]);
+}
+
+function liftM(val) {
+	return isMonad(val) ? val : Just(val);
 }

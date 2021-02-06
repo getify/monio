@@ -1,6 +1,11 @@
 "use strict";
 
-var { isFunction, isPromise, isMonad, } = require("./lib/util.js");
+var {
+	isFunction,
+	isPromise,
+	isMonad,
+	liftM,
+} = require("./lib/util.js");
 var IO = require("./io.js");
 var Maybe = require("./maybe.js");
 var Either = require("./either.js");
@@ -26,6 +31,8 @@ module.exports = {
 	iReturn,
 	wasReturned,
 	ifReturned,
+	getPropIO,
+	assignPropIO,
 };
 module.exports.log = log;
 module.exports.getReader = getReader;
@@ -45,6 +52,8 @@ module.exports.iNot = iNot;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
 module.exports.ifReturned = ifReturned;
+module.exports.getPropIO = getPropIO;
+module.exports.assignPropIO = assignPropIO;
 
 
 // **************************
@@ -246,6 +255,22 @@ function ifReturned(iifIO) {
 	return iifIO.map(ifres => (
 		wasReturned(ifres) ? ifres.returned : undefined
 	));
+}
+
+function getPropIO(prop,obj) {
+	return liftM(obj).chain(obj => (
+		IO(() => obj[prop])
+	));
+}
+
+function assignPropIO(prop,val,obj) {
+	return (
+		liftM(val).chain(val => (
+			liftM(obj).chain(obj => (
+				IO(() => (obj[prop] = val))
+			))
+		))
+	);
 }
 
 
