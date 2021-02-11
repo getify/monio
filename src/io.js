@@ -6,6 +6,7 @@ var {
 	isMonad,
 	getMonadFlatMap,
 } = require("./lib/util.js");
+var Nothing = require("./nothing.js");
 var Either = require("./either.js");
 
 var brand = {};
