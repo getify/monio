@@ -27,8 +27,10 @@ function getMonadFlatMap(m) {
 	return (
 		(
 			isFunction(ret) &&
-			ret !== Function.prototype.bind &&
-			ret !== Array.prototype.flatMap
+			(
+				!((ret.toString() || "").includes("[native code]")) ||
+				((ret.name || "").startsWith("bound"))
+			)
 		) ?
 			ret :
 			undefined
