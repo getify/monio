@@ -2,39 +2,72 @@
 
 module.exports = {
 	getMonadFlatMap,
+	isMonad,
+	liftM,
 	isFunction,
 	isPromise,
-	isMonad,
 	curry,
-	liftM,
 };
 module.exports.getMonadFlatMap = getMonadFlatMap;
+module.exports.isMonad = isMonad;
+module.exports.liftM = liftM;
 module.exports.isFunction = isFunction;
 module.exports.isPromise = isPromise;
-module.exports.isMonad = isMonad;
 module.exports.curry = curry;
-module.exports.liftM = liftM;
 
 
 // **************************
 
+var builtInFunctions = new Set(
+	// list of candidates (may or may not be real functions)
+	[
+		Function.prototype.bind,
+		Array.prototype.flatMap,
+		Set.prototype.flatMap,  // only a contemplated future method
+		(function *(){})().flatMap,  // proposed (stage-2)
+		(async function*(){})().flatMap,  // proposed (stage-2)
+	]
+	// include only actual real functions from that list
+	.filter(isFunction)
+);
+
 function getMonadFlatMap(m) {
-	var ret = m[
-		"flatMap" in m ? "flatMap" :
-		"chain" in m ? "chain" :
-		"bind"
-	];
-	return (
+	var fmFunc = m.flatMap || m.chain || m.bind;
+
+	// return a flatMap/bind/chain function if found
+	return isFunction(fmFunc) ? fmFunc : undefined;
+}
+
+// duck-type check for monad'ness
+function isMonad(v) {
+	var fmFunc = (
 		(
-			isFunction(ret) &&
-			(
-				!((ret.toString() || "").includes("[native code]")) ||
-				((ret.name || "").startsWith("bound"))
-			)
+			v &&
+			(typeof v == "object" || isFunction(v))
 		) ?
-			ret :
+			getMonadFlatMap(v) :
 			undefined
 	);
+
+	return !!(
+		// was a flatMap/bind/chain function found?
+		fmFunc &&
+
+		// but make sure it's not one of the known built-in
+		// prototype methods
+		!builtInFunctions.has(fmFunc) &&
+
+		// also try to avoid any unknown built-in prototype
+		// methods
+		(
+			!((fmFunc.toString() || "").includes("[native code]")) ||
+			((fmFunc.name || "").startsWith("bound"))
+		)
+	);
+}
+
+function liftM(val) {
+	return isMonad(val) ? val : Just(val);
 }
 
 function isFunction(v) {
@@ -43,15 +76,6 @@ function isFunction(v) {
 
 function isPromise(v) {
 	return !!(v && isFunction(v.then));
-}
-
-// duck-type check for monad'ness
-function isMonad(v) {
-	return !!(
-		v &&
-		(typeof v == "object" || isFunction(v)) &&
-		isFunction(getMonadFlatMap(v))
-	);
 }
 
 function curry(fn,arity = fn.length) {
@@ -67,8 +91,4 @@ function curry(fn,arity = fn.length) {
             }
         };
     })([]);
-}
-
-function liftM(val) {
-	return isMonad(val) ? val : Just(val);
 }
