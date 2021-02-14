@@ -158,10 +158,15 @@ function iif(cond,thens,...elses) {
 		function doThens(res) {
 			// did the if-conditional "expression" resolve to truthy?
 			if (res) {
+				// if "thens" is a function, assume a lazy
+				// expression thunk
+				thens = isFunction(thens) ? thens() : thens;
+				// lift "thens" to an array if not already
+				thens = (Array.isArray(thens) ? thens : [thens]);
+
 				// process the "thens"
 				return (
-					// lift "thens" to an array if not already
-					(Array.isArray(thens) ? thens : [thens])
+					thens
 					// IO-lift each "then" and chain them all
 					// together
 					.reduce(
