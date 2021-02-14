@@ -97,7 +97,14 @@ function processNext(next,respVal,outerV,throwEither = false) {
 			let [ nextRespVal, unwrappedType, ] = (
 				isPromise(respVal) ?
 					await safeUnwrap(respVal,throwEither) :
-					[ respVal, "value", ]
+					[
+						respVal,
+						(
+							(throwEither && Either.Left.is(respVal)) ?
+								"error" :
+								"value"
+						),
+					]
 			);
 
 			// construct chained IO
