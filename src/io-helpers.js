@@ -5,6 +5,7 @@ var {
 	isPromise,
 	isMonad,
 	liftM,
+	curry,
 } = require("./lib/util.js");
 var IO = require("./io.js");
 var Maybe = require("./maybe.js");
@@ -130,7 +131,10 @@ function listFilterInIO(predicateIO,list) {
 }
 
 function listFilterOutIO(predicateIO,list) {
-	return listFilterInIO(iNot(predictateIO),list);
+	return listFilterInIO(
+		v => iNot(predicateIO(v)),
+		list
+	);
 }
 
 function listConcatIO(list) {
@@ -263,6 +267,7 @@ function ifReturned(iifIO) {
 }
 
 function getPropIO(prop,obj) {
+	// NOTE: intentional 'chain(..)' instead of 'map(..)'
 	return liftM(obj).chain(obj => (
 		IO(() => obj[prop])
 	));
@@ -271,6 +276,7 @@ function getPropIO(prop,obj) {
 function assignPropIO(prop,val,obj) {
 	return (
 		liftM(val).chain(val => (
+			// NOTE: intentional 'chain(..)' instead of 'map(..)'
 			liftM(obj).chain(obj => (
 				IO(() => (obj[prop] = val))
 			))
