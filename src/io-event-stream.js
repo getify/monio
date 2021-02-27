@@ -21,12 +21,26 @@ module.exports.close = close;
 
 function IOEventStream(el,evtName,opts = {}) {
 	var {
+		debounce: debounceWindow = 0,
+		maxDebounceDelay = 0,
 		bufferSize = 100,
 		throwBufferOverflow = false,
 		evtOpts = {},
 	} = opts;
 
+	debounceWindow = Number(debounceWindow) || 0;
+	maxDebounceDelay = Math.max(
+		debounceWindow,
+		Number(maxDebounceDelay) || 0
+	);
+
 	return IO(() => {
+		var debounced = {
+			evt: null,
+			timestamp: null,
+			def: null,
+			intv: null,
+		};
 		var prStack;
 		var nextStack;
 		var forceClosed = Symbol("force closed");
@@ -44,6 +58,16 @@ function IOEventStream(el,evtName,opts = {}) {
 			var pr = origReturn.apply(ait,args);
 			ait.closed = true;
 			triggerClose(forceClosed);
+			// debounce cycle still pending?
+			if (debounced.timestamp) {
+				clearTimeout(debounced.intv);
+				let next = debounced.def.next;
+				// reset the debounce state
+				debounced.evt = debounced.timestamp =
+					debounced.def = debounced.intv = null;
+				// clear out the pending `await`
+				next();
+			}
 			ait.return = origReturn;
 			return pr;
 		}
@@ -97,7 +121,69 @@ function IOEventStream(el,evtName,opts = {}) {
 			}
 		}
 
-		function handler(evt) {
+		async function handler(evt) {
+			// need to debounce the event?
+			if (debounceWindow > 0) {
+				let now = Date.now();
+				debounced.evt = evt;
+
+				// debounce-delay timer hasn't been set yet?
+				if (debounced.timestamp == null) {
+					debounced.timestamp = now;
+					debounced.def = getDeferred();
+					debounced.intv = setTimeout(
+						debounced.def.next,
+						debounceWindow
+					);
+
+					// wait until the debounce-delay expires
+					await debounced.def.pr;
+
+					// debounce-cycle still valid and alive?
+					if (debounced.def != null) {
+						// override the `evt` parameter to the
+						// last-received evt
+						evt = debounced.evt;
+
+						// reset any debouncing state
+						debounced.evt = debounced.timestamp =
+							debounced.def = debounced.intv = null;
+					}
+					else {
+						return;
+					}
+				}
+				// otherwise, repeat event while debounce-delay pending
+				else {
+					// clear the pending debounce-delay timer
+					clearTimeout(debounced.intv);
+
+					// have we still waited less than the max-delay?
+					if ((now - debounced.timestamp) < maxDebounceDelay) {
+						// reset the debounce-delay timer
+						debounced.intv = setTimeout(
+							debounced.def.next,
+
+							// pick the lesser delay length of...
+							Math.min(
+								// debounce-window length
+								debounceWindow,
+
+								// or, time left below the max-delay
+								maxDebounceDelay - (now - debounced.timestamp)
+							)
+						);
+					}
+					// otherwise, max-delay has already expired
+					else {
+						// unblock the event emission
+						debounced.def.next();
+					}
+
+					return;
+				}
+			}
+
 			if (nextStack.length > 0) {
 				let next = nextStack.shift();
 				next(evt);
