@@ -47,8 +47,10 @@ function IOEventStream(el,evtName,opts = {}) {
 		var { pr: hasClosed, next: triggerClose, } = getDeferred();
 		var ait = eventStream();
 		var origReturn = ait.return;
+		var started = false;
 		ait.return = itReturn;
 		ait.closed = false;
+		ait.start = start;
 		return ait;
 
 
@@ -72,19 +74,28 @@ function IOEventStream(el,evtName,opts = {}) {
 			return pr;
 		}
 
-		async function *eventStream() {
-			prStack = [];
-			nextStack = [];
+		function start() {
+			if (!started) {
+				started = true;
+				prStack = [];
+				nextStack = [];
 
-			// (lazily) setup event listener
-			if (isFunction(el.addEventListener)) {
-				el.addEventListener(evtName,handler,evtOpts);
+				// (lazily) setup event listener
+				if (isFunction(el.addEventListener)) {
+					el.addEventListener(evtName,handler,evtOpts);
+				}
+				else if (isFunction(el.addListener)) {
+					el.addListener(evtName,handler);
+				}
+				else if (isFunction(el.on)) {
+					el.on(evtName,handler);
+				}
 			}
-			else if (isFunction(el.addListener)) {
-				el.addListener(evtName,handler);
-			}
-			else if (isFunction(el.on)) {
-				el.on(evtName,handler);
+		}
+
+		async function *eventStream() {
+			if (!started) {
+				start();
 			}
 
 			try {
