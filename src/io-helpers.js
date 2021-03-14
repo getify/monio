@@ -17,6 +17,8 @@ module.exports = {
 	log,
 	getReader,
 	waitAll,
+	maybeFromIO,
+	eitherFromIO,
 	applyIO,
 	doIO,
 	doEIO,
@@ -28,16 +30,20 @@ module.exports = {
 	iif,
 	elif,
 	els,
+	match,
 	iNot,
 	iReturn,
 	wasReturned,
 	ifReturned,
+	matchReturned,
 	getPropIO,
 	assignPropIO,
 };
 module.exports.log = log;
 module.exports.getReader = getReader;
 module.exports.waitAll = waitAll;
+module.exports.maybeFromIO = maybeFromIO;
+module.exports.eitherFromIO = eitherFromIO;
 module.exports.applyIO = applyIO;
 module.exports.doIO = doIO;
 module.exports.doEIO = doEIO;
@@ -49,10 +55,12 @@ module.exports.listConcatIO = listConcatIO;
 module.exports.iif = iif;
 module.exports.elif = elif;
 module.exports.els = els;
+module.exports.match = match;
 module.exports.iNot = iNot;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
 module.exports.ifReturned = ifReturned;
+module.exports.matchReturned = matchReturned;
 module.exports.getPropIO = getPropIO;
 module.exports.assignPropIO = assignPropIO;
 
@@ -72,6 +80,24 @@ function waitAll(...list) {
 		Promise.all(
 			list.map(v => liftIO(env,v).run(env))
 		)
+	);
+}
+
+function maybeFromIO(v,env = {}) {
+	var res = liftIO(env,v).run(env);
+	return (
+		isPromise(res) ?
+			res.then(Maybe.from) :
+			Maybe.from(res)
+	);
+}
+
+function eitherFromIO(v,env = {}) {
+	var res = liftIO(env,v).run(env);
+	return (
+		isPromise(res) ?
+			res.then(v => Either.fromFoldable(Maybe.from(v))) :
+			Either.fromFoldable(Maybe.from(res))
 	);
 }
 
@@ -236,6 +262,42 @@ function els(thens) {
 	return iif(true,thens);
 }
 
+function match(...args) {
+	if (args.length < 2) {
+		throw new Error("Invalid match arguments");
+	}
+
+	var clauses = [];
+	// chunk the args up into if/then and else-if/then
+	// tuples
+	while (args.length > 0) {
+		if (args.length > 1) {
+			let clause = args.slice(0,2);
+			args = args.slice(2);
+			clauses.push(clause);
+		}
+		else {
+			// final else clause
+			clauses.push([ args[0], ]);
+			args.length = 0;
+		}
+	}
+
+	return iif(...(
+		clauses.reduce(
+			(clauses,clause) => (
+				// first 'iif' clause (cond+then)?
+				(clauses.length == 0) ? [ ...clause, ] :
+				// final 'els' clause?
+				(clause.length == 1) ? [ ...clauses, els(...clause), ] :
+				// 'elif' clause (cond+then)
+				[ ...clauses, elif(...clause), ]
+			),
+			[]
+		)
+	));
+}
+
 function iReturn(val) {
 	return IO(env => (
 		liftIO(env,val)
@@ -263,6 +325,12 @@ function wasReturned(v) {
 function ifReturned(iifIO) {
 	return iifIO.map(ifres => (
 		wasReturned(ifres) ? ifres.returned : undefined
+	));
+}
+
+function matchReturned(matchIO) {
+	return matchIO.map(matchres => (
+		wasReturned(matchres) ? matchres.returned : undefined
 	));
 }
 
