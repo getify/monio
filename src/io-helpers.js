@@ -27,10 +27,10 @@ module.exports = {
 	listFilterInIO,
 	listFilterOutIO,
 	listConcatIO,
+	match,
 	iif,
 	elif,
 	els,
-	match,
 	iNot,
 	iReturn,
 	wasReturned,
@@ -52,10 +52,10 @@ module.exports.doEIOBind = doEIOBind;
 module.exports.listFilterInIO = listFilterInIO;
 module.exports.listFilterOutIO = listFilterOutIO;
 module.exports.listConcatIO = listConcatIO;
+module.exports.match = match;
 module.exports.iif = iif;
 module.exports.elif = elif;
 module.exports.els = els;
-module.exports.match = match;
 module.exports.iNot = iNot;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
@@ -170,103 +170,12 @@ function listConcatIO(list) {
 	);
 }
 
-function iif(cond,thens,...elses) {
-	return IO(env => {
-		return (
-			// evaluate the if-conditional expression
-			liftIO(env,cond)
-			.chain(doThens)
-			.chain(doNextElse(elses))
-			.run(env)
-		);
-
-
-		// ******************************
-
-		// process (or skip) the "thens" based on the
-		// if-conditional expression results
-		function doThens(res) {
-			// did the if-conditional "expression" resolve to truthy?
-			if (res) {
-				// if "thens" is a function, assume a lazy
-				// expression thunk
-				thens = isFunction(thens) ? thens() : thens;
-				// lift "thens" to an array if not already
-				thens = (Array.isArray(thens) ? thens : [thens]);
-
-				// process the "thens"
-				return (
-					thens
-					// IO-lift each "then" and chain them all
-					// together
-					.reduce(
-						(io,then) => io.chain(v => (
-							liftIO(env,v).chain(v => (
-								returnedValues.has(v) ?
-									IO.of(v) :
-									liftIO(env,then)
-							))
-						)),
-						IO.of()
-					)
-					// final "result" of the "thens" handling
-					// should be the "return" value (if set)
-					// or the result of the if-conditional
-					// expression
-					.chain(v => (
-						liftIO(env,v).chain(v => (
-							IO.of(
-								returnedValues.has(v) ? v : res
-							)
-						))
-					))
-				);
-			}
-			else {
-				return IO.of(res);
-			}
-		}
-
-		// (recursively) handles the next else expression
-		function doNextElse(elses) {
-			// return a function to receive the results of
-			// the previous if-conditional expression
-			return (res => (
-				// previous if-conditional result wasn't truthy,
-				// and there's at least one more else expression
-				// to try?
-				(!res && elses.length > 0) ?
-					// IO-lift the next else and chain onto it
-					// the handling of the rest of the elses
-					// (if any)
-					liftIO(env,elses[0]).chain(
-						doNextElse(elses.slice(1))
-					) :
-					// otherwise, short-circuit to "return"
-					// the results of the previous conditional
-					IO.of(res)
-			));
-		}
-	});
-}
-
-function elif(cond,thens) {
-	// NOTE: intentionally truncating to prevent confusing
-	// nested "elses" expressions
-	return iif(cond,thens);
-}
-
-function els(thens) {
-	// if we get to a bare non-conditional "else", we treat
-	// it like an "else if (true) .."
-	return iif(true,thens);
-}
-
 function match(...args) {
 	if (args.length < 2) {
 		throw new Error("Invalid match arguments");
 	}
 
+	var defaultElseCond = Symbol("default");
 	var clauses = [];
 	// chunk the args up into if/then and else-if/then
 	// tuples
@@ -278,24 +187,88 @@ function match(...args) {
 		}
 		else {
 			// final else clause
-			clauses.push([ args[0], ]);
+			clauses.push([ defaultElseCond, args[0], ]);
 			args.length = 0;
 		}
 	}
 
-	return iif(...(
+	// process (or skip) the "thens" based on the
+	// if-conditional expression results
+	var doThens = (env,thens) => res => {
+		// did the if-conditional "expression" resolve to truthy?
+		if (res) {
+			// if "thens" is a function, assume a lazy
+			// expression thunk
+			thens = isFunction(thens) ? thens() : thens;
+			// lift "thens" to an array if not already
+			thens = (Array.isArray(thens) ? thens : [thens]);
+
+			// process the "thens"
+			return (
+				thens
+				// IO-lift each "then" and chain them all
+				// together
+				.reduce(
+					(io,then) => io.chain(v => (
+						liftIO(env,v).chain(v => (
+							returnedValues.has(v) ?
+								IO.of(v) :
+								liftIO(env,then)
+						))
+					)),
+					IO.of()
+				)
+				// final "result" of the "thens" handling
+				// should be the "return" value (if set)
+				// or the result of the if-conditional
+				// expression
+				.chain(v => (
+					liftIO(env,v).chain(v => (
+						IO.of(
+							returnedValues.has(v) ? v :
+							res !== defaultElseCond ? res :
+							undefined
+						)
+					))
+				))
+			);
+		}
+		else {
+			return IO.of(res);
+		}
+	};
+
+	return IO(env => (
 		clauses.reduce(
-			(clauses,clause) => (
-				// first 'iif' clause (cond+then)?
-				(clauses.length == 0) ? [ ...clause, ] :
-				// final 'els' clause?
-				(clause.length == 1) ? [ ...clauses, els(...clause), ] :
-				// 'elif' clause (cond+then)
-				[ ...clauses, elif(...clause), ]
+			(io,[cond,thens]) => (
+				io.chain(prevRes => (
+					!prevRes ?
+						liftIO(env,cond).chain(doThens(env,thens)) :
+						IO.of(prevRes)
+				))
 			),
-			[]
+			IO.of()
 		)
+		.run(env)
 	));
+}
+
+function iif(cond,thens,...elses) {
+	return match(
+		cond,
+		thens,
+		...elses.flatMap(v => v)
+	);
+}
+
+function elif(cond,thens) {
+	// NOTE: intentionally truncating to prevent confusing
+	// nested "elses" expressions
+	return [ cond, thens, ];
+}
+
+function els(thens) {
+	return [ thens, ];
 }
 
 function iReturn(val) {
