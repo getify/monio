@@ -6,10 +6,10 @@ var {
 	isMonad,
 	liftM,
 	curry,
-} = require("./lib/util.js");
+} = require("../lib/util.js");
 var IO = require("./io.js");
-var Maybe = require("./maybe.js");
-var Either = require("./either.js");
+var Maybe = require("../maybe.js");
+var Either = require("../either.js");
 
 var returnedValues = new WeakSet();
 
@@ -32,6 +32,8 @@ module.exports = {
 	elif,
 	els,
 	iNot,
+	iAnd,
+	iOr,
 	iReturn,
 	wasReturned,
 	ifReturned,
@@ -57,6 +59,8 @@ module.exports.iif = iif;
 module.exports.elif = elif;
 module.exports.els = els;
 module.exports.iNot = iNot;
+module.exports.iAnd = iAnd;
+module.exports.iOr = iOr;
 module.exports.iReturn = iReturn;
 module.exports.wasReturned = wasReturned;
 module.exports.ifReturned = ifReturned;
@@ -287,6 +291,30 @@ function iNot(val) {
 	return IO(env => (
 		liftIO(env,val)
 		.map(v => !v)
+		.run(env)
+	));
+}
+
+function iAnd(...vals) {
+	return IO(env => (
+		foldMap(
+			val => AllIO(env => (
+				liftIO(env,val).run(env)
+			)),
+			vals
+		)
+		.run(env)
+	));
+}
+
+function iOr(...vals) {
+	return IO(env => (
+		foldMap(
+			v => AnyIO(env => (
+				liftIO(env,v).run(env)
+			)),
+			vals
+		)
 		.run(env)
 	));
 }

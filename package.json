@@ -1,23 +1,22 @@
 {
 	"name": "monio",
 	"description": "Async-capable IO monad for JS",
-	"version": "0.27.1",
+	"version": "0.30.0",
 	"main": "./src/index.js",
 	"scripts": {
-		"build": "node scripts/",
+		"build": "npm run build-all",
 		"prepare": "npm run build",
 		"test": "qunit",
 		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text qunit",
 		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
-		"build-all": "node scripts/build-all.js",
-		"build": "npm run build-all"
+		"build-all": "node scripts/build-all.js"
 	},
 	"devDependencies": {
 		"coveralls": "~3.1.0",
-		"moduloze": "~0.7.0",
+		"moduloze": "~0.8.0",
 		"nyc": "~15.1.0",
-		"qunit": "~2.14.0",
-		"sinon": "~9.2.3"
+		"qunit": "~2.14.1",
+		"sinon": "~9.2.4"
 	},
 	"mz-dependencies": {
 		"index.js": "Monio",
@@ -26,9 +25,11 @@
 		"maybe.js": "Maybe",
 		"either.js": "Either",
 		"async-either.js": "AsyncEither",
-		"io.js": "IO",
-		"io-helpers.js": "IOHelpers",
-		"io-event-stream.js": "IOEventStream",
+		"io/io.js": "IO",
+		"io/any.js": "AnyIO",
+		"io/all.js": "AllIO",
+		"io/helpers.js": "IOHelpers",
+		"io/event-stream.js": "IOEventStream",
 		"lib/util.js": "MonioUtil"
 	},
 	"exports": {
@@ -57,16 +58,24 @@
 			"default": "./src/async-either.js"
 		},
 		"./io": {
-			"import": "./dist/esm/io.mjs",
-			"default": "./src/io.js"
+			"import": "./dist/esm/io/io.mjs",
+			"default": "./src/io/io.js"
 		},
-		"./io-helpers": {
-			"import": "./dist/esm/io-helpers.mjs",
-			"default": "./src/io-helpers.js"
+		"./io/any": {
+			"import": "./dist/esm/io/any.mjs",
+			"default": "./src/io/any.js"
 		},
-		"./io-event-stream": {
-			"import": "./dist/esm/io-event-stream.mjs",
-			"default": "./src/io-event-stream.js"
+		"./io/all": {
+			"import": "./dist/esm/io/all.mjs",
+			"default": "./src/io/all.js"
+		},
+		"./io/helpers": {
+			"import": "./dist/esm/io/helpers.mjs",
+			"default": "./src/io/helpers.js"
+		},
+		"./io/event-stream": {
+			"import": "./dist/esm/io/event-stream.mjs",
+			"default": "./src/io/event-stream.js"
 		},
 		"./util": {
 			"import": "./dist/esm/lib/util.mjs",
@@ -78,9 +87,11 @@
 		"./esm/maybe": "./dist/esm/maybe.mjs",
 		"./esm/either": "./dist/esm/either.mjs",
 		"./esm/async-either": "./dist/esm/async-either.mjs",
-		"./esm/io": "./dist/esm/io.mjs",
-		"./esm/io-helpers": "./dist/esm/io-helpers.mjs",
-		"./esm/io-event-stream": "./dist/esm/io-event-stream.mjs",
+		"./esm/io": "./dist/esm/io/io.mjs",
+		"./esm/io/any": "./dist/esm/io/any.mjs",
+		"./esm/io/all": "./dist/esm/io/all.mjs",
+		"./esm/io/helpers": "./dist/esm/io/helpers.mjs",
+		"./esm/io/event-stream": "./dist/esm/io/event-stream.mjs",
 		"./esm/util": "./dist/esm/lib/util.mjs"
 	},
 	"repository": "getify/monio",

@@ -5,15 +5,14 @@ var {
 	isPromise,
 	isMonad,
 	getMonadFlatMap,
-} = require("./lib/util.js");
-var Nothing = require("./nothing.js");
-var Either = require("./either.js");
+} = require("../lib/util.js");
+var Nothing = require("../nothing.js");
+var Either = require("../either.js");
 
 var brand = {};
 
 module.exports = Object.assign(IO,{ of, is, do: $do, doEither, });
 module.exports.RIO = IO;
-module.exports.Reader = IO;
 
 
 // **************************

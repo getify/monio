@@ -1,6 +1,6 @@
 "use strict";
 
-var { isFunction, curry, } = require("./lib/util.js");
+var { isFunction, curry, } = require("../lib/util.js");
 var IO = require("./io.js");
 
 IOEventStream = Object.assign(
