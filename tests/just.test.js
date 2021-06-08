@@ -41,13 +41,13 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		Just.is(Just(1)),
 		true,
-		"should return true if the object passed is a just functor"
+		"should return true if the object passed is a just monad"
 	);
 
 	assert.equal(
 		Just.is({}),
 		false,
-		"should return false if the object is not a just functor"
+		"should return false if the object is not a just monad"
 	);
 });
 
@@ -75,14 +75,14 @@ qunit.test("#ap", (assert) => {
 	assert.equal(
 		Just.of(inc).ap(Just.of(2))._inspect(),
 		Just.of(3)._inspect(),
-		"should apply the just inc functor to the just 2 functor"
+		"should apply the just inc monad to the just 2 monad"
 	);
 });
 
 qunit.test("#concat", (assert) => {
-	assert.deepEqual(
-		Just.of([1, 2]).concat([3]),
-		[[1, 2, 3]],
-		"should concat a just array to an array"
+	assert.equal(
+		Just.of([1, 2]).concat(Just.of([3]))._inspect(),
+		Just.of([1, 2, 3])._inspect(),
+		"should concat two arrays in just monads together into a new monad"
 	);
 });

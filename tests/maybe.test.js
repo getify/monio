@@ -58,6 +58,8 @@ qunit.test("#Nothing", (assert) => {
 });
 
 qunit.test("#map", (assert) => {
+	const operation = sinon.fake();
+
 	assert.equal(
 		Maybe.of(1).map(identity)._inspect(),
 		Maybe.of(1)._inspect(),
@@ -70,8 +72,6 @@ qunit.test("#map", (assert) => {
 		"should follow the composition law for a Maybe:Just monad"
 	);
 
-	const operation = sinon.fake();
-
 	assert.equal(
 		Maybe.Nothing().map(operation)._inspect(),
 		Maybe.Nothing()._inspect(),
@@ -81,23 +81,31 @@ qunit.test("#map", (assert) => {
 	assert.equal(
 		operation.called,
 		false,
-		"should not call operation on an Maybe:Nothing monad"
+		"should not call operation on a Maybe:Nothing monad"
 	);
 });
 
 qunit.test("#chain", (assert) => {
+	const op1 = sinon.fake();
+	const op2 = sinon.fake();
+	const op3 = sinon.fake();
+
 	assert.equal(
 		Maybe({ name: "john" }).chain(maybeProp("name"))._inspect(),
 		Maybe.Just("john")._inspect(),
 		"should return a Maybe:Just('john') monad"
 	);
 
-	const operation = sinon.fake();
-
 	assert.equal(
-		Maybe.Nothing().chain(operation)._inspect(),
+		Maybe.Nothing().chain(op1)._inspect(),
 		Maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe:Nothing monad"
+	);
+
+	assert.equal(
+		op1.called,
+		false,
+		"should not call operation on a Maybe:Nothing monad"
 	);
 
 	assert.equal(
@@ -107,9 +115,15 @@ qunit.test("#chain", (assert) => {
 	);
 
 	assert.equal(
-		Maybe.Nothing().flatMap(operation)._inspect(),
+		Maybe.Nothing().flatMap(op2)._inspect(),
 		Maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe:Nothing monad"
+	);
+
+	assert.equal(
+		op2.called,
+		false,
+		"should not call operation on a Maybe:Nothing monad"
 	);
 
 	assert.equal(
@@ -119,26 +133,26 @@ qunit.test("#chain", (assert) => {
 	);
 
 	assert.equal(
-		Maybe.Nothing().bind(operation)._inspect(),
+		Maybe.Nothing().bind(op3)._inspect(),
 		Maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe:Nothing monad"
 	);
 
 	assert.equal(
-		operation.called,
+		op3.called,
 		false,
-		"should not call operation on an Maybe:Nothing monad"
+		"should not call operation on a Maybe:Nothing monad"
 	);
 });
 
 qunit.test("#ap", (assert) => {
+	const operation = sinon.fake();
+
 	assert.equal(
 		Maybe.of(inc).ap(Maybe.Just(2))._inspect(),
 		Maybe.Just(3)._inspect(),
 		"should return a Maybe:Just(3) monad"
 	);
-
-	const operation = sinon.fake();
 
 	assert.equal(
 		Maybe.Nothing().ap(operation)._inspect(),
@@ -149,35 +163,50 @@ qunit.test("#ap", (assert) => {
 	assert.equal(
 		operation.called,
 		false,
-		"should not call operation on an Maybe:Nothing monad"
+		"should not call operation on a Maybe:Nothing monad"
 	);
 });
 
 qunit.test("#concat", (assert) => {
-	assert.deepEqual(
-		Maybe.of([1, 2]).concat([3]),
-		[[1, 2, 3]],
-		"should concat a Maybe:Just array to an array"
+	assert.equal(
+		Maybe.of([1, 2]).concat(Maybe.of([3]))._inspect(),
+		Maybe.of([1, 2, 3])._inspect(),
+		"should concat two arrays in Maybe:Just monads together into a new monad"
 	);
 
 	assert.equal(
-		Maybe.Nothing().concat([3])._inspect(),
+		Maybe.Nothing().concat(Maybe.of([3]))._inspect(),
 		Maybe.Nothing()._inspect(),
 		"should perform no operation on a Maybe:Nothing monad"
 	);
 });
 
 qunit.test("#fold", (assert) => {
+	const op1 = sinon.fake();
+	const op2 = sinon.fake();
+
 	assert.equal(
-		Maybe.Just("john").fold(() => {}, identity),
+		Maybe.Just("john").fold(op1,identity),
 		"john",
-		"should treat it as a Maybe:Just monad"
+		"should call the right side of the fold on Maybe:Just"
 	);
 
 	assert.equal(
-		Maybe.Nothing().fold(identity, () => {}),
-		undefined,
-		"should treat it as a Maybe:Nothing monad"
+		op1.called,
+		false,
+		"should not call the left side of the fold on Maybe:Just"
+	);
+
+	assert.equal(
+		Maybe.Nothing().fold(() => "no-value",op2),
+		"no-value",
+		"should call the left side of the fold on Maybe:Nothing"
+	);
+
+	assert.equal(
+		op2.called,
+		false,
+		"should not call the right side of the fold on Maybe:Nothing"
 	);
 });
 

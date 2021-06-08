@@ -1,4 +1,5 @@
 const qunit = require("qunit");
+const sinon = require("sinon");
 const { inc, justProp } = require("./utils");
 
 qunit.module("nothing");
@@ -66,16 +67,24 @@ qunit.test("#chain", (assert) => {
 });
 
 qunit.test("#ap", (assert) => {
+	const op1 = sinon.fake();
+
 	assert.equal(
-		Nothing.of(inc).ap(Nothing.of(2))._inspect(),
+		Nothing.of(v => (op1(),inc(v))).ap(Nothing.of(2))._inspect(),
 		Nothing()._inspect(),
 		"should perform no operation"
+	);
+
+	assert.equal(
+		op1.called,
+		false,
+		"should not call operation on a Maybe:Nothing monad"
 	);
 });
 
 qunit.test("#concat", (assert) => {
 	assert.deepEqual(
-		Nothing.of([1, 2]).concat([3])._inspect(),
+		Nothing.of([1, 2]).concat(Nothing.of([3]))._inspect(),
 		Nothing()._inspect(),
 		"should perform no operation"
 	);
