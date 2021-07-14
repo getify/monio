@@ -51,6 +51,7 @@ function IOEventStream(el,evtName,opts = {}) {
 		ait.return = itReturn;
 		ait.closed = false;
 		ait.start = start;
+		ait.nextIO = nextIO;
 		return ait;
 
 
@@ -91,6 +92,10 @@ function IOEventStream(el,evtName,opts = {}) {
 					el.on(evtName,handler);
 				}
 			}
+		}
+
+		function nextIO(v) {
+			return IO(() => ait.next(v));
 		}
 
 		async function *eventStream() {

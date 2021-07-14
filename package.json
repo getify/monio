@@ -1,12 +1,12 @@
 {
 	"name": "monio",
 	"description": "Async-capable IO monad for JS",
-	"version": "0.30.2",
+	"version": "0.31.0",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "npm run build-all",
 		"prepare": "npm run build",
-		"test": "node scripts/node-tests.js",
+		"test": "node --trace-warnings scripts/node-tests.js",
 		"test:package": "TEST_PACKAGE=true npm test",
 		"test:umd": "TEST_UMD=true npm test",
 		"test:esm": "TEST_ESM=true npm test",
