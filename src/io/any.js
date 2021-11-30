@@ -14,24 +14,19 @@ function AnyIO(effect) {
 	var io = IO(effect);
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		ap, concat, run, _inspect, _is,
+		concat, run, _inspect, _is,
 		[Symbol.toStringTag]: "AnyIO",
 	};
 	return publicAPI;
 
 	// *********************
 
-
 	function chain(fn) {
-		return io.chain(fn);
+		return AnyIO(env => io.chain(fn).run(env));
 	}
 
 	function map(fn) {
 		return AnyIO(env => io.map(fn).run(env));
-	}
-
-	function ap(aio) {
-		return aio.map(effect);
 	}
 
 	function concat(aio) {

@@ -20,7 +20,7 @@ module.exports.RIO = IO;
 function IO(effect) {
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		ap, concat, run, _inspect, _is,
+		concat, run, _inspect, _is,
 		[Symbol.toStringTag]: "IO",
 	};
 	return publicAPI;
@@ -42,10 +42,6 @@ function IO(effect) {
 				fn(res).run(v)
 			);
 		});
-	}
-
-	function ap(m) {
-		return m.map(effect);
 	}
 
 	function concat(m) {
