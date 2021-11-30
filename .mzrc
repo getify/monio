@@ -5,5 +5,5 @@
 	".mjs": true,
 	"skip": [
 		"**/copyright-header.txt"
-        ]
+	]
 }

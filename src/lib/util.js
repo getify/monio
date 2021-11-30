@@ -1,5 +1,8 @@
 "use strict";
 
+fold = curry(fold,2);
+foldMap = curry(foldMap,2);
+
 module.exports = {
 	getMonadFlatMap,
 	isMonad,
@@ -7,6 +10,8 @@ module.exports = {
 	isFunction,
 	isPromise,
 	curry,
+	fold,
+	foldMap,
 };
 module.exports.getMonadFlatMap = getMonadFlatMap;
 module.exports.isMonad = isMonad;
@@ -14,6 +19,8 @@ module.exports.liftM = liftM;
 module.exports.isFunction = isFunction;
 module.exports.isPromise = isPromise;
 module.exports.curry = curry;
+module.exports.fold = fold;
+module.exports.foldMap = foldMap;
 
 
 // **************************
@@ -91,4 +98,19 @@ function curry(fn,arity = fn.length) {
             }
         };
     })([]);
+}
+
+function fold(s,v) {
+	return s.concat(v);
+}
+
+function foldMap(f,list,empty) {
+	return (
+		empty ? list.reduce((s,v) => fold(s,f(v)),empty) :
+		list.length > 0 ? list.slice(1).reduce(
+			(s,v) => fold(s,f(v)),
+			f(list[0])
+		) :
+		undefined
+	);
 }

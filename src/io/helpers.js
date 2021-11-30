@@ -6,6 +6,7 @@ var {
 	isMonad,
 	liftM,
 	curry,
+	foldMap,
 } = require("../lib/util.js");
 var IO = require("./io.js");
 var Maybe = require("../maybe.js");
