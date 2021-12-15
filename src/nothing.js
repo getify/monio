@@ -2,7 +2,7 @@
 
 var { isFunction, } = require("./lib/util.js");
 
-var brand = {};
+const BRAND = {};
 
 module.exports = Object.assign(Nothing,{
 	of: Nothing, pure: Nothing, unit: Nothing,
@@ -31,13 +31,13 @@ function Nothing() {
 	}
 
 	function _is(br) {
-		return br === brand;
+		return br === BRAND;
 	}
 
 }
 
 function is(val) {
-	return val && isFunction(val._is) && val._is(brand);
+	return !!(val && isFunction(val._is) && val._is(BRAND));
 }
 
 // default isEmpty(), can be overidden

@@ -3,7 +3,7 @@
 var { isFunction, } = require("./lib/util.js");
 var Just = require("./just.js");
 
-var brand = {};
+const BRAND = {};
 
 Left.is = LeftIs;
 Right.is = RightIs;
@@ -74,7 +74,7 @@ function LeftOrRight(val,isRight = true) {
 	}
 
 	function _is(br) {
-		return br === brand;
+		return br === BRAND;
 	}
 
 	function _is_right() {
@@ -84,7 +84,7 @@ function LeftOrRight(val,isRight = true) {
 }
 
 function is(val) {
-	return val && isFunction(val._is) && val._is(brand);
+	return !!(val && isFunction(val._is) && val._is(BRAND));
 }
 
 function fromFoldable(m) {

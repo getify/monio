@@ -3,7 +3,7 @@
 var { isFunction, isPromise, } = require("../lib/util.js");
 var IO = require("./io.js");
 
-var brand = {};
+const BRAND = {};
 
 module.exports = Object.assign(AnyIO,{ of, is, empty, });
 
@@ -49,7 +49,7 @@ function AnyIO(effect) {
 	}
 
 	function _is(br) {
-		return br === brand || io._is(br);
+		return !!(br === BRAND || io._is(br));
 	}
 
 }
@@ -59,7 +59,7 @@ function of(v) {
 }
 
 function is(v) {
-	return v && isFunction(v._is) && v._is(brand);
+	return !!(v && isFunction(v._is) && v._is(BRAND));
 }
 
 function empty() {

@@ -12,6 +12,7 @@ module.exports = {
 	curry,
 	fold,
 	foldMap,
+	getDeferred,
 };
 module.exports.getMonadFlatMap = getMonadFlatMap;
 module.exports.isMonad = isMonad;
@@ -21,6 +22,7 @@ module.exports.isPromise = isPromise;
 module.exports.curry = curry;
 module.exports.fold = fold;
 module.exports.foldMap = foldMap;
+module.exports.getDeferred = getDeferred;
 
 
 // **************************
@@ -113,4 +115,10 @@ function foldMap(f,list,empty) {
 		) :
 		undefined
 	);
+}
+
+function getDeferred() {
+	var next;
+	var pr = new Promise(res => next = res);
+	return { pr, next, };
 }

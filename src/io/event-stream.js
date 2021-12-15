@@ -1,7 +1,9 @@
 "use strict";
 
-var { isFunction, curry, } = require("../lib/util.js");
+var { isFunction, curry, getDeferred, } = require("../lib/util.js");
 var IO = require("./io.js");
+
+const BRAND = {};
 
 IOEventStream = Object.assign(
 	curry(IOEventStream,2),
@@ -9,12 +11,14 @@ IOEventStream = Object.assign(
 		merge,
 		zip,
 		close,
+		is,
 	}
 );
 module.exports = IOEventStream;
 module.exports.merge = merge;
 module.exports.zip = zip;
 module.exports.close = close;
+module.exports.is = is;
 
 
 // **************************
@@ -52,6 +56,7 @@ function IOEventStream(el,evtName,opts = {}) {
 		ait.closed = false;
 		ait.start = start;
 		ait.nextIO = nextIO;
+		ait._is = _is;
 		return ait;
 
 
@@ -215,6 +220,11 @@ function IOEventStream(el,evtName,opts = {}) {
 				throw err;
 			}
 		}
+
+		function _is(br) {
+			return br === BRAND;
+		}
+
 	});
 }
 
@@ -396,8 +406,6 @@ function close(...streams) {
 	));
 }
 
-function getDeferred() {
-	var next;
-	var pr = new Promise(res => next = res);
-	return { pr, next, };
+function is(v) {
+	return !!(v && isFunction(v._is) && v._is(BRAND));
 }

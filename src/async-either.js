@@ -3,7 +3,7 @@
 var { isFunction, isPromise, } = require("./lib/util.js");
 var Either = require("./either.js");
 
-var brand = {};
+const BRAND = {};
 
 module.exports = Object.assign(AsyncEither,{
 	Left: AsyncLeft, Right: AsyncRight,
@@ -105,13 +105,13 @@ function fromPromise(pr) {
 	}
 
 	function _is(br) {
-		return br === brand;
+		return br === BRAND;
 	}
 
 }
 
 function is(val) {
-	return val && isFunction(val._is) && val._is(brand);
+	return !!(val && isFunction(val._is) && val._is(BRAND));
 }
 
 function fromFoldable(m) {

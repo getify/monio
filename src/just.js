@@ -2,7 +2,7 @@
 
 var { isFunction, } = require("./lib/util.js");
 
-var brand = {};
+const BRAND = {};
 
 module.exports = Object.assign(Just,{
 	of: Just, pure: Just, unit: Just, is,
@@ -54,11 +54,11 @@ function Just(val) {
 	}
 
 	function _is(br) {
-		return br === brand;
+		return br === BRAND;
 	}
 
 }
 
 function is(val) {
-	return val && isFunction(val._is) && val._is(brand);
+	return !!(val && isFunction(val._is) && val._is(BRAND));
 }

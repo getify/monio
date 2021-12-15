@@ -4,7 +4,7 @@ var { isFunction, } = require("./lib/util.js");
 var Just = require("./just.js");
 var Nothing = require("./nothing.js");
 
-var brand = {};
+const BRAND = {};
 
 Object.assign(MaybeJust,Just);
 Object.assign(MaybeNothing,Nothing);
@@ -81,13 +81,13 @@ function Maybe(val) {
 	}
 
 	function _is(br) {
-		return br === brand || mn._is(br);
+		return !!(br === BRAND || mn._is(br));
 	}
 
 }
 
 function is(val) {
-	return val && isFunction(val._is) && val._is(brand);
+	return !!(val && isFunction(val._is) && val._is(BRAND));
 }
 
 function from(val) {
