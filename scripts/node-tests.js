@@ -17,6 +17,7 @@ if (process.env.TEST_PACKAGE) {
 		AllIO: global.AllIO,
 		IOHelpers: global.IOHelpers,
 		IOEventStream: global.IOEventStream,
+		IOx: global.IOx,
 	} = require("../"));
 	runTests();
 }
@@ -33,6 +34,7 @@ else if (process.env.TEST_UMD) {
 		AllIO: global.AllIO,
 		IOHelpers: global.IOHelpers,
 		IOEventStream: global.IOEventStream,
+		IOx: global.IOx,
 	} = require("../dist/umd/bundle.js"));
 	runTests();
 }
@@ -57,6 +59,7 @@ else {
 	global.AllIO = require("../src/io/all.js");
 	global.IOHelpers = require("../src/io/helpers.js");
 	global.IOEventStream = require("../src/io/event-stream.js");
+	global.IOx = require("../src/io/iox.js");
 	runTests();
 }
 

@@ -13,7 +13,8 @@ import {
 	AnyIO,
 	AllIO,
 	IOHelpers,
-	IOEventStream
+	IOEventStream,
+	IOx
 } from "../dist/esm/index.mjs";
 global.Just = Just;
 global.Nothing = Nothing;
@@ -25,6 +26,7 @@ global.AnyIO = AnyIO;
 global.AllIO = AllIO;
 global.IOHelpers = IOHelpers;
 global.IOEventStream = IOEventStream;
+global.IOx = IOx;
 
 global.QUnit = require("qunit");
 

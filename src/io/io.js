@@ -9,10 +9,16 @@ var {
 var Nothing = require("../nothing.js");
 var Either = require("../either.js");
 
-var brand = {};
+const BRAND = {};
 
-module.exports = Object.assign(IO,{ of, is, do: $do, doEither, });
+module.exports = Object.assign(IO,{ of, pure: of, unit: of, is, do: $do, doEither, });
 module.exports.RIO = IO;
+module.exports.of = of;
+module.exports.pure = of;
+module.exports.unit = of;
+module.exports.is = is;
+module.exports.do = $do;
+module.exports.doEither = doEither;
 
 
 // **************************
@@ -28,51 +34,51 @@ function IO(effect) {
 	// *********************
 
 	function map(fn) {
-		return IO(v => {
-			var res = effect(v);
+		return IO(env => {
+			var res = effect(env);
 			return (isPromise(res) ? res.then(fn) : fn(res));
 		});
 	}
 
 	function chain(fn) {
-		return IO(v => {
-			var res = effect(v);
-			return (isPromise(res) ?
-				res.then(fn).then(v2 => v2.run(v)) :
-				fn(res).run(v)
+		return IO(env => {
+			var res = effect(env);
+			var res2 = (isPromise(res) ? res.then(fn) : fn(res));
+			return (isPromise(res2) ?
+				res2.then(v => v.run(env)) :
+				res2.run(env)
 			);
 		});
 	}
 
 	function concat(m) {
-		return IO(v => {
-			var res = effect(v);
-			var res2 = m.run(v);
+		return IO(env => {
+			var res1 = effect(env);
+			var res2 = m.run(env);
 			return (
-				(isPromise(res) || isPromise(res2)) ?
+				(isPromise(res1) || isPromise(res2)) ?
 					(
-						Promise.all([ res, res2, ])
+						Promise.all([ res1, res2, ])
 						.then(([ v1, v2, ]) => v1.concat(v2))
 					) :
-					res.concat(res2)
+					res1.concat(res2)
 			);
 		});
 	}
 
-	function run(v) {
-		return effect(v);
+	function run(env) {
+		return effect(env);
 	}
 
 	function _inspect() {
 		return `${publicAPI[Symbol.toStringTag]}(${
 			isFunction(effect) ? (effect.name || "anonymous function") :
-			(effect && isFunction(effect._inspect)) ? effect._inspect() :
-			val
+			String(effect)
 		})`;
 	}
 
 	function _is(br) {
-		return br === brand;
+		return br === BRAND;
 	}
 
 }
@@ -82,10 +88,10 @@ function of(v) {
 }
 
 function is(v) {
-	return v && isFunction(v._is) && v._is(brand);
+	return !!(v && isFunction(v._is) && v._is(BRAND));
 }
 
-function processNext(next,respVal,outerV,throwEither = false) {
+function processNext(next,respVal,outerEnv,throwEither = false) {
 	return (new Promise(async function c(resv,rej){
 		try {
 			// if respVal is a promise, safely unwrap it
@@ -103,42 +109,45 @@ function processNext(next,respVal,outerV,throwEither = false) {
 			);
 
 			// construct chained IO
+			let chainNextFn = v => (
+				IO(() => next(v,unwrappedType).then(resv,rej))
+			);
 			let m = (
 				// Nothing monad should short-circuit to no-op?
-				Nothing.is(nextRespVal) ?
-					IO(() => resv()) :
+				Nothing.is(nextRespVal) ? IO(() => resv()) :
 
-					// chain the monad
-					monadFlatMap(
+				// IOx monad? (chain with a regular IO to reduce overhead)
+				IOx.is(nextRespVal) ? nextRespVal._chain_with_IO(chainNextFn) :
+
+				// otherwise, chain the generic monad
+				monadFlatMap(
+					(
+						// ensure we're chaining to a monad
 						(
-							// ensure we're chaining to a monad
+							// need to wrap Either:Left error?
 							(
-								// need to wrap Either:Left error?
-								(
-									throwEither &&
-									unwrappedType == "error" &&
-									Either.Left.is(nextRespVal)
-								) ||
+								throwEither &&
+								unwrappedType == "error" &&
+								Either.Left.is(nextRespVal)
+							) ||
 
-								// need to lift non-monad?
-								!isMonad(nextRespVal)
-							) ?
-								// wrap it in an IO
-								IO.of(nextRespVal) :
+							// need to lift non-monad?
+							!isMonad(nextRespVal)
+						) ?
+							// wrap it in an IO
+							IO.of(nextRespVal) :
 
-								// otherwise, must already be a monad
-								nextRespVal
-						),
-						// chain/flatMap the monad to the "next" IO step
-						v => (
-							IO(() => next(v,unwrappedType).then(resv,rej))
-						)
-					)
+							// otherwise, must already be a monad
+							nextRespVal
+					),
+					// chain/flatMap the monad to the "next" IO step
+					chainNextFn
+				)
 			);
 
 			// run the next step of the IO chain
 			try {
-				await m.run(outerV);
+				await m.run(outerEnv);
 			}
 			catch (err) {
 				// if running the next step produced an
@@ -159,9 +168,9 @@ function processNext(next,respVal,outerV,throwEither = false) {
 	}));
 }
 
-function $do(block) {
-	return IO(outerV => {
-		var it = getIterator(block,outerV);
+function $do(block,...args) {
+	return IO(outerEnv => {
+		var it = getIterator(block,outerEnv,/*outerThis=*/this,args);
 
 		return (async function next(v,type){
 			var resp = (
@@ -182,21 +191,21 @@ function $do(block) {
 					// if an IO was returned, automatically run it
 					// as if it was yielded before returning
 					IO.is(resp.value) ?
-						resp.value.run(outerV) :
+						resp.value.run(outerEnv) :
 						resp.value
 				);
 			}
 			// otherwise, move onto the next step
 			else {
-				return processNext(next,resp.value,outerV,/*throwEither=*/false);
+				return processNext(next,resp.value,outerEnv,/*throwEither=*/false);
 			}
 		})();
 	});
 }
 
-function doEither(block) {
-	return IO(outerV => {
-		var it = getIterator(block,outerV);
+function doEither(block,...args) {
+	return IO(outerEnv => {
+		var it = getIterator(block,outerEnv,/*outerThis=*/this,args);
 
 		return (async function next(v,type){
 			// lift v to an Either (Left or Right) if necessary
@@ -236,7 +245,7 @@ function doEither(block) {
 							// automatically run the IO
 							// as if it was yielded before
 							// returning
-							respVal.run(outerV) :
+							respVal.run(outerEnv) :
 							respVal
 					);
 					respVal = (
@@ -262,7 +271,7 @@ function doEither(block) {
 				}
 				// otherwise, move onto the next step
 				else {
-					return processNext(next,resp.value,outerV,/*throwEither=*/true);
+					return processNext(next,resp.value,outerEnv,/*throwEither=*/true);
 				}
 			}
 			catch (err) {
@@ -278,9 +287,9 @@ function doEither(block) {
 	});
 }
 
-function getIterator(block,v) {
+function getIterator(block,env,outerThis,args = []) {
 	return (
-		isFunction(block) ? block(v) :
+		isFunction(block) ? block.call(outerThis,env,...args) :
 		(block && typeof block == "object" && isFunction(block.next)) ? block :
 		undefined
 	);

@@ -6,15 +6,19 @@
 
 Monio (mō'ne-yo) is an async-capable IO Monad (including "do" style) for JS, with several companion monads thrown in.
 
-## See It In Action
+## See Monio In Action
 
 * [Cancelable Countdown (demo)](https://codepen.io/getify/pen/abvjRRK?editors=0011)
 
-* [Order Lookup (demo)](https://codepen.io/getify/pen/YzyJqZa?editors=1011)
+* [Order Lookup (demo)](https://codepen.io/getify/pen/YzyJqZa?editors=1010)
 
 * [Event Stream (demo)](https://codepen.io/getify/pen/WNrNYKx?editors=1011)
 
-* [Cached Ajax (demo)](https://codepen.io/getify/pen/VwjyoMY?editors=0011)
+* [Event Stream: IOx Reactive Monad (demo)](https://codepen.io/getify/pen/Exwapga?editors=1011)
+
+* [IOx Reactive Monad (demo)](https://codepen.io/getify/pen/XWeJxbq?editors=0010)
+
+* [Cached Ajax (demo)](https://codepen.io/getify/pen/VwjyoMY?editors=0010)
 
 ## Overview
 
@@ -32,16 +36,6 @@ Monio intentionally chooses to model asynchrony over promises instead of Task mo
 
 Monio's `IO` is also a Reader monad, which carries side-effect read environments alongside IO operations.
 
-Monio includes several supporting monads/helpers in addition to `IO`:
-
-* `Maybe` (including `Just` and `Nothing`)
-
-* `Either`
-
-* Monio-specific `AsyncEither` (same promise-transforming behavior as IO)
-
-* `IOEventStream(..)`: creates an IO instance that produces an "event stream" -- an async-iterable consumable with a `for await..of` loop -- from an event emitter (ie, a DOM element, or a Node EventEmitter instance)
-
 ### For the FP savvy
 
 Monio's `IO` models a function `e => IO a (Promise b c)`, which is strong enough to capture (optional) environment passing, side effects, async, and error handling without the pain of composing each type separately.
@@ -51,6 +45,314 @@ Typically `IO` does not take an argument, but given one, it acts like an effectf
 In that way, you can think of it as `ReaderT (IOT (Promise|Identity a b))` where `Promise` gets swapped for `Identity` if you're not doing async.
 
 Monio's IO is like a JS-style ZIO/RIO where we have all the functionality we need wrapped up in 1 monad.
+
+### Monio's Monads
+
+Using an identity (`Just`) monad:
+
+```js
+var twentyOne = Just(21);
+
+twentyOne
+.chain(v => Just(v * 2))
+._inspect();       // Just(42)
+```
+
+Using a `Maybe` monad:
+
+```js
+// `responseData` is an object
+
+Maybe.from(responseData.message)
+
+// this step is "safe" in that it's skipped
+// if the `responseData.message` property
+// is missing/empty and thus results in a
+// Maybe:Nothing monad
+.map(msg => msg.toUpperCase())
+
+// using "foldable" behavior mixed in with
+// the Maybe monad
+.fold(
+    () => console.log("Message missing!"),
+    msg => console.log(`Message: ${msg}`)
+);
+```
+
+IO represents monadic side effects wrapped as functions:
+
+```js
+var log = msg => IO(() => console.log(msg));
+var uppercase = str => str.toUpperCase();
+var greeting = msg => IO.of(msg);
+
+// setup:
+var HELLO = greeting("Hello!").map(uppercase);
+
+// later:
+HELLO
+.chain(log)
+.run();       // HELLO!
+```
+
+As opposed to manually `chain`ing IOs together, IO's friendlier "do-style" is expressed with `IO.do(..)`:
+
+```js
+var getData = url => IO(() => fetch(url).then(r => r.json()));
+var renderMessage = msg => IO(() => (
+    document.body.innerText = msg
+));
+
+// `IO.do(..)` accepts a generator to express "do-style"
+// IO chains
+IO.do(function *main(){
+    // `yield` of an IO instance (like `await` with
+    // promises in an `async..await` function) chains/
+    // unwraps the IO, asynchronously if neccessary
+    var resp = yield getData("/some/data");
+
+    yield renderMessage(resp.msg);
+
+    // ..
+})
+.run();
+```
+
+IO supports carrying a reader environment through all IO chains (or do-blocks) by passing an argument to `run(..)`:
+
+```js
+var renderMessage = msg => IO(readerEnv => (
+    readerEnv.messageEl.innerText = msg
+));
+
+IO.do(function *main(readerEnv){
+    yield renderMessage("Hello, friend!");
+
+    // ..
+})
+.run(/*readerEnv=*/{
+    messageEl: document.getElementById("welcome-message")
+});
+```
+
+Monio includes several other supporting monads/helpers in addition to `IO`:
+
+* `Either`, as well as `AsyncEither` (same promise-transforming behavior as IO -- basically, this is like a `Future` monad)
+
+* `AllIO` and `AnyIO` are IO monad variants (concatable monoids) whose `concat(..)` method makes them suitable for `fold(..)` / `foldMap(..)` combinations that are akin to `&&` and `||` operations, respectively.
+
+    For example:
+
+    ```js
+    var a = AllIO(() => true);
+    var b = AllIO(() => true);
+    var c = AllIO(() => false);
+
+    a.concat(b).run();                    // true
+    fold(a,b).run();                      // true
+
+    a.concat(b).concat(c).run();          // false
+    foldMap(v => v,[ a, b, c ]).run();    // false
+
+    var d = AnyIO(() => true);
+    var e = AnyIO(() => true);
+    var f = AnyIO(() => false);
+
+    d.concat(e).run();                    // true
+    d.concat(e).concat(f).run();          // true
+    ```
+
+* `IOEventStream(..)`: creates an IO instance that produces an "event stream" -- an async-iterable that's consumable with a `for await..of` loop -- from an event emitter (ie, a DOM element, or a Node EventEmitter instance)
+
+    For example:
+
+    ```js
+    var clicksIO = IOEventStream(btn,"click");
+
+    clicksIO.chain(clicks => IO.do(async function *main(){
+        // `clicks`` is a lazily-subscribed ES2018
+        // async-iterator that will produce event
+        // objects for each DOM click event on the
+        // the button
+        for await (let evt of clicks) {
+            // ..
+        }
+    }))
+    .run();
+    ```
+
+* `IOx` is a "reactive IO" monad variant, similar to a basic observable (or event stream). If an `IOx` (*B*) instance is subscribed to (i.e., observing/listening to) another `IOx` instance (*A*), and *A* updates its value, *B* is automatically notified and re-applied.
+
+    For example:
+
+    ```js
+    var number = IOx.of(3);
+    var doubled = number.map(v => v * 2);
+    var tripled = number.map(v => v * 3);
+
+    var log = (env,v) => console.log(`v: ${v}`);
+
+    // subscribe to the `doubled` IOx
+    var logDoubled = IOx(log,[ doubled ]);
+    // subscribe to the `tripled` IOx
+    var logTripled = IOx(log,[ tripled ]);
+
+    // activate only the `logDoubled` IOx
+    logDoubled.run();
+    // v: 6
+
+    // assign a different value into the `number` IOx
+    number(7);
+    // v: 14
+
+    // now activate the `logTripled` IOx
+    logTripled.run();
+    // v: 21
+
+    // assign another value into the `number` IOx
+    number(10);
+    // v: 20
+    // v: 30
+    ```
+
+    And for handling typical event streams:
+
+    ```js
+    var clicksIOx = IOx.of.empty();
+
+    // standard DOM event listener
+    btn.addEventListener("click",evt => clicksIOx(evt),false);
+
+    clicksIOx.chain(evt => {
+        // .. click event! ..
+    })
+    .run();
+    ```
+
+    Alternatively, using included `IOx.onEvent(..)`:
+
+    ```js
+    var clicksIOx = IOx.onEvent(btn,"click",false);
+    // or use `IOx.onceEvent(..)` for single-fire event handling
+
+    clicksIOx.chain(evt => {
+        // .. click event! ..
+    })
+    .run();
+    ```
+
+    IOx instances are IO instances (with extensions for reactivity). As such, they can be `yield`ed inside `IO.do(..)` do-blocks:
+
+    ```js
+    IO.do(function *main({ doc, }){
+        // IOx event stream that represents the one-time
+        // DOM-ready event
+        var DOMReady = IOx.onceEvent(doc,"DOMContentLoaded",false);
+
+        // listen (and wait!) for this event to fire
+        yield DOMReady;
+
+        // ..
+    })
+    .run({ doc: document });
+    ```
+
+    `IOx.do(..)` can subscribe a do-block to one or more IOx instances; it will be invoked with each value update from any of the subscribed-to IOx instances:
+
+    ```js
+    var delay = ms => IO(() => new Promise(r => setTimeout(r,ms)));
+    var toggleEl = el => IO(() => el.disabled = !el.disabled);
+    var renderMessage = msg => IO(({ messageEl }) => (
+        messageEl.innerText = msg
+    ));
+
+    function *onClick({ btn, },evt) {
+        // disable button
+        yield toggleEl(btn);
+
+        // render a message
+        yield renderMessage("Button clicked!");
+
+        // wait a second
+        yield delay(1000);
+
+        // re-enable button
+        yield toggleEl(btn);
+    }
+
+    IO.do(function *main({ btn, }){
+        // lazily prepare to subscribe to click events
+        //
+        // (this IOx instance is not yet active unti`l
+        // it's manually run, or subscribed to by another
+        // IOx instance that *is* activated)
+        var clicksIOx = IOx.onEvent(btn,"click",false);
+
+        // for each click, re-evaluate the reactive do-block
+        //
+        // (still not activated yet!)
+        var handleClicksIOx = IOx.do(onClick,[ clicksIOx ]);
+        // or:
+        //    var handleClicksIOx = clicksIOx.chain(
+        //       evt => IOx.do(onClick,[],evt)
+        //    );
+
+        // actually activates the click handling and the DOM
+        // event subscription
+        yield handleClicksIOx;
+    })
+    .run({
+        messageEl: document.getElementById("my-message"),
+        btn: document.getElementById("my-button")
+    });
+    ```
+
+    Similar to RxJS observables, some basic stream operators/combinators are provided:
+
+    ```js
+    var log = msg => IO(() => console.log(msg));
+
+    IO.do(function *main({ btn, input }){
+        // setup some event streams
+        var clicksIOx = IOx.onEvent(btn,"click",false);
+        var keypressesIOx = IOx.onEvent(input,"keypress",false);
+
+        // use various stream operators
+        var lettersIOx =
+            keypressesIOx.map(evt => evt.key)
+            .chain(
+                IOx.filterIn(key => /[a-z]/i.test(key))
+            );
+        var uniqueLettersIOx = lettersIOx.chain( IOx.distinct() );
+        var nonRepeatLettersIOx =
+            lettersIOx.chain( IOx.distinctUntilChanged() );
+
+        // zip two streams together
+        var clickAndKeyIOx = IOx.zip([ clicksIOx, uniqueLettersIOx ]);
+
+        // NOTE:
+        // it's important to realize that everything up to this
+        // point has just been lazily defined, with nothing
+        // yet executed. the following statement actually
+        // `yield`s to activate the ultimate IOx, which has the
+        // cascading effect of activating all the above defined
+        // IOx instances.
+
+        // merge two streams together, and print whatever comes
+        // through to the console
+        yield (
+            IOx
+            .merge([ clickAndKeyIOx, nonRepeatLettersIOx ])
+            .chain(log)
+        );
+    })
+    .run({
+        btn: document.getElementById("my-button"),
+        input: document.getElementById("my-input"),
+    });
+    ```
+
+    IOx reactive instances can temporarily be paused (using `stop()`), or permanently closed and cleaned up (using `close()`).
 
 ## Using Monio
 

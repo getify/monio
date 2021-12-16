@@ -11,5 +11,6 @@ module.exports.IO = IO;
 module.exports.RIO = IO;
 module.exports.AnyIO = require("./io/any.js");
 module.exports.AllIO = require("./io/all.js");
+module.exports.IOx = require("./io/iox.js");
 module.exports.IOHelpers = require("./io/helpers.js");
 module.exports.IOEventStream = require("./io/event-stream.js");

@@ -9,6 +9,9 @@ var {
 	foldMap,
 } = require("../lib/util.js");
 var IO = require("./io.js");
+var AllIO = require("./all.js");
+var AnyIO = require("./any.js");
+var IOx = require("./iox.js");
 var Maybe = require("../maybe.js");
 var Either = require("../either.js");
 
@@ -21,8 +24,10 @@ module.exports = {
 	maybeFromIO,
 	eitherFromIO,
 	applyIO,
-	doIO,
-	doEIO,
+	doIO: IO.do,
+	doEIO: IO.doEither,
+	doIOx: IOx.do,
+	doEIOx: IOx.doEither,
 	doIOBind,
 	doEIOBind,
 	listFilterInIO,
@@ -48,8 +53,10 @@ module.exports.waitAll = waitAll;
 module.exports.maybeFromIO = maybeFromIO;
 module.exports.eitherFromIO = eitherFromIO;
 module.exports.applyIO = applyIO;
-module.exports.doIO = doIO;
-module.exports.doEIO = doEIO;
+module.exports.doIO = IO.do;
+module.exports.doEIO = IO.doEither;
+module.exports.doIOx = IOx.do;
+module.exports.doEIOx = IOx.doEither;
 module.exports.doIOBind = doIOBind;
 module.exports.doEIOBind = doEIOBind;
 module.exports.listFilterInIO = listFilterInIO;
@@ -108,22 +115,6 @@ function eitherFromIO(v,env = {}) {
 
 function applyIO(io,env) {
 	return IO(() => io.run(env));
-}
-
-function doIO(fn,...args) {
-	return (
-		(args.length > 0) ?
-			IO(env => IO.do(fn(env,...args)).run(env)) :
-			IO.do(fn)
-	);
-}
-
-function doEIO(fn,...args) {
-	return (
-		(args.length > 0) ?
-			IO(env => IO.doEither(fn(env,...args)).run(env)) :
-			IO.doEither(fn)
-	);
 }
 
 function doIOBind(fn,env) {
@@ -361,7 +352,7 @@ function assignPropIO(prop,val,obj) {
 function liftIO(env,v) {
 	// monad?
 	if (isMonad(v)) {
-		// already an IO?
+		// already an IO (or: IOx, AllIO, AnyIO)?
 		if (IO.is(v)) {
 			return v;
 		}

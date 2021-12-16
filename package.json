@@ -11,16 +11,16 @@
 		"test:umd": "TEST_UMD=true npm test",
 		"test:esm": "TEST_ESM=true npm test",
 		"test:all": "npm test && npm run test:package && npm run test:umd && npm run test:esm",
-		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text qunit",
+		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text --exclude=**/tests --exclude=**/node-tests.js --exclude=**/load-tests.js node scripts/node-tests.js",
 		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
 		"build-all": "node scripts/build-all.js"
 	},
 	"devDependencies": {
-		"coveralls": "~3.1.0",
+		"coveralls": "~3.1.1",
 		"moduloze": "~0.8.0",
 		"nyc": "~15.1.0",
-		"qunit": "~2.15.0",
-		"sinon": "~10.0.0"
+		"qunit": "~2.17.2",
+		"sinon": "~12.0.1"
 	},
 	"mz-dependencies": {
 		"index.js": "Monio",
@@ -32,6 +32,7 @@
 		"io/io.js": "IO",
 		"io/any.js": "AnyIO",
 		"io/all.js": "AllIO",
+		"io/iox.js": "IOx",
 		"io/helpers.js": "IOHelpers",
 		"io/event-stream.js": "IOEventStream",
 		"lib/util.js": "MonioUtil"
@@ -81,22 +82,14 @@
 			"import": "./dist/esm/io/event-stream.mjs",
 			"default": "./src/io/event-stream.js"
 		},
+		"./io/x": {
+			"import": "./dist/esm/io/iox.mjs",
+			"default": "./src/io/iox.js"
+		},
 		"./util": {
 			"import": "./dist/esm/lib/util.mjs",
 			"default": "./src/lib/util.js"
-		},
-		"./esm": "./dist/esm/index.mjs",
-		"./esm/just": "./dist/esm/just.mjs",
-		"./esm/nothing": "./dist/esm/nothing.mjs",
-		"./esm/maybe": "./dist/esm/maybe.mjs",
-		"./esm/either": "./dist/esm/either.mjs",
-		"./esm/async-either": "./dist/esm/async-either.mjs",
-		"./esm/io": "./dist/esm/io/io.mjs",
-		"./esm/io/any": "./dist/esm/io/any.mjs",
-		"./esm/io/all": "./dist/esm/io/all.mjs",
-		"./esm/io/helpers": "./dist/esm/io/helpers.mjs",
-		"./esm/io/event-stream": "./dist/esm/io/event-stream.mjs",
-		"./esm/util": "./dist/esm/lib/util.mjs"
+		}
 	},
 	"repository": "getify/monio",
 	"keywords": [
