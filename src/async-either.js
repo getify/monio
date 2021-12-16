@@ -97,7 +97,9 @@ function fromPromise(pr) {
 			v => Promise.reject(whichSide(v)),
 			whichSide
 		);
-		return pr.then(handle(asRight),handle(asLeft));
+		var pr2 = pr.then(handle(asRight),handle(asLeft));
+		pr2.catch(() => {});
+		return pr2;
 	}
 
 	function _inspect() {
@@ -119,7 +121,7 @@ function fromFoldable(m) {
 }
 
 function splitPromise(pr) {
-	return pr.then(
+	var pr2 = pr.then(
 		v => (
 			Either.is(v) ? v : Either.Right(v)
 		),
@@ -127,13 +129,6 @@ function splitPromise(pr) {
 			Either.is(v) ? v : Either.Left(v)
 		)
 	);
-}
-
-function toPromise(m) {
-	return new Promise((res,rej) =>
-		m.fold(
-			v => rej(Either.Left(v)),
-			v => res(Either.Right(v))
-		)
-	);
+	pr2.catch(() => {});
+	return pr2;
 }
