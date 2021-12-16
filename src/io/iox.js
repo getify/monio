@@ -78,7 +78,7 @@ function IOx(iof,deps = []) {
 	}
 
 	function run(env) {
-		if (io && currentVal != CLOSED) {
+		if (!closing) {
 			return io.run(env);
 		}
 	}
