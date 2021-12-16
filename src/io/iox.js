@@ -238,8 +238,7 @@ function IOx(iof,deps = []) {
 
 	function updateCurrentVal(v) {
 		return (isPromise(v) ?
-			// TODO: update error handling
-			v.then(handle).catch(err => console.log(err.toString())) :
+			v.then(handle).catch(logUnhandledError) :
 			handle(v)
 		);
 
@@ -911,14 +910,19 @@ function distinctUntilChanged() {
 }
 
 function safeIORun(io,env) {
-	// TODO: update error handling
 	try {
 		var res = io.run(env);
+		if (isPromise(res)) {
+			res.catch(logUnhandledError);
+		}
 	}
 	catch (err) {
-		console.log(err.toString());
+		Promise.reject(err).catch(logUnhandledError);
 	}
-	if (isPromise(res)) {
-		res.catch(err => console.log(err.toString()));
-	}
+}
+
+function logUnhandledError(err) {
+	console.log(err && (
+		err.stack ? err.stack : err.toString()
+	));
 }
