@@ -12,13 +12,15 @@ Monio (mō'ne-yo) is an async-capable IO Monad (including "do" style) for JS, wi
 
 * [Order Lookup (demo)](https://codepen.io/getify/pen/YzyJqZa?editors=1010)
 
+* [Cached Ajax (demo)](https://codepen.io/getify/pen/VwjyoMY?editors=0010)
+
 * [Event Stream (demo)](https://codepen.io/getify/pen/WNrNYKx?editors=1011)
 
 * [Event Stream: IOx Reactive Monad (demo)](https://codepen.io/getify/pen/Exwapga?editors=1011)
 
 * [IOx Reactive Monad (demo)](https://codepen.io/getify/pen/XWeJxbq?editors=0010)
 
-* [Cached Ajax (demo)](https://codepen.io/getify/pen/VwjyoMY?editors=0010)
+* [IOx Reactive Monad: Stream Operations (demo)](https://codepen.io/getify/pen/JjrNPdm?editors=0010)
 
 ## Overview
 
