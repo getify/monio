@@ -113,11 +113,21 @@ function processNext(next,respVal,outerEnv,throwEither = false) {
 				IO(() => next(v,unwrappedType).then(resv,rej))
 			);
 			let m = (
-				// Nothing monad should short-circuit to no-op?
+				// Nothing monad (should short-circuit to no-op)?
 				Nothing.is(nextRespVal) ? IO(() => resv()) :
 
-				// IOx monad? (chain with a regular IO to reduce overhead)
-				IOx.is(nextRespVal) ? nextRespVal._chain_with_IO(chainNextFn) :
+				// IOx monad? (unfortunately, cannot use `IOx.is(..)`
+				// brand check because it creates a circular dependency
+				// between IO and IOx
+				!!(
+					nextRespVal &&
+					isFunction(nextRespVal) &&
+					isFunction(nextRespVal._chain_with_IO) &&
+					isFunction(nextRespVal._inspect) &&
+					/^IOx\b/.test(nextRespVal._inspect())
+				) ?
+					// chain IOx via a regular IO to reduce overhead
+					nextRespVal._chain_with_IO(chainNextFn) :
 
 				// otherwise, chain the generic monad
 				monadFlatMap(
