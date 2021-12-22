@@ -57,7 +57,8 @@ var twentyOne = Just(21);
 
 twentyOne
 .chain(v => Just(v * 2))
-._inspect();       // Just(42)
+._inspect();
+// Just(42)
 ```
 
 Using a `Maybe` monad:
@@ -109,8 +110,8 @@ var renderMessage = msg => IO(() => (
 // IO chains
 IO.do(function *main(){
     // `yield` of an IO instance (like `await` with
-    // promises in an `async..await` function) chains/
-    // unwraps the IO, asynchronously if neccessary
+    // promises in an `async..await` function) will
+    // chain/unwrap the IO, asynchronously if neccessary
     var resp = yield getData("/some/data");
 
     yield renderMessage(resp.msg);
@@ -139,9 +140,9 @@ IO.do(function *main(readerEnv){
 
 Monio includes several other supporting monads/helpers in addition to `IO`:
 
-* `Either`, as well as `AsyncEither` (same promise-transforming behavior as IO -- basically, this is like a `Future` monad)
+* `Either`, as well as `AsyncEither` (basically, a `Future` monad, with the same promise-transforming behavior as IO)
 
-* `AllIO` and `AnyIO` are IO monad variants (concatable monoids) whose `concat(..)` method makes them suitable for `fold(..)` / `foldMap(..)` combinations that are akin to `&&` and `||` operations, respectively.
+* `AllIO` and `AnyIO` are IO monad variants -- specifically, concatable monoids -- whose `concat(..)` method makes them suitable to perform (short-circuited) `&&` and `||` operations, respectively, over the eventually-resolved values in the IO instances. For additional convenience, common FP utilities like `fold(..)` and `foldMap(..)` (included in Monio's `Util` module) abstract the `concat(..)` calls across such concatable moniod instances.
 
     For example:
 
@@ -217,7 +218,7 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     // v: 30
     ```
 
-    And for handling typical event streams:
+    And for handling typical event streams manually:
 
     ```js
     var clicksIOx = IOx.of.empty();
@@ -231,7 +232,7 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     .run();
     ```
 
-    Alternatively, using included `IOx.onEvent(..)`:
+    More preferably, using the included `IOx.onEvent(..)` helper:
 
     ```js
     var clicksIOx = IOx.onEvent(btn,"click",false);
@@ -249,17 +250,17 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     IO.do(function *main({ doc, }){
         // IOx event stream that represents the one-time
         // DOM-ready event
-        var DOMReady = IOx.onceEvent(doc,"DOMContentLoaded",false);
+        var DOMReadyIOx = IOx.onceEvent(doc,"DOMContentLoaded",false);
 
-        // listen (and wait!) for this event to fire
-        yield DOMReady;
+        // listen (and wait!) for this one-time event to fire
+        yield DOMReadyIOx;
 
         // ..
     })
     .run({ doc: document });
     ```
 
-    `IOx.do(..)` can subscribe a do-block to one or more IOx instances; it will be invoked with each value update from any of the subscribed-to IOx instances:
+    `IOx.do(..)` is like `IO.do(..)`, except that it also accepts an optional second argument, an array of other IOx instances to subscribe to. The do-block will be re-invoked with each value update from any of the subscribed-to IOx instances:
 
     ```js
     var delay = ms => IO(() => new Promise(r => setTimeout(r,ms)));
@@ -278,6 +279,9 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
         // wait a second
         yield delay(1000);
 
+        // clear the message
+        yield renderMessage("");
+
         // re-enable button
         yield toggleEl(btn);
     }
@@ -290,7 +294,9 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
         // IOx instance that *is* activated)
         var clicksIOx = IOx.onEvent(btn,"click",false);
 
-        // for each click, re-evaluate the reactive do-block
+        // for each click, re-evaluate the reactive do-block,
+        // and pass along the received DOM event object as an
+        // argument to the do-block
         //
         // (still not activated yet!)
         var handleClicksIOx = IOx.do(onClick,[ clicksIOx ]);
@@ -309,7 +315,9 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     });
     ```
 
-    Similar to RxJS observables, some basic stream operators/combinators are provided:
+    Similar to RxJS observables, some basic stream operators/combinators are provided with IOx. Operators (`filterIn(..)`, `filterOut(..)`, `distinct(..)`, and `distinctUntilChanged(..)`) are passed to an IOx's `chain(..)` method. Combinators (`merge(..)` and `zip(..)`) are called standalone with an array of IOx instances to combine.
+
+    For example:
 
     ```js
     var log = msg => IO(() => console.log(msg));
@@ -440,12 +448,6 @@ A test suite is included in this repository, as well as the npm package distribu
 
     ```
     npm test
-    ```
-
-3. To run the test utility directly without npm:
-
-    ```
-    qunit
     ```
 
 ### Test Coverage
