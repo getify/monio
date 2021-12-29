@@ -11,7 +11,7 @@ const maybeProp = (key) => (obj) => maybe.Just(obj[key]);
 const eitherProp = (key) => (obj) => either(obj[key]);
 const ioProp = (key) => (obj) => IO.of(obj[key]);
 const delayPr = (ms) => new Promise(r => setTimeout(r,ms));
-const delayIOx = (v,ms) => IOx(() => delayPr(ms).then(() => v));
+const delayIOx = (v,ms) => IOx(() => delayPr(ms).then(() => v),[]);
 
 async function safeAwait(pr) {
 	try {
