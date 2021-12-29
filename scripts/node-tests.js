@@ -13,11 +13,13 @@ if (process.env.TEST_PACKAGE) {
 		Either: global.Either,
 		AsyncEither: global.AsyncEither,
 		IO: global.IO,
+		IOx: global.IOx,
 		AnyIO: global.AnyIO,
 		AllIO: global.AllIO,
-		IOHelpers: global.IOHelpers,
 		IOEventStream: global.IOEventStream,
-		IOx: global.IOx,
+		IOHelpers: global.IOHelpers,
+		IOxHelpers: global.IOxHelpers,
+		MonioUtil: global.MonioUtil,
 	} = require("../"));
 	runTests();
 }
@@ -30,11 +32,13 @@ else if (process.env.TEST_UMD) {
 		Either: global.Either,
 		AsyncEither: global.AsyncEither,
 		IO: global.IO,
+		IOx: global.IOx,
 		AnyIO: global.AnyIO,
 		AllIO: global.AllIO,
-		IOHelpers: global.IOHelpers,
 		IOEventStream: global.IOEventStream,
-		IOx: global.IOx,
+		IOHelpers: global.IOHelpers,
+		IOxHelpers: global.IOxHelpers,
+		MonioUtil: global.MonioUtil,
 	} = require("../dist/umd/bundle.js"));
 	runTests();
 }
@@ -55,11 +59,13 @@ else {
 	global.Either = require("../src/either.js");
 	global.AsyncEither = require("../src/async-either");
 	global.IO = require("../src/io/io.js");
+	global.IOx = require("../src/io/iox.js");
 	global.AnyIO = require("../src/io/any.js");
 	global.AllIO = require("../src/io/all.js");
-	global.IOHelpers = require("../src/io/helpers.js");
 	global.IOEventStream = require("../src/io/event-stream.js");
-	global.IOx = require("../src/io/iox.js");
+	global.IOHelpers = require("../src/io/helpers.js");
+	global.IOxHelpers = require("../src/io/x-helpers.js");
+	global.MonioUtil = require("../src/lib/util.js");
 	runTests();
 }
 

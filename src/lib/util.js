@@ -1,5 +1,6 @@
 "use strict";
 
+// curry some public methods
 fold = curry(fold,2);
 foldMap = curry(foldMap,2);
 
