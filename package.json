@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "Async-capable IO monad for JS",
-	"version": "0.32.1",
+	"version": "0.33.0",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "npm run build-all",
@@ -30,11 +30,12 @@
 		"either.js": "Either",
 		"async-either.js": "AsyncEither",
 		"io/io.js": "IO",
+		"io/iox.js": "IOx",
 		"io/any.js": "AnyIO",
 		"io/all.js": "AllIO",
-		"io/iox.js": "IOx",
-		"io/helpers.js": "IOHelpers",
 		"io/event-stream.js": "IOEventStream",
+		"io/helpers.js": "IOHelpers",
+		"io/x-helpers.js": "IOxHelpers",
 		"lib/util.js": "MonioUtil"
 	},
 	"exports": {
@@ -66,6 +67,14 @@
 			"import": "./dist/esm/io/io.mjs",
 			"default": "./src/io/io.js"
 		},
+		"./iox": {
+			"import": "./dist/esm/io/iox.mjs",
+			"default": "./src/io/iox.js"
+		},
+		"./io/x": {
+			"import": "./dist/esm/io/iox.mjs",
+			"default": "./src/io/iox.js"
+		},
 		"./io/any": {
 			"import": "./dist/esm/io/any.mjs",
 			"default": "./src/io/any.js"
@@ -74,17 +83,21 @@
 			"import": "./dist/esm/io/all.mjs",
 			"default": "./src/io/all.js"
 		},
-		"./io/helpers": {
-			"import": "./dist/esm/io/helpers.mjs",
-			"default": "./src/io/helpers.js"
-		},
 		"./io/event-stream": {
 			"import": "./dist/esm/io/event-stream.mjs",
 			"default": "./src/io/event-stream.js"
 		},
-		"./io/x": {
-			"import": "./dist/esm/io/iox.mjs",
-			"default": "./src/io/iox.js"
+		"./io/helpers": {
+			"import": "./dist/esm/io/helpers.mjs",
+			"default": "./src/io/helpers.js"
+		},
+		"./iox/helpers": {
+			"import": "./dist/esm/io/x-helpers.mjs",
+			"default": "./src/io/x-helpers.js"
+		},
+		"./io/x/helpers": {
+			"import": "./dist/esm/io/x-helpers.mjs",
+			"default": "./src/io/x-helpers.js"
 		},
 		"./util": {
 			"import": "./dist/esm/lib/util.mjs",
