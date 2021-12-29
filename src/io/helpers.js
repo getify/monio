@@ -15,6 +15,10 @@ var IOx = require("./iox.js");
 var Maybe = require("../maybe.js");
 var Either = require("../either.js");
 
+// curry some public methods
+listFilterInIO = curry(listFilterInIO,2);
+listFilterOutIO = curry(listFilterOutIO,2);
+
 var returnedValues = new WeakSet();
 
 module.exports = {
@@ -26,8 +30,6 @@ module.exports = {
 	applyIO,
 	doIO: IO.do,
 	doEIO: IO.doEither,
-	doIOx: IOx.do,
-	doEIOx: IOx.doEither,
 	doIOBind,
 	doEIOBind,
 	listFilterInIO,
@@ -55,8 +57,6 @@ module.exports.eitherFromIO = eitherFromIO;
 module.exports.applyIO = applyIO;
 module.exports.doIO = IO.do;
 module.exports.doEIO = IO.doEither;
-module.exports.doIOx = IOx.do;
-module.exports.doEIOx = IOx.doEither;
 module.exports.doIOBind = doIOBind;
 module.exports.doEIOBind = doEIOBind;
 module.exports.listFilterInIO = listFilterInIO;
@@ -117,29 +117,15 @@ function applyIO(io,env) {
 	return IO(() => io.run(env));
 }
 
-function doIOBind(fn,env) {
-	var fnDoIO = IO(() => IO.do(fn).run(env));
-	return (
-		(...args) => (
-			(args.length > 0) ?
-				IO(() => (
-					IO.do(fn(env,...args)).run(env))
-				) :
-				fnDoIO
-		)
+function doIOBind(gen,env) {
+	return (...args) => (
+		IO(() => IO.do(gen,...args).run(env))
 	);
 }
 
-function doEIOBind(fn,env) {
-	var fnDoEIO = IO(() => IO.doEither(fn).run(env));
-	return (
-		(...args) => (
-			(args.length > 0) ?
-				IO(() => (
-					IO.doEither(fn(env,...args)).run(env))
-				) :
-				fnDoEIO
-		)
+function doEIOBind(gen,env) {
+	return (...args) => (
+		IO(() => IO.doEither(gen,...args).run(env))
 	);
 }
 

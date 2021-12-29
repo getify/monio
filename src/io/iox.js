@@ -4,9 +4,19 @@ var {
 	isFunction,
 	isPromise,
 	isMonad,
+	curry,
 	getDeferred,
 } = require("../lib/util.js");
 var IO = require("./io.js");
+
+// curry some public methods
+IOx = curry(IOx,2);
+$do = curry($do,2);
+doEither = curry(doEither,2);
+onEvent = curry(onEvent,2);
+onceEvent = curry(onceEvent,2);
+
+of.empty = ofEmpty;
 
 const BRAND = {};
 const EMPTY = {};
@@ -14,12 +24,9 @@ const UNSET = Symbol("unset");
 const CLOSED = Symbol("closed");
 var registerHooks = new WeakMap();
 
-of.empty = ofEmpty;
-
 module.exports = Object.assign(IOx,{
 	of, pure: of, unit: of, is, do: $do, doEither, onEvent,
-	onceEvent, merge, zip, filterIn, filterOut, distinct,
-	distinctUntilChanged,
+	onceEvent, onTimer, merge, zip,
 });
 module.exports.of = of;
 module.exports.pure = of;
@@ -29,19 +36,14 @@ module.exports.do = $do;
 module.exports.doEither = doEither;
 module.exports.onEvent = onEvent;
 module.exports.onceEvent = onceEvent;
+module.exports.onTimer = onTimer;
 module.exports.merge = merge;
 module.exports.zip = zip;
-module.exports.filterIn = filterIn;
-module.exports.filterOut = filterOut;
-module.exports.distinct = distinct;
-module.exports.distinctUntilChanged = distinctUntilChanged;
-
 
 
 // **************************
 
-
-function IOx(iof,deps = []) {
+function IOx(iof,deps) {
 	if (Array.isArray(deps)) {
 		deps = [ ...deps ];
 	}
@@ -51,15 +53,19 @@ function IOx(iof,deps = []) {
 	var waitForDeps;
 	var depsComplete;
 	var depVals;
+	var ioDepsPending = new WeakSet();
 	var listeners;
 	var closing = false;
+	var frozen = false;
+	var collectingDepsStack = 0;
 
 	var io = IO(effect);
 	io.assign = assign;	// just to control a quirk of minification
 	var publicAPI = Object.assign(IOx$,{
 		map, chain, flatMap: chain, bind: chain,
-		concat, run, stop, close, isClosed, toString,
-		_chain_with_IO, _inspect, _is, [Symbol.toStringTag]: "IOx",
+		concat, run, stop, close, isClosed, freeze,
+		isFrozen, toString, _chain_with_IO, _inspect,
+		_is, [Symbol.toStringTag]: "IOx",
 	});
 	registerHooks.set(publicAPI,[ registerListener, unregisterListener, ]);
 	return publicAPI;
@@ -93,11 +99,10 @@ function IOx(iof,deps = []) {
 		if (!closing) {
 			closing = true;
 			stop();
-			if (currentVal != CLOSED) {
-				updateCurrentVal(CLOSED);
-			}
+			updateCurrentVal(CLOSED);
 			registerHooks.delete(publicAPI);
-			waitForDeps = depsComplete = deps = iof = io = publicAPI = listeners = null;
+			ioDepsPending = waitForDeps = depsComplete = deps = iof =
+				io = publicAPI = listeners = null;
 		}
 	}
 
@@ -105,8 +110,17 @@ function IOx(iof,deps = []) {
 		return closing;
 	}
 
+	function freeze() {
+		frozen = true;
+		stop();
+	}
+
+	function isFrozen() {
+		return frozen;
+	}
+
 	function assign(v) {
-		if (!closing) {
+		if (!closing && !frozen) {
 			unregisterWithDeps();
 			deps = depVals = currentEnv = iof = null;
 			return updateCurrentVal(v);
@@ -130,18 +144,18 @@ function IOx(iof,deps = []) {
 			function handle(ciox) {
 				// are we chaining with a valid IOx instance?
 				if (registerHooks.has(ciox)) {
-					// artificially register a listener for *outer* IOx
+					// artificially register a listener for our *outer* IOx
 					registerListener(
 						(_,val) => {
 							// *outer* IOx has now closed, but chained IOx
 							// is still open?
-							if (val == CLOSED && !ciox.isClosed()) {
+							if (val === CLOSED && ciox && !ciox.isClosed()) {
 								// close the chained IOx (for memory cleanup)
 								ciox.close();
 							}
 						},
 						publicAPIv,
-						currentEnv != UNSET ? currentEnv : env
+						currentEnv !== UNSET ? currentEnv : env
 					);
 				}
 
@@ -161,30 +175,58 @@ function IOx(iof,deps = []) {
 		},[ publicAPI, ]);
 	}
 
+	function haveDeps() {
+		return Array.isArray(deps) && deps.length > 0 && depVals;
+	}
+
+	function emptyIODepsCache() {
+		if (haveDeps()) {
+			for (let dep of deps) {
+				if (IO.is(dep) && !is(dep)) {
+					depVals.delete(dep);
+					ioDepsPending.delete(dep);
+				}
+			}
+		}
+	}
+
 	function effect(env) {
-		if (!closing && isFunction(iof)) {
+		if (frozen) {
+			if (![ UNSET, CLOSED, EMPTY ].includes(currentVal)) {
+				return currentVal;
+			}
+			else {
+				// never-resolving promise
+				return getDeferred().pr;
+			}
+		}
+		else if (!closing && isFunction(iof)) {
 			// first run?
-			if (currentEnv == UNSET) {
+			if (currentEnv === UNSET) {
 				registerWithDeps(env);
 			}
 			currentEnv = env;
 
-			var dv = collectDepVals();
+			let dv = collectDepVals(env);
 			if (!dv) {
 				return waitForDeps;
 			}
 			// all dependencies are now closed?
-			else if (dv == CLOSED) {
+			else if (dv === CLOSED) {
 				try {
-					return getDeferred().pr;
+					return (waitForDeps || getDeferred().pr);
 				}
 				finally {
 					close();
 				}
 			}
 
+			// if we get here, all deps are present/valid,
+			// so forget the caching of any IO deps
+			emptyIODepsCache();
+
 			let res = iof(currentEnv,...dv);
-			if (res != EMPTY) {
+			if (res !== EMPTY) {
 				return updateCurrentVal(res);
 			}
 			else {
@@ -199,19 +241,94 @@ function IOx(iof,deps = []) {
 		}
 	}
 
-	function collectDepVals() {
-		if (Array.isArray(deps) && deps.length > 0) {
-			let ret = [];
+	function collectDepVals(env) {
+		// nothing to collect?
+		if (!haveDeps()) {
+			return [];
+		}
+
+		// count how many times this collection is stacked
+		// up concurrently
+		collectingDepsStack++;
+
+		// collection iterations already in progress?
+		if (collectingDepsStack > 1) {
+			if (!waitForDeps) {
+				({ pr: waitForDeps, next: depsComplete, } = getDeferred());
+			}
+			return false;
+		}
+
+		var ret;
+		// keep re-collecting the deps as many times as
+		// the stack depth indicates
+		while (collectingDepsStack > 0) {
+			// note: this may be re-assigned before return in
+			// a subsequent iteration of the collection stack
+			ret = [];
+
+			// first check only for closed IOxs
 			for (let dep of deps) {
-				if (
-					dep &&
-					isFunction(dep) &&
-					registerHooks.has(dep)
-				) {
+				// dep is a valid IOx?
+				if (is(dep)) {
+					// is dep closed?
+					if (depVals.get(dep) === CLOSED || dep.isClosed()) {
+						// bail early since closed IOxs mean none of
+						// the other deps matter
+						collectingDepsStack = 0;
+						return CLOSED;
+					}
+				}
+			}
+
+			// if we get here, all IOx deps still open
+			for (let dep of deps) {
+				// dep is a valid IOx?
+				if (is(dep)) {
 					ret.push(depVals.get(dep));
 				}
+				// regular IO as dep?
+				else if (IO.is(dep)) {
+					// IO dep already pending?
+					if (ioDepsPending && ioDepsPending.has(dep)) {
+						ret.push(UNSET);
+					}
+					else {
+						// IO dep already cached?
+						if (depVals.has(dep)) {
+							ret.push(depVals.get(dep));
+						}
+						// otherwise, request the IO value
+						else {
+							// (re)run the IO to get its results
+							let depRes = dep.run(
+								env || (currentEnv !== UNSET ? currentEnv : undefined)
+							);
+
+							// IO result not yet ready?
+							if (isPromise(depRes)) {
+								ioDepsPending.add(dep);
+								ret.push(UNSET);
+								// wait for the IO result
+								depRes.then(v => {
+									// still actually waiting on this IO result?
+									if (ioDepsPending && ioDepsPending.has(dep)) {
+										ioDepsPending.delete(dep);
+										onDepUpdate(dep,v);
+									}
+								})
+								.catch(logUnhandledError);
+							}
+							else {
+								depVals.set(dep,depRes);
+								ioDepsPending.delete(dep);
+								ret.push(depRes);
+							}
+						}
+					}
+				}
 				// from an "empty IOx"
-				else if (dep == EMPTY) {
+				else if (dep === EMPTY) {
 					ret.push(UNSET);
 				}
 				else {
@@ -219,21 +336,25 @@ function IOx(iof,deps = []) {
 				}
 			}
 
-			// all depedencies closed?
-			if (ret.every(v => v == CLOSED)) {
-				return CLOSED;
-			}
-			// any dep values still unset (or closed)?
-			else if (ret.includes(UNSET) || ret.includes(CLOSED)) {
+			// any of the deps not yet complete?
+			if (ret.includes(UNSET)) {
 				if (!waitForDeps) {
 					({ pr: waitForDeps, next: depsComplete, } = getDeferred());
 				}
-				return false;
+
+				// note: this may be re-assigned before return in
+				// a subsequent iteration of the collection stack
+				ret = false;
 			}
 
-			return ret;
+			// done with this iteration of collection, so decrement
+			// stack counter
+			collectingDepsStack = Math.max(0,collectingDepsStack - 1);
 		}
-		return [];
+
+		// did any iteration of the collection stack produce
+		// a return value?
+		return (ret !== undefined ? ret : []);
 	}
 
 	function updateCurrentVal(v) {
@@ -255,7 +376,7 @@ function IOx(iof,deps = []) {
 				}
 			}
 			// not yet fully closed?
-			if (currentVal == CLOSED && io) {
+			if (currentVal === CLOSED && io) {
 				close();
 			}
 
@@ -275,7 +396,7 @@ function IOx(iof,deps = []) {
 	}
 
 	function registerListener(listener,dep,env) {
-		if (currentVal == CLOSED) {
+		if (currentVal === CLOSED) {
 			listener(dep,CLOSED);
 		}
 		else {
@@ -287,7 +408,7 @@ function IOx(iof,deps = []) {
 			}
 
 			// haven't run yet?
-			if (currentEnv == UNSET) {
+			if (currentEnv === UNSET) {
 				safeIORun(publicAPI,env);
 			}
 			else {
@@ -316,8 +437,7 @@ function IOx(iof,deps = []) {
 				// is this dep an IOx instance that
 				// we haven't registered with before?
 				if (
-					dep &&
-					isFunction(dep) &&
+					is(dep) &&
 					registerHooks.has(dep) &&
 					!depVals.has(dep)
 				) {
@@ -334,7 +454,7 @@ function IOx(iof,deps = []) {
 
 	function unregisterWithDeps() {
 		// need to unsubscribe any deps?
-		if (Array.isArray(deps) && deps.length > 0) {
+		if (haveDeps()) {
 			for (let dep of deps) {
 				// is this dep an IOx instance?
 				if (
@@ -342,8 +462,9 @@ function IOx(iof,deps = []) {
 					isFunction(dep) &&
 					registerHooks.has(dep)
 				) {
-					if (depVals) {
-						depVals.delete(dep);
+					depVals.delete(dep);
+					if (ioDepsPending) {
+						ioDepsPending.delete(dep);
 					}
 					let [ , unregListener, ] = registerHooks.get(dep);
 					// IOx instance still active/valid?
@@ -359,12 +480,12 @@ function IOx(iof,deps = []) {
 		if (depVals) {
 			depVals.set(dep,newVal);
 		}
-		if (currentEnv != UNSET) {
+		if (currentEnv !== UNSET && newVal !== CLOSED) {
 			safeIORun(publicAPI,currentEnv);
 		}
 		else {
-			let dv = collectDepVals();
-			if (dv == CLOSED) {
+			let dv = collectDepVals(undefined);
+			if (dv === CLOSED) {
 				close();
 			}
 		}
@@ -378,8 +499,8 @@ function IOx(iof,deps = []) {
 	// IOx occurs
 	function _chain_with_IO(fn) {
 		return (
-			(currentVal != UNSET && currentEnv != UNSET) ?
-				fn(currentVal != CLOSED ? currentVal : undefined) :
+			(currentVal !== UNSET && currentEnv !== UNSET) ?
+				fn(currentVal !== CLOSED ? currentVal : undefined) :
 				io.chain(fn)
 		);
 	}
@@ -404,20 +525,20 @@ function is(v) {
 }
 
 function of(v) {
-	return IOx(() => v);
+	return IOx(() => v,[]);
 }
 
 function ofEmpty() {
 	return IOx(() => {},[ EMPTY, ]);
 }
 
-function $do(gen,deps = [],...args) {
+function $do(gen,deps,...args) {
 	return IOx((env,...deps) => (
 		IO.do(gen,...deps,...args).run(env)
 	),deps);
 }
 
-function doEither(gen,deps = [],...args) {
+function doEither(gen,deps,...args) {
 	return IOx((env,...deps) => (
 		IO.doEither(gen,...deps,...args).run(env)
 	),deps);
@@ -425,7 +546,7 @@ function doEither(gen,deps = [],...args) {
 
 function onEvent(el,evtName,evtOpts = false) {
 	var subscribed = false;
-	var iox = IOx(effect);
+	var iox = IOx(effect,[]);
 
 	// save original methods
 	var { run: _run, stop: _stop, close: _close, } = iox;
@@ -579,6 +700,84 @@ function onceEvent(el,evtName,evtOpts = false) {
 
 }
 
+function onTimer(updateInterval,countLimit) {
+	var subscribed = false;
+	var intv;
+	var timer = IOx(effect,[]);
+	countLimit = (
+		typeof countLimit == "number" ?
+			Math.max(1,countLimit || 1) :
+			undefined
+	);
+
+	// save original methods
+	var { run: _run, stop: _stop, close: _close, } = timer;
+
+	// overwrite methods with wrapped versions
+	Object.assign(timer,{ run, stop, close, });
+
+	return timer;
+
+	// *****************************************
+
+	function effect() {
+		subscribe();
+		return EMPTY;
+	}
+
+	function subscribe() {
+		if (!subscribed && !intv) {
+			subscribed = true;
+			intv = setInterval(onTick,updateInterval);
+		}
+	}
+
+	function unsubscribe() {
+		if (subscribed && intv) {
+			subscribed = false;
+			clearInterval(intv);
+			intv = null;
+		}
+	}
+
+	function run(env) {
+		subscribe();
+		if (_run) {
+			_run(env);
+		}
+	}
+
+	function onTick() {
+		if (timer) {
+			timer("tick");
+		}
+		if (typeof countLimit == "number") {
+			countLimit--;
+			if (countLimit <= 0) {
+				close();
+			}
+		}
+	}
+
+	function stop() {
+		unsubscribe();
+		_stop();
+	}
+
+	function close() {
+		if (timer) {
+			// restore original methods
+			Object.assign(timer,{
+				run: _run, stop: _stop, close: _close,
+			});
+			stop();
+			timer.close();
+			run = _run = _stop = stop = _close = close = timer = null;
+		}
+	}
+
+}
+
 function zip(ioxs = []) {
 	if (Array.isArray(ioxs)) {
 		ioxs = [ ...ioxs ];
@@ -586,7 +785,7 @@ function zip(ioxs = []) {
 
 	var subscribed = false;
 	var queues = new Map();
-	var iox = IOx(effect);
+	var iox = IOx(effect,[]);
 
 	// save original methods
 	var { run: _run, stop: _stop, close: _close, } = iox;
@@ -626,8 +825,8 @@ function zip(ioxs = []) {
 	}
 
 	function onUpdate(stream,v) {
-		if (!iox.isClosed()) {
-			if (v != CLOSED) {
+		if (iox && !iox.isClosed()) {
+			if (v !== CLOSED) {
 				if (queues.has(stream)) {
 					queues.get(stream).push(v);
 				}
@@ -638,6 +837,7 @@ function zip(ioxs = []) {
 
 	function checkListeners() {
 		if (
+			iox &&
 			!iox.isClosed() &&
 			Array.isArray(ioxs)
 		) {
@@ -649,7 +849,7 @@ function zip(ioxs = []) {
 				let collectedValues;
 				for (let x of ioxs) {
 					// stream still open?
-					if (!x.isClosed()) {
+					if (x && !x.isClosed()) {
 						allStreamsClosed = false;
 					}
 
@@ -662,7 +862,7 @@ function zip(ioxs = []) {
 						collectedQueues.push(queue);
 					}
 					// could stream still produce values?
-					else if (!x.isClosed()) {
+					else if (x && !x.isClosed()) {
 						// since we have no value for this
 						// stream currently, done for now
 						return;
@@ -745,7 +945,7 @@ function merge(ioxs = []) {
 	}
 
 	var subscribed = false;
-	var iox = IOx(effect);
+	var iox = IOx(effect,[]);
 
 	// save original methods
 	var { run: _run, stop: _stop, close: _close, } = iox;
@@ -780,8 +980,8 @@ function merge(ioxs = []) {
 	}
 
 	function onUpdate(_,v) {
-		if (!iox.isClosed()) {
-			if (v != CLOSED) {
+		if (iox && !iox.isClosed()) {
+			if (v !== CLOSED) {
 				iox(v);
 			}
 			checkListeners();
@@ -790,10 +990,11 @@ function merge(ioxs = []) {
 
 	function checkListeners() {
 		if (
+			iox &&
 			!iox.isClosed() &&
 			// all merged streams closed?
 			Array.isArray(ioxs) &&
-			ioxs.every(x => x.isClosed())
+			ioxs.every(x => x ? x.isClosed() : true)
 		) {
 			close();
 		}
@@ -839,74 +1040,6 @@ function merge(ioxs = []) {
 		}
 	}
 
-}
-
-function filterIn(predicate) {
-	const EMPTY = IOx.of.empty();
-	var iox = IOx.of.empty();
-
-	return function filter(v){
-		if (predicate(v)) {
-			iox(v);
-			return iox;
-		}
-		return EMPTY;
-	};
-}
-
-function filterOut(predicate) {
-	return filterIn(v => !predicate(v));
-}
-
-function distinct() {
-	var prevPrim = new Set();
-	var prevObj = new WeakSet();
-
-	return filterIn(function distinct(v){
-		var prevSet = (
-			v && [ "object", "function" ].includes(typeof v) ? prevObj : prevPrim
-		);
-		if (!prevSet.has(v)) {
-			prevSet.add(v);
-			return true;
-		}
-		return false;
-	});
-}
-
-function distinctUntilChanged() {
-	// note: a distinct object literal as an initial
-	// sentinel value to distinguish from any possible
-	// passed in value (including undefined)
-	var prev = {};
-
-	return filterIn(function distinctUntilChanged(v){
-		if (prev instanceof WeakSet) {
-			if (v && [ "object", "function" ].includes(typeof v)) {
-				if (!prev.has(v)) {
-					prev = new WeakSet();
-					prev.add(v);
-					return true;
-				}
-			}
-			else {
-				prev = v;
-				return true;
-			}
-		}
-		else {
-			if (v && [ "object", "function" ].includes(typeof v)) {
-				prev = new WeakSet();
-				prev.add(v);
-				return true;
-			}
-			else if (!Object.is(v,prev)) {
-				prev = v;
-				return true;
-			}
-		}
-		return false;
-	});
 }
 
 function safeIORun(io,env) {
