@@ -8,6 +8,10 @@ var fs = require("fs"),
 	execFileAsync = util.promisify(execFile),
 	packageJSON,
 	copyrightHeader,
+	pkgExports,
+	importMapTemplate = {
+		imports: {}
+	},
 	version,
 	year = (new Date()).getFullYear(),
 	builds,
@@ -36,6 +40,8 @@ console.log("*** Building Monio ***");
 				{ encoding: "utf8", }
 			)
 		);
+		// read export names from package.json
+		pkgExports = packageJSON.exports;
 		// read version number from package.json
 		version = packageJSON.version;
 		// read copyright-header text, render with version and year
@@ -52,6 +58,19 @@ console.log("*** Building Monio ***");
 				`--prepend=${ copyrightHeader }`,
 				"-ruben",
 			]
+		);
+
+		// build import-map template
+		for (let [ exportPath, exportEntry ] of Object.entries(pkgExports)) {
+			let fromPath = exportPath.replace(/^\./,"monio");
+			let toPath = exportEntry.import.replace(/^\.\/dist\/esm/,"/monio");
+			importMapTemplate.imports[fromPath] = toPath;
+		}
+		// write out import-map template file
+		fs.writeFileSync(
+			path.join(DIST_DIR,"esm","import-map-template.json"),
+			JSON.stringify(importMapTemplate,null,"  "),
+			"utf8"
 		);
 
 		console.log("Complete.");
