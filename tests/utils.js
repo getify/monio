@@ -1,3 +1,5 @@
+"use strict";
+
 const just = require("monio/just");
 const maybe = require("monio/maybe");
 const either = require("monio/either");
@@ -11,6 +13,7 @@ const maybeProp = (key) => (obj) => maybe.Just(obj[key]);
 const eitherProp = (key) => (obj) => either(obj[key]);
 const ioProp = (key) => (obj) => IO.of(obj[key]);
 const delayPr = (ms) => new Promise(r => setTimeout(r,ms));
+const delayIO = (v,ms) => IO(() => delayPr(ms).then(() => v));
 const delayIOx = (v,ms) => IOx(() => delayPr(ms).then(() => v),[]);
 
 async function safeAwait(pr) {
@@ -31,6 +34,7 @@ module.exports = {
 	eitherProp,
 	ioProp,
 	delayPr,
+	delayIO,
 	delayIOx,
 	safeAwait,
 };

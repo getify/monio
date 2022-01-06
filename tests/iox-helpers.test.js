@@ -1,3 +1,5 @@
+"use strict";
+
 const EventEmitter = require("events");
 const qunit = require("qunit");
 const { identity, inc, twice, eitherProp, delayPr, } = require("./utils");

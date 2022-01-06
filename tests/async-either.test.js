@@ -1,3 +1,5 @@
+"use strict";
+
 const qunit = require("qunit");
 const sinon = require("sinon");
 const {
