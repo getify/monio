@@ -10,9 +10,6 @@ var {
 var IO = require("./io.js");
 
 // curry some public methods
-IOx = curry(IOx,2);
-$do = curry($do,2);
-doEither = curry(doEither,2);
 onEvent = curry(onEvent,2);
 onceEvent = curry(onceEvent,2);
 
@@ -26,7 +23,7 @@ var registerHooks = new WeakMap();
 
 module.exports = Object.assign(IOx,{
 	of, pure: of, unit: of, is, do: $do, doEither, onEvent,
-	onceEvent, onTimer, merge, zip,
+	onceEvent, onTimer, merge, zip, fromIO, fromIter,
 });
 module.exports.of = of;
 module.exports.pure = of;
@@ -39,22 +36,32 @@ module.exports.onceEvent = onceEvent;
 module.exports.onTimer = onTimer;
 module.exports.merge = merge;
 module.exports.zip = zip;
+module.exports.fromIO = fromIO;
+module.exports.fromIter = fromIter;
 
 
 // **************************
 
-function IOx(iof,deps) {
+function IOx(iof,deps = []) {
 	if (Array.isArray(deps)) {
 		deps = [ ...deps ];
+	}
+	else {
+		deps = [ deps ];
 	}
 
 	var currentEnv = UNSET;
 	var currentVal = UNSET;
 	var waitForDeps;
 	var depsComplete;
-	var depVals;
+	var depVals = new WeakMap();
+	var latestIOxVals = new WeakMap();
 	var ioDepsPending = new WeakSet();
+	var depsPendingClose = new WeakSet();
 	var listeners;
+	var registering = false;
+	var runningIOF = false;
+	var registered = false;
 	var closing = false;
 	var frozen = false;
 	var collectingDepsStack = 0;
@@ -91,7 +98,6 @@ function IOx(iof,deps) {
 
 	function stop() {
 		unregisterWithDeps();
-		depVals = null;
 		currentEnv = UNSET;
 	}
 
@@ -101,8 +107,8 @@ function IOx(iof,deps) {
 			stop();
 			updateCurrentVal(CLOSED);
 			registerHooks.delete(publicAPI);
-			ioDepsPending = waitForDeps = depsComplete = deps = iof =
-				io = publicAPI = listeners = null;
+			ioDepsPending = depsPendingClose = waitForDeps = depsComplete =
+				deps = iof = io = publicAPI = listeners = null;
 		}
 	}
 
@@ -122,7 +128,7 @@ function IOx(iof,deps) {
 	function assign(v) {
 		if (!closing && !frozen) {
 			unregisterWithDeps();
-			deps = depVals = currentEnv = iof = null;
+			deps = currentEnv = iof = null;
 			return updateCurrentVal(v);
 		}
 	}
@@ -154,7 +160,7 @@ function IOx(iof,deps) {
 								ciox.close();
 							}
 						},
-						publicAPIv,
+						publicAPI,
 						currentEnv !== UNSET ? currentEnv : env
 					);
 				}
@@ -176,21 +182,52 @@ function IOx(iof,deps) {
 	}
 
 	function haveDeps() {
-		return Array.isArray(deps) && deps.length > 0 && depVals;
+		return Array.isArray(deps) && deps.length > 0;
 	}
 
-	function emptyIODepsCache() {
+	function haveIOxDeps() {
 		if (haveDeps()) {
+			return deps.some(is);
+		}
+	}
+
+	function discardCurrentDepVals() {
+		if (haveDeps()) {
+			// remove all the current dep values from their
+			// respective dep-value queues
+			for (let dep of deps) {
+				removeDepVal(dep);
+				ioDepsPending.delete(dep);
+			}
+		}
+	}
+
+	function discardCurrentIOxDepVals() {
+		if (haveDeps()) {
+			// remove all the current IOx dep values from
+			// their respective dep-value queues
+			for (let dep of deps) {
+				if (is(dep)) {
+					removeDepVal(dep);
+				}
+			}
+		}
+	}
+
+	function discardCurrentIODepVals() {
+		if (haveDeps()) {
+			// remove all the current IO dep values from
+			// their respective dep-value queues
 			for (let dep of deps) {
 				if (IO.is(dep) && !is(dep)) {
-					depVals.delete(dep);
-					ioDepsPending.delete(dep);
+					removeDepVal(dep);
 				}
 			}
 		}
 	}
 
 	function effect(env) {
+		// is the IOx already frozen?
 		if (frozen) {
 			if (![ UNSET, CLOSED, EMPTY ].includes(currentVal)) {
 				return currentVal;
@@ -200,48 +237,179 @@ function IOx(iof,deps) {
 				return getDeferred().pr;
 			}
 		}
+		// are we still open and have a valid IOF
+		// to execute?
 		else if (!closing && isFunction(iof)) {
-			// first run?
-			if (currentEnv === UNSET) {
+			// need to register?
+			if (!(registering || registered)) {
 				registerWithDeps(env);
 			}
-			currentEnv = env;
 
-			let dv = collectDepVals(env);
-			if (!dv) {
-				return waitForDeps;
-			}
-			// all dependencies are now closed?
-			else if (dv === CLOSED) {
-				try {
-					return (waitForDeps || getDeferred().pr);
-				}
-				finally {
-					close();
-				}
-			}
-
-			// if we get here, all deps are present/valid,
-			// so forget the caching of any IO deps
-			emptyIODepsCache();
-
-			let res = iof(currentEnv,...dv);
-			if (res !== EMPTY) {
-				return updateCurrentVal(res);
-			}
-			else {
-				return undefined;
+			// ready to evaluate the IOX by executing its IOF?
+			if (!runningIOF) {
+				return execIOF(env);
 			}
 		}
 		else if (![ UNSET, CLOSED, EMPTY ].includes(currentVal)) {
 			return currentVal;
 		}
-		else {
-			return iof;
+
+		// note: really shouldn't get here, this is using
+		// IOx incorrectly
+		return;
+	}
+
+	function execIOF(env) {
+		var curVal;
+		var allowIOxCache = true;
+		try {
+			runningIOF = true;
+
+			// keep going (synchronously) as long as there are
+			// complete sets of queued dep vals to keep
+			// re-evaluating this IOx with
+			execLoop: while (runningIOF) {
+				let dv;
+
+				// are we still open and have an IOF to exec?
+				if (!closing && iof) {
+					currentEnv = env;
+					dv = collectDepVals(env,allowIOxCache);
+
+					// next iteration (if any), don't allow
+					// pulling dep values from the IOx cache
+					allowIOxCache = false;
+				}
+
+				// no set of collected deps values was found?
+				if (!dv) {
+					if (curVal) {
+						return curVal;
+					}
+					else {
+						if (!waitForDeps) {
+							({ pr: waitForDeps, next: depsComplete, } = getDeferred());
+						}
+						return waitForDeps;
+					}
+				}
+				else if (
+					// all dependencies are now closed?
+					dv === CLOSED ||
+					// already closed (when registering with deps)?
+					!iof
+				) {
+					try {
+						return (
+							curVal || waitForDeps || getDeferred().pr
+						);
+					}
+					finally {
+						close();
+					}
+				}
+
+				// if we get here, we have a complete set of dep
+				// values (if any) to evaluate the IOx with
+				let iofRes = iof(currentEnv,...dv);
+
+				// was the result of the IOx evaluation non-empty?
+				if (!closing && iofRes !== EMPTY) {
+					// save the current IOx value, either sync or async
+					let updateRes = updateCurrentVal(iofRes,/*drainQueue=*/true);
+
+					// was the update of the IOx value synchronous,
+					// and are there IOx deps (which may have queued
+					// up more values that need to be processed)?
+					if (!isPromise(updateRes) && haveIOxDeps()) {
+						// remember this newly updated value in case the
+						// next iteration doesn't produce an updated value
+						curVal = updateRes;
+
+						// note: discards IOx dep vals, but preserves
+						// any cached IO dep vals, as there's no reason
+						// to re-evaluate standard IOs during a synchronous
+						// draining of queued dep values
+						discardCurrentIOxDepVals();
+
+						// re-check the collected deps values to see
+						// if this IOx is ready to be re-evaluated
+						continue execLoop;
+					}
+					// whether the update was asynchronous, or there
+					// are no IOx deps to have queued up more dep values,
+					// we can now immediately bail on this evaluation of
+					// the IOx
+					else {
+						// nothing else to evaluate for now
+						discardCurrentDepVals();
+						return updateRes;
+					}
+				}
+				// otherwise, nothing else to evaluate, so bail
+				else {
+					return (curVal || undefined);
+				}
+			}
+		}
+		finally {
+			discardCurrentIODepVals();
+			runningIOF = false;
 		}
 	}
 
-	function collectDepVals(env) {
+	function onDepUpdate(dep,newVal) {
+		if (newVal === CLOSED) {
+			depsPendingClose.add(dep);
+			latestIOxVals.delete(dep);
+		}
+		else {
+			setDepVal(dep,newVal);
+		}
+
+		if (!registering && !runningIOF) {
+			if (currentEnv !== UNSET && newVal !== CLOSED) {
+				safeIORun(publicAPI,currentEnv);
+			}
+			else {
+				let dv = collectDepVals(undefined,/*allowIOxCache=*/false);
+				if (dv === CLOSED) {
+					close();
+				}
+			}
+		}
+	}
+
+	function setDepVal(dep,val) {
+		if (!depVals.has(dep)) {
+			depVals.set(dep,[]);
+		}
+
+		depVals.get(dep).push(val);
+
+		if (is(dep)) {
+			latestIOxVals.set(dep,val);
+		}
+	}
+
+	function getDepVal(dep) {
+		return hasDepVal(dep) ? depVals.get(dep)[0] : undefined;
+	}
+
+	function hasDepVal(dep) {
+		return (
+			depVals.has(dep) &&
+			depVals.get(dep).length > 0
+		);
+	}
+
+	function removeDepVal(dep) {
+		if (hasDepVal(dep)) {
+			return depVals.get(dep).shift();
+		}
+	}
+
+	function collectDepVals(env,allowIOxCache) {
 		// nothing to collect?
 		if (!haveDeps()) {
 			return [];
@@ -253,9 +421,6 @@ function IOx(iof,deps) {
 
 		// collection iterations already in progress?
 		if (collectingDepsStack > 1) {
-			if (!waitForDeps) {
-				({ pr: waitForDeps, next: depsComplete, } = getDeferred());
-			}
 			return false;
 		}
 
@@ -263,29 +428,46 @@ function IOx(iof,deps) {
 		// keep re-collecting the deps as many times as
 		// the stack depth indicates
 		while (collectingDepsStack > 0) {
-			// note: this may be re-assigned before return in
-			// a subsequent iteration of the collection stack
+			// note: this may be (re)assigned multiple times
+			// before return in a subsequent iteration of the
+			// collection stack loop
 			ret = [];
 
-			// first check only for closed IOxs
+			// check only for closed IOx deps
 			for (let dep of deps) {
-				// dep is a valid IOx?
-				if (is(dep)) {
-					// is dep closed?
-					if (depVals.get(dep) === CLOSED || dep.isClosed()) {
-						// bail early since closed IOxs mean none of
-						// the other deps matter
-						collectingDepsStack = 0;
-						return CLOSED;
-					}
+				if (
+					// dep is a valid IOx?
+					is(dep) &&
+
+					// dep is closed?
+					(depsPendingClose.has(dep) || dep.isClosed()) &&
+
+					(
+						// not currently in an IOx evaluation loop?
+						!runningIOF ||
+
+						// or, no more values in the queue?
+						!hasDepVal(dep)
+					)
+				) {
+					// bail early since any closed IOxs mean none of
+					// the other deps matter
+					collectingDepsStack = 0;
+					return CLOSED;
 				}
 			}
 
-			// if we get here, all IOx deps still open
 			for (let dep of deps) {
 				// dep is a valid IOx?
 				if (is(dep)) {
-					ret.push(depVals.get(dep));
+					// note: all IOx deps are either still open, or even if
+					// closed, they at least have remaining queued value(s)
+					let depVal = (
+						hasDepVal(dep) ? getDepVal(dep) :
+						(allowIOxCache && latestIOxVals.has(dep)) ? latestIOxVals.get(dep) :
+						UNSET
+					);
+					ret.push(depVal);
 				}
 				// regular IO as dep?
 				else if (IO.is(dep)) {
@@ -295,8 +477,8 @@ function IOx(iof,deps) {
 					}
 					else {
 						// IO dep already cached?
-						if (depVals.has(dep)) {
-							ret.push(depVals.get(dep));
+						if (hasDepVal(dep)) {
+							ret.push(getDepVal(dep));
 						}
 						// otherwise, request the IO value
 						else {
@@ -320,8 +502,8 @@ function IOx(iof,deps) {
 								.catch(logUnhandledError);
 							}
 							else {
-								depVals.set(dep,depRes);
 								ioDepsPending.delete(dep);
+								setDepVal(dep,depRes);
 								ret.push(depRes);
 							}
 						}
@@ -331,6 +513,8 @@ function IOx(iof,deps) {
 				else if (dep === EMPTY) {
 					ret.push(UNSET);
 				}
+				// otherwise, some other kind of fixed (non-IO/x)
+				// dep value
 				else {
 					ret.push(dep);
 				}
@@ -338,26 +522,27 @@ function IOx(iof,deps) {
 
 			// any of the deps not yet complete?
 			if (ret.includes(UNSET)) {
-				if (!waitForDeps) {
-					({ pr: waitForDeps, next: depsComplete, } = getDeferred());
-				}
-
-				// note: this may be re-assigned before return in
-				// a subsequent iteration of the collection stack
+				// note: this may be (re)assigned multiple times
+				// before return in a subsequent iteration of the
+				// collection stack loop
 				ret = false;
 			}
 
 			// done with this iteration of collection, so decrement
-			// stack counter
+			// stack loop counter
 			collectingDepsStack = Math.max(0,collectingDepsStack - 1);
 		}
 
-		// did any iteration of the collection stack produce
-		// a return value?
-		return (ret !== undefined ? ret : []);
+		// did the latest iteration of the collection stack loop
+		// produce a complete set of dep values
+		if (Array.isArray(ret) && ret.length > 0) {
+			return ret;
+		}
 	}
 
 	function updateCurrentVal(v) {
+		var saveEnv = currentEnv;
+
 		return (isPromise(v) ?
 			v.then(handle).catch(logUnhandledError) :
 			handle(v)
@@ -411,7 +596,7 @@ function IOx(iof,deps) {
 			if (currentEnv === UNSET) {
 				safeIORun(publicAPI,env);
 			}
-			else {
+			else if (currentVal !== UNSET) {
 				// respond with most recent value
 				listener(dep,currentVal);
 			}
@@ -428,11 +613,10 @@ function IOx(iof,deps) {
 	}
 
 	function registerWithDeps(env) {
+		registering = true;
+
 		// need to subscribe to any deps?
 		if (Array.isArray(deps) && deps.length > 0) {
-			if (!depVals) {
-				depVals = new WeakMap();
-			}
 			for (let dep of deps) {
 				// is this dep an IOx instance that
 				// we haven't registered with before?
@@ -441,7 +625,7 @@ function IOx(iof,deps) {
 					registerHooks.has(dep) &&
 					!depVals.has(dep)
 				) {
-					depVals.set(dep,UNSET);
+					depVals.set(dep,[]);
 					let [ regListener, ] = registerHooks.get(dep);
 					// IOx instance still active/valid?
 					if (isFunction(regListener)) {
@@ -450,9 +634,14 @@ function IOx(iof,deps) {
 				}
 			}
 		}
+
+		registering = false;
+		registered = true;
 	}
 
 	function unregisterWithDeps() {
+		registered = false;
+
 		// need to unsubscribe any deps?
 		if (haveDeps()) {
 			for (let dep of deps) {
@@ -473,21 +662,8 @@ function IOx(iof,deps) {
 					}
 				}
 			}
-		}
-	}
-
-	function onDepUpdate(dep,newVal) {
-		if (depVals) {
-			depVals.set(dep,newVal);
-		}
-		if (currentEnv !== UNSET && newVal !== CLOSED) {
-			safeIORun(publicAPI,currentEnv);
-		}
-		else {
-			let dv = collectDepVals(undefined);
-			if (dv === CLOSED) {
-				close();
-			}
+			depVals = new WeakMap();
+			latestIOxVals = new WeakMap();
 		}
 	}
 
@@ -507,9 +683,9 @@ function IOx(iof,deps) {
 
 	function _inspect() {
 		return `${publicAPI[Symbol.toStringTag]}(${
-			isFunction(iof) ? (iof.name || "anonymous function") :
 			isMonad(currentVal) && isFunction(currentVal._inspect) ? currentVal._inspect() :
 			![ UNSET, CLOSED ].includes(currentVal) ? String(currentVal) :
+			isFunction(iof) ? (iof.name || "anonymous function") :
 			".."
 		})`;
 	}
@@ -753,7 +929,7 @@ function onTimer(updateInterval,countLimit) {
 		}
 		if (typeof countLimit == "number") {
 			countLimit--;
-			if (countLimit <= 0) {
+			if (close && countLimit <= 0) {
 				close();
 			}
 		}
@@ -1037,6 +1213,134 @@ function merge(ioxs = []) {
 			iox.close();
 			run = _run = _stop = stop = _close = close =
 				iox = ioxs = null;
+		}
+	}
+
+}
+
+function fromIO(io) {
+	return IOx((env,v) => v,[ io, ]);
+}
+
+function fromIter($V,closeOnComplete = true) {
+	const PAUSED = Symbol("paused");
+	var signalPaused;
+	var hasPaused;
+	var subscribed = false;
+	var it;
+	var outerThis = this;
+	var iox = IOx(effect,[]);
+
+	// save original methods
+	var { run: _run, stop: _stop, close: _close, } = iox;
+
+	// overwrite methods with wrapped versions
+	Object.assign(iox,{ run, stop, close, });
+
+	return iox;
+
+	// *****************************************
+
+	function effect() {
+		subscribe();
+		return EMPTY;
+	}
+
+	async function drainIterator() {
+		var stillListening = true;
+		try {
+			while (subscribed) {
+				let res = it.next();
+				if (isPromise(res)) {
+					res = await Promise.race([ hasPaused, res, ]);
+				}
+
+				if (res) {
+					if (res === CLOSED || !subscribed || res.done) {
+						break;
+					}
+					else if (isPromise(res.value)) {
+						res = await Promise.race([ hasPaused, res.value, ]);
+						if (res === CLOSED || !stillListening) {
+							break;
+						}
+						iox(res);
+					}
+					else {
+						iox(res.value);
+					}
+				}
+				else {
+					// note: should never get here
+					break;
+				}
+			}
+		}
+		finally {
+			stillListening = false;
+			if (closeOnComplete && close) {
+				close();
+			}
+			else {
+				await unsubscribe();
+			}
+		}
+	}
+
+	function getIter(v) {
+		return (
+			// (async) generator?
+			isFunction(v) ? v.call(outerThis) :
+			// (async) iterator?
+			(v && isFunction(v.next)) ? v :
+			// sync iterable?
+			(v && v[Symbol.iterator]) ? v[Symbol.iterator]() :
+			// async iterable?
+			(v && v[Symbol.asyncIterator]) ? v[Symbol.asyncIterator]() :
+			undefined
+		);
+	}
+
+	function subscribe() {
+		if (!subscribed && iox) {
+			subscribed = true;
+			it = getIter($V);
+			({ pr: hasPaused, next: signalPaused, } = getDeferred());
+			drainIterator().catch(logUnhandledError);
+		}
+	}
+
+	function unsubscribe() {
+		if (subscribed && iox) {
+			if (signalPaused) {
+				signalPaused(CLOSED);
+				hasPaused = signalPaused = null;
+			}
+			subscribed = false;
+		}
+	}
+
+	function run(env) {
+		if (_run) {
+			_run(env);
+		}
+	}
+
+	function stop() {
+		unsubscribe();
+		_stop();
+	}
+
+	function close() {
+		if (iox) {
+			// restore original methods
+			Object.assign(iox,{
+				run: _run, stop: _stop, close: _close,
+			});
+			stop();
+			iox.close();
+			run = _run = _stop = stop = _close = close =
+				iox = null;
 		}
 	}
 

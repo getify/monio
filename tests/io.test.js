@@ -1,5 +1,7 @@
+"use strict";
+
 const qunit = require("qunit");
-const { identity, inc, twice, ioProp } = require("./utils");
+const { identity, inc, twice, ioProp, delayPr, delayIO, } = require("./utils");
 
 qunit.module("io");
 
@@ -254,5 +256,256 @@ qunit.test("#concat:async", async (assert) => {
 		r3,
 		"Hello World!",
 		"(3) should concat two strings in IO monads together into a new monad"
+	);
+});
+
+qunit.test("fromIOx", async (assert) => {
+	var r1 = [];
+	var r2 = [];
+
+	var x = IOx((env,v) => { r1.push("x",env * v); return env * v; },[ 2 ]);
+	var y = IOx((env,v) => { r2.push("y",env * v); return Promise.resolve(env * v); },[ 3 ]);
+
+	var z = IO.fromIOx(x);
+	var w = IO.fromIOx(y);
+
+	var r3 = z.run(10);
+
+	assert.equal(
+		r3,
+		20,
+		"sync IOx flows through to IO immediately"
+	);
+
+	assert.deepEqual(
+		r1,
+		[ "x", 20 ],
+		"sync IOx evaluated once for IO evaluation"
+	);
+
+	r3 = z.run(10);
+
+	assert.equal(
+		r3,
+		20,
+		"sync IOx flows through to IO immediately, again"
+	);
+
+	assert.deepEqual(
+		r1,
+		[ "x", 20, "x", 20 ],
+		"sync IOx evaluated again for second IO evaluation"
+	);
+
+	r3 = w.run(10);
+
+	assert.ok(
+		r3 instanceof Promise,
+		"async IOx produces promise from IO"
+	);
+
+	r3 = await r3;
+
+	assert.equal(
+		r3,
+		30,
+		"async IOx to IO flows through asynchronously"
+	);
+
+	assert.deepEqual(
+		r2,
+		[ "y", 30 ],
+		"async IOx executed once for IO evaluation"
+	);
+
+	r3 = await w.run(10);
+
+	assert.equal(
+		r3,
+		30,
+		"async IOx to IO flows through asynchronously, again"
+	);
+
+	assert.deepEqual(
+		r2,
+		[ "y", 30, "y", 30 ],
+		"async IOx executed again for second IO evaluation"
+	);
+});
+
+qunit.test("IO.do", async (assert) => {
+	function *one(env,v) {
+		yield delayPr(10);
+		r1.push("one 1",env);
+		var g = yield delayIO(v,10);
+		r1.push("one 2", yield Just(g) );
+
+		yield Maybe.from(null);
+
+		r1.push("one 3, oops!!");
+	}
+
+	function *two() {
+		r2.push("two 1",10);
+		yield delayPr(10);
+		r2.push("two 2",11);
+		return IO.of(Promise.resolve(12));
+	}
+
+	function *three() {
+		yield delayPr(10);
+		r3.push("three 1");
+
+		try {
+			yield IO(() => { throw new Error("three 2"); });
+		}
+		catch (err) {
+			r3.push(err.toString());
+		}
+
+		try {
+			yield Promise.reject("three 3");
+		}
+		catch (err) {
+			r3.push(err);
+		}
+
+		throw new Error("three 4");
+	}
+
+	var r1 = [];
+	var r2 = [];
+	var r3 = [];
+	var io1 = IO.do(one,3);
+	var io2 = IO.do(two());
+	var io3 = IO.do(three);
+
+	var r4 = io1.run(2);
+	var r5 = io2.run();
+	var r6 = io3.run();
+
+	// NODE HACK: silence the uncaught exception (since it's caught later)
+	r6.catch(() => {});
+
+	assert.ok(
+		(r4 instanceof Promise) && (r5 instanceof Promise) && (r6 instanceof Promise),
+		"IO.do() returns a promise"
+	);
+
+	await r4;
+
+	assert.deepEqual(
+		r1,
+		[ "one 1", 2, "one 2", 3 ],
+		"do routine proceeds async, but short-circuits out at a Nothing"
+	);
+
+	r2.push(await r5);
+
+	assert.deepEqual(
+		r2,
+		[ "two 1", 10, "two 2", 11, 12 ],
+		"do routine proceeds, and returns a value"
+	);
+
+	try {
+		await r6;
+	}
+	catch (err) {
+		r3.push(err.toString());
+	}
+
+	assert.deepEqual(
+		r3,
+		[ "three 1", "Error: three 2", "three 3", "Error: three 4" ],
+		"do routine catches and throws exceptions"
+	);
+});
+
+qunit.test("IO.doEither", async (assert) => {
+	function *one(env,v) {
+		r1.push("one 1",10);
+		yield delayPr(10);
+		r1.push("one 2",11);
+		return Promise.resolve(IO.of(Promise.resolve(Either.Right(12))));
+	}
+
+	function *two() {
+		yield delayPr(10);
+		r2.push("two 1");
+
+		try {
+			yield IO(() => { throw new Error("two 2"); });
+			r2.push("two 2 oops");
+		}
+		catch (err) {
+			r2.push(err.toString());
+		}
+
+		try {
+			yield Either.Left("two 3");
+			r2.push("two 3 oops");
+		}
+		catch (err) {
+			r2.push(err);
+		}
+
+		try {
+			yield Promise.reject("two 4");
+			r2.push("two 4 oops");
+		}
+		catch (err) {
+			r2.push(err);
+		}
+
+		return Either.Left("two 5");
+	}
+
+	var r1 = [];
+	var r2 = [];
+	var io1 = IO.doEither(one,3);
+	var io2 = IO.doEither(two);
+
+	var r3 = io1.run(2);
+	var r4 = io2.run();
+
+	// NODE HACK: silence the uncaught exception (since it's caught later)
+	r4.catch(() => {});
+
+	assert.ok(
+		(r3 instanceof Promise) && (r4 instanceof Promise),
+		"IO.do() returns a promise"
+	);
+
+	r3 = await r3;
+
+	assert.ok(
+		Either.Right.is(r3) && r3._inspect() == "Either:Right(12)",
+		"do-either routine returns an Either:Right on success"
+	);
+
+	assert.deepEqual(
+		r1,
+		[ "one 1", 10, "one 2", 11 ],
+		"do-either routine proceeds async"
+	);
+
+	try {
+		await r4;
+		r4 = "oops";
+	}
+	catch (err) {
+		r4 = err;
+	}
+
+	assert.ok(
+		Either.Left.is(r4) && r4._inspect() == "Either:Left(\"two 5\")",
+		"do-either routine treats returned Either:Left as catchable exception"
+	);
+
+	assert.deepEqual(
+		r2,
+		[ "two 1", "Error: two 2", "two 3", "two 4" ],
+		"do-either routine proceeds, and returns a value"
 	);
 });

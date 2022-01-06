@@ -11,7 +11,9 @@ var Either = require("../either.js");
 
 const BRAND = {};
 
-module.exports = Object.assign(IO,{ of, pure: of, unit: of, is, do: $do, doEither, });
+module.exports = Object.assign(IO,{
+	of, pure: of, unit: of, is, do: $do, doEither, fromIOx,
+});
 module.exports.RIO = IO;
 module.exports.of = of;
 module.exports.pure = of;
@@ -19,6 +21,7 @@ module.exports.unit = of;
 module.exports.is = is;
 module.exports.do = $do;
 module.exports.doEither = doEither;
+module.exports.fromIOx = fromIOx;
 
 
 // **************************
@@ -91,7 +94,7 @@ function is(v) {
 	return !!(v && isFunction(v._is) && v._is(BRAND));
 }
 
-function processNext(next,respVal,outerEnv,throwEither = false) {
+function processNext(next,respVal,outerEnv,throwEither) {
 	return (new Promise(async function c(resv,rej){
 		try {
 			// if respVal is a promise, safely unwrap it
@@ -178,9 +181,9 @@ function processNext(next,respVal,outerEnv,throwEither = false) {
 	}));
 }
 
-function $do(block,...args) {
+function $do($V,...args) {
 	return IO(outerEnv => {
-		var it = getIterator(block,outerEnv,/*outerThis=*/this,args);
+		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
 		return (async function next(v,type){
 			var resp = (
@@ -213,9 +216,9 @@ function $do(block,...args) {
 	});
 }
 
-function doEither(block,...args) {
+function doEither($V,...args) {
 	return IO(outerEnv => {
-		var it = getIterator(block,outerEnv,/*outerThis=*/this,args);
+		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
 		return (async function next(v,type){
 			// lift v to an Either (Left or Right) if necessary
@@ -297,10 +300,14 @@ function doEither(block,...args) {
 	});
 }
 
-function getIterator(block,env,outerThis,args = []) {
+function fromIOx(iox) {
+	return IO(env => iox.run(env));
+}
+
+function getIterator(v,env,outerThis,args) {
 	return (
-		isFunction(block) ? block.call(outerThis,env,...args) :
-		(block && typeof block == "object" && isFunction(block.next)) ? block :
+		isFunction(v) ? v.call(outerThis,env,...args) :
+		(v && isFunction(v.next)) ? v :
 		undefined
 	);
 }

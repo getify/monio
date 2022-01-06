@@ -1,6 +1,8 @@
+"use strict";
+
 const EventEmitter = require("events");
 const qunit = require("qunit");
-const { identity, inc, twice, ioProp, delayPr, delayIOx, } = require("./utils");
+const { identity, inc, twice, ioProp, delayPr, delayIO, delayIOx, } = require("./utils");
 
 qunit.module("iox");
 
@@ -27,6 +29,24 @@ qunit.test("#unit", (assert) => {
 		IOx.unit(1)._inspect(),
 		"IOx(anonymous function)",
 		"should create an IOx functor via #unit"
+	);
+
+	var v = IOx.of(1);
+	v.run();
+
+	assert.equal(
+		v._inspect(),
+		"IOx(1)",
+		"inspect should handle a literal held in the IOx"
+	);
+
+	v = IOx.of(Just(1));
+	v.run();
+
+	assert.equal(
+		v._inspect(),
+		"IOx(Just(1))",
+		"inspect should handle a monad held in the IOx"
 	);
 });
 
@@ -64,7 +84,7 @@ qunit.test("#run", (assert) => {
 	);
 });
 
-qunit.test("#run:async", async(assert) => {
+qunit.test("#run:async", async (assert) => {
 	var pr = IOx.of(Promise.resolve(1)).run();
 
 	assert.ok(
@@ -99,7 +119,7 @@ qunit.test("#chain", (assert) => {
 	);
 });
 
-qunit.test("#chain:async", async(assert) => {
+qunit.test("#chain:async", async (assert) => {
 	var r1 = await (
 		IOx.of(Promise.resolve({ name: "john" }))
 			.chain(v => Promise.resolve(ioProp('name')(v)))
@@ -144,17 +164,16 @@ qunit.test("#chain:async", async(assert) => {
 		"john",
 		"(4) should return an IOx with 'john' as a value"
 	);
-
 });
 
-qunit.test("#chain:return sync IO", async(assert) => {
+qunit.test("#chain:return sync IO", async (assert) => {
 	var res1 = [];
+
 	var x = IO(() => {
 		res1.push("x");
 		return 2;
 	});
 	var y = IOx.of(10);
-
 	var z = y.chain(v => { res1.push(v); return x; });
 	var w = z.chain(v => { res1.push(v); return IO.of(v); });
 
@@ -205,7 +224,7 @@ qunit.test("#chain:return sync IO", async(assert) => {
 	);
 });
 
-qunit.test("#chain:return async IO", async(assert) => {
+qunit.test("#chain:return async IO", async (assert) => {
 	var res1 = [];
 	var x = IO(() => {
 		res1.push("x");
@@ -389,7 +408,7 @@ qunit.test("#concat:async", async (assert) => {
 	);
 });
 
-qunit.test("non-IOx dependencies", async(assert) => {
+qunit.test("non-IOx dependencies", async (assert) => {
 	var res = [];
 	var x = IO.of(2);
 	var y = IO(() => {
@@ -554,10 +573,9 @@ qunit.test("update", (assert) => {
 		600,
 		"(3) IOx update should propagate through chain"
 	);
-
 });
 
-qunit.test("update:async", async(assert) => {
+qunit.test("update:async", async (assert) => {
 	var x1 = IOx.of.empty();
 	var x2 = IOx((_,v) => v * 2,[ x1, ]);
 	var x3 = x2.map(v => delayPr(50).then(() => v + 3));
@@ -671,7 +689,6 @@ qunit.test("update:async", async(assert) => {
 		600,
 		"(3) IOx update should propagate through chain"
 	);
-
 });
 
 qunit.test("close", (assert) => {
@@ -943,7 +960,7 @@ qunit.test("onceEvent", async (assert) => {
 	);
 });
 
-qunit.test("onTimer", async(assert) => {
+qunit.test("onTimer", async (assert) => {
 	var vals1 = IOx.onTimer(20);
 	var vals2 = IOx.onTimer(20,3);
 
@@ -1016,5 +1033,387 @@ qunit.test("onTimer", async(assert) => {
 		res1,
 		[ "tick", "tick", "tick", "tick", "tick", "tick" ],
 		"open-ended timer didn't run after closing stream"
+	);
+});
+
+qunit.test("fromIO", async (assert) => {
+	var res1 = [];
+	var res2 = [];
+
+	var x = IO(env => { res1.push("x",env); return env; });
+	var y = IO(env => { res2.push("y",env); return Promise.resolve(env); });
+
+	var z = IOx.fromIO(x);
+	var w = IOx.fromIO(y);
+
+	var res3 = z.run(2);
+
+	assert.equal(
+		res3,
+		2,
+		"sync IO to IOx flows through immediately"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 2 ],
+		"sync IO executed once for IOx evaluation"
+	);
+
+	res3 = z.run(2);
+
+	assert.equal(
+		res3,
+		2,
+		"sync IO to IOx flows through immediately, again"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 2, "x", 2 ],
+		"sync IO executed again for second IOx evaluation"
+	);
+
+	res3 = w.run(3);
+
+	assert.ok(
+		res3 instanceof Promise,
+		"async IO produces promise from IOx"
+	);
+
+	res3 = await res3;
+
+	assert.equal(
+		res3,
+		3,
+		"async IO to IOx flows through asynchronously"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 3 ],
+		"async IO executed once for IOx evaluation"
+	);
+
+	res3 = await w.run(3);
+
+	assert.equal(
+		res3,
+		3,
+		"async IO to IOx flows through asynchronously, again"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 3, "y", 3 ],
+		"async IO executed again for second IOx evaluation"
+	);
+});
+
+qunit.test("fromIter:sync", (assert) => {
+	var vals1 = IOx.fromIter([1,2,3]);
+	var vals2 = IOx.fromIter(() => [4,5,6][Symbol.iterator](),/*closeOnComplete=*/false);
+	var vals3 = IOx.fromIter([7,8,9][Symbol.iterator](),/*closeOnComplete=*/false);
+
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+
+	var x = IOx((env,v) => { res1.push("x",v); },[ vals1, ]);
+	var y = IOx((env,v) => { res2.push("y",v); },[ vals2, ]);
+	var z = IOx((env,v) => { res3.push("z",v); },[ vals3, ]);
+
+	x.run();
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2, "x", 3 ],
+		"(1) sync iterable comes through all at once"
+	);
+
+	assert.ok(
+		vals1.isClosed(),
+		"IOx automatically closes when subscribed iterable is fully consumed"
+	);
+
+	assert.ok(
+		x.isClosed(),
+		"IOx closes when subscribed iterable has closed"
+	);
+
+	y.run();
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "y", 6 ],
+		"(2) sync iterable comes through all at once"
+	);
+
+	assert.ok(
+		!vals2.isClosed(),
+		"sync iterable stays open"
+	);
+
+	assert.ok(
+		!y.isClosed(),
+		"IOx not closed when subscribed iterable stays open"
+	);
+
+	vals2(60);
+	vals2(600);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "y", 6, "y", 60, "y", 600 ],
+		"still open sync iterable can still push through more values"
+	);
+
+	vals2.close();
+	vals2.close();
+
+	assert.ok(
+		y.isClosed(),
+		"IOx closes when subscribed iterable is manually closed"
+	);
+
+	vals3.run();
+	z.run();
+
+	vals3(30);
+	vals3(300);
+	vals3(3000);
+
+	assert.deepEqual(
+		res3,
+		[ "z", 9, "z", 30, "z", 300, "z", 3000 ],
+		"sync iterable only emits values once subscribed (discards all but most recent)"
+	);
+});
+
+qunit.test("fromIter:async", async (assert) => {
+	function asyncIter(iter) {
+		return async function *asyncIter() {
+			for (let v of iter) {
+				await delayPr(10);
+				yield v;
+			}
+		};
+	}
+
+	// **************************
+
+	var vals1 = IOx.fromIter({
+		[Symbol.asyncIterator]() { return asyncIter([1,2,3])(); }
+	});
+	var vals2 = IOx.fromIter(asyncIter([4,5,6]),/*closeOnComplete=*/false);
+	var vals3 = IOx.fromIter(asyncIter([7,8,9])(),/*closeOnComplete=*/false);
+
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+
+	var x = IOx((env,v) => { res1.push("x",v); },[ vals1, ]);
+	var y = IOx((env,v) => { res2.push("y",v); },[ vals2, ]);
+	var z = IOx((env,v) => { res3.push("z",v); },[ vals3, ]);
+
+	x.run();
+
+	await delayPr(50);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2, "x", 3 ],
+		"(1) async iterable comes through eventually"
+	);
+
+	assert.ok(
+		vals1.isClosed(),
+		"IOx automatically closes when subscribed iterable is fully consumed"
+	);
+
+	assert.ok(
+		x.isClosed(),
+		"IOx closes when subscribed iterable has closed"
+	);
+
+	y.run();
+
+	await delayPr(50);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "y", 6 ],
+		"(2) async iterable comes through eventually"
+	);
+
+	assert.ok(
+		!vals2.isClosed(),
+		"async iterable stays open"
+	);
+
+	assert.ok(
+		!y.isClosed(),
+		"IOx not closed when subscribed iterable stays open"
+	);
+
+	vals2(60);
+	vals2(600);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "y", 6, "y", 60, "y", 600 ],
+		"still open sync iterable can still push through more values"
+	);
+
+	vals2.close();
+	vals2.close();
+
+	assert.ok(
+		y.isClosed(),
+		"IOx closes when subscribed iterable is manually closed"
+	);
+
+	vals3.run();
+
+	await delayPr(50);
+
+	z.run();
+
+	vals3(30);
+	vals3(300);
+	vals3(3000);
+
+	assert.deepEqual(
+		res3,
+		[ "z", 9, "z", 30, "z", 300, "z", 3000 ],
+		"async iterable only emits values once subscribed (discards all but most recent)"
+	);
+});
+
+qunit.test("fromIter:sync-of-async", async (assert) => {
+	function syncOfAsyncIter(iter) {
+		return iter.map(v => delayPr(10).then(() => v));
+	}
+
+	// **************************
+
+	var vals1 = IOx.fromIter(syncOfAsyncIter([1,2,3]));
+
+	var res1 = [];
+
+	var x = IOx((env,v) => { res1.push("x",v); },[ vals1, ]);
+
+	x.run();
+
+	await delayPr(50);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2, "x", 3 ],
+		"(1) async iterable comes through eventually"
+	);
+
+	assert.ok(
+		vals1.isClosed(),
+		"IOx automatically closes when subscribed iterable is fully consumed"
+	);
+
+	assert.ok(
+		x.isClosed(),
+		"IOx closes when subscribed iterable has closed"
+	);
+});
+
+qunit.test("IOx.do/doEither", async (assert) =>{
+	var x = IOx.of(Promise.resolve(2));
+
+	async function *one(env,v1,v2) {
+		await delayPr(10);
+		res1.push("one 1",env);
+		yield delayIO(10,2);
+		var v3 = yield x;
+		res1.push("one 2",v1,v2,v3);
+		return IO.of(env + v1 + v2 + v3);
+	}
+
+	async function *two(env,v) {
+		res2.push("two",env,v,yield Either.Right(2));
+		await delayPr(10);
+		return Either.Right(v * 5);
+	}
+
+	var res1 = [];
+	var res2 = [];
+	var i1 = IOx.do(one,[ 6 ],7);
+	var i2 = IOx.doEither(two,[ i1 ]);
+	var i3 = IOx((env,v) => {
+		res2.push(v._inspect());
+		return v.fold(
+			err => `err: ${err.toString()}`,
+			v2 => v2 * 2
+		);
+	},[ i2 ]);
+
+	var res3 = i3.run(4);
+
+	assert.ok(
+		res3 instanceof Promise,
+		"IOx with IO.doEither dep produces a promise"
+	);
+
+	res3 = await res3;
+
+	assert.equal(
+		res3,
+		190,
+		"IOx do/doEither values flow through eventually"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ "one 1", 4, "one 2", 6, 7, 2 ],
+		"(1) values saved asynchronously"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "two", 4, 19, 2, "Either:Right(95)" ],
+		"(2) values saved asynchronously"
+	);
+
+	x(25);
+
+	// wait for any propagation of values (shouldn't be any!)
+	await delayPr(50);
+
+	assert.deepEqual(
+		res1,
+		[ "one 1", 4, "one 2", 6, 7, 2 ],
+		"IOx.do routine not re-evaluated when yielded IOx is updated"
+	);
+
+	i1(25);
+
+	// wait for propagation of values
+	await delayPr(20);
+
+	assert.deepEqual(
+		res2,
+		[ "two", 4, 19, 2, "Either:Right(95)", "two", 4, 25, 2, "Either:Right(125)" ],
+		"IOx.doEither re-evaluated when dependency IOx.do is manually updated"
+	);
+
+	res3 = i3.run(4);
+
+	assert.equal(
+		res3,
+		250,
+		"IOx final value eventually resolves"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "two", 4, 19, 2, "Either:Right(95)", "two", 4, 25, 2, "Either:Right(125)", "Either:Right(125)" ],
+		"re-running IOx manually does not re-run dependency IOx.doEither"
 	);
 });
