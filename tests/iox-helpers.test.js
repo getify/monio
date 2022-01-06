@@ -2,7 +2,7 @@
 
 const EventEmitter = require("events");
 const qunit = require("qunit");
-const { identity, inc, twice, eitherProp, delayPr, } = require("./utils");
+const { delayPr, } = require("./utils");
 
 qunit.module("iox-helpers");
 
@@ -652,5 +652,387 @@ qunit.test("merge", (assert) => {
 	assert.ok(
 		valsMerged.isClosed(),
 		"once all source streams are closed, merge-stream is closed"
+	);
+});
+
+qunit.test("fromIter:async", async (assert) => {
+	function asyncIter(iter) {
+		return async function *asyncIter() {
+			for (let v of iter) {
+				await delayPr(10);
+				yield v;
+			}
+		};
+	}
+
+	// **************************
+
+	var vals1 = IOxHelpers.fromIter({
+		[Symbol.asyncIterator]() { return asyncIter([1,2,3])(); }
+	});
+	var vals2 = IOxHelpers.fromIter(asyncIter([4,5,6]),/*closeOnComplete=*/false);
+	var vals3 = IOxHelpers.fromIter(asyncIter([7,8,9])(),/*closeOnComplete=*/false);
+
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+
+	var x = IOx((env,v) => { res1.push("x",v); },[ vals1, ]);
+	var y = IOx((env,v) => { res2.push("y",v); },[ vals2, ]);
+	var z = IOx((env,v) => { res3.push("z",v); },[ vals3, ]);
+
+	x.run();
+
+	await delayPr(50);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2, "x", 3 ],
+		"(1) async iterable comes through eventually"
+	);
+
+	assert.ok(
+		vals1.isClosed(),
+		"IOx automatically closes when subscribed iterable is fully consumed"
+	);
+
+	assert.ok(
+		x.isClosed(),
+		"IOx closes when subscribed iterable has closed"
+	);
+
+	y.run();
+
+	await delayPr(50);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "y", 6 ],
+		"(2) async iterable comes through eventually"
+	);
+
+	assert.ok(
+		!vals2.isClosed(),
+		"async iterable stays open"
+	);
+
+	assert.ok(
+		!y.isClosed(),
+		"IOx not closed when subscribed iterable stays open"
+	);
+
+	vals2(60);
+	vals2(600);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "y", 6, "y", 60, "y", 600 ],
+		"still open sync iterable can still push through more values"
+	);
+
+	vals2.close();
+	vals2.close();
+
+	assert.ok(
+		y.isClosed(),
+		"IOx closes when subscribed iterable is manually closed"
+	);
+
+	vals3.run();
+
+	await delayPr(50);
+
+	z.run();
+
+	vals3(30);
+	vals3(300);
+	vals3(3000);
+
+	assert.deepEqual(
+		res3,
+		[ "z", 9, "z", 30, "z", 300, "z", 3000 ],
+		"async iterable only emits values once subscribed (discards all but most recent)"
+	);
+});
+
+qunit.test("fromIter:sync-of-async", async (assert) => {
+	function syncOfAsyncIter(iter) {
+		return iter.map(v => delayPr(10).then(() => v));
+	}
+
+	// **************************
+
+	var vals1 = IOxHelpers.fromIter(syncOfAsyncIter([1,2,3]));
+
+	var res1 = [];
+
+	var x = IOx((env,v) => { res1.push("x",v); },[ vals1, ]);
+
+	x.run();
+
+	await delayPr(50);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2, "x", 3 ],
+		"(1) async iterable comes through eventually"
+	);
+
+	assert.ok(
+		vals1.isClosed(),
+		"IOx automatically closes when subscribed iterable is fully consumed"
+	);
+
+	assert.ok(
+		x.isClosed(),
+		"IOx closes when subscribed iterable has closed"
+	);
+});
+
+qunit.test("toIter:sync", async (assert) => {
+	var x = IOxHelpers.fromIter([ 1, 2, 3 ]);
+	var y = IOxHelpers.fromIter([ 4, 5, 6 ],/*closeOnComplete=*/false);
+	var z = IOxHelpers.fromIter([ 7, 8, 9 ],/*closeOnComplete=*/false);
+	var w = IOxHelpers.fromIter([]);
+
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+	var res4 = [];
+	var res5;
+
+	var it1 = IOxHelpers.toIter(x,/*env=*/undefined);
+	for await (let v of it1) {
+		res1.push("x",v);
+		if (v === 2) {
+			res5 = it1.return(42);
+		}
+	}
+
+	assert.ok(
+		x.isClosed(),
+		"sync source IOx ran (and closed itself)"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2 ],
+		"async iterable received all values from sync source IOx, until it closed itself"
+	);
+
+	assert.ok(
+		res5 instanceof Promise,
+		"iterable return() produces a promise"
+	);
+
+	res5 = await res5;
+
+	assert.ok(
+		res5.value === 42 && res5.done === true,
+		"iterable return() promise resolves properly"
+	);
+
+	for await (let v of IOxHelpers.toIter(y,/*env=*/undefined)) {
+		res2.push("y",v);
+		if (v === 5) {
+			res2.push("closing");
+			y.close();
+		}
+	}
+
+	assert.ok(
+		y.isClosed(),
+		"sync source IOx ran (and was manually closed during consumption)"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "closing", "y", 6 ],
+		"(1) async iterable received all values from sync source IOx"
+	);
+
+	// asynchronously close z
+	setTimeout(function timer(){
+		res3.push("closing");
+		z.close();
+	},50);
+
+	for await (let v of IOxHelpers.toIter(z,/*env=*/undefined)) {
+		res3.push("z",v);
+	}
+
+	assert.ok(
+		z.isClosed(),
+		"sync source IOx ran (and was asynchronously closed after consumption)"
+	);
+
+	assert.deepEqual(
+		res3,
+		[ "z", 7, "z", 8, "z", 9, "closing" ],
+		"(2) async iterable received all values from sync source IOx"
+	);
+
+	w.run();
+
+	assert.ok(
+		w.isClosed(),
+		"empty iterable source IOx closed itself immediately"
+	);
+
+	var it2 = IOxHelpers.toIter(w,/*env=*/undefined);
+
+	for await (let v of it2) {
+		res4.push("w, oops",v);
+	}
+
+	assert.ok(
+		res4.length == 0,
+		"async iterable didn't receive any values from an already closed sync source IOx"
+	);
+
+	let { value: resValue, done: resDone } = await it2.next();
+
+	assert.ok(
+		resValue === undefined && resDone === true,
+		"iterating an already closed iterator does nothing"
+	);
+
+	let { value: retValue, done: retDone } = await it2.return(100);
+
+	assert.ok(
+		retValue === 100 && retDone === true,
+		"iterator return() after close does nothing"
+	);
+});
+
+qunit.test("toIter:async", async (assert) => {
+	function asyncIter(iter) {
+		return async function *asyncIter() {
+			for (let v of iter) {
+				await delayPr(10);
+				yield v;
+			}
+		};
+	}
+
+
+	var x = IOxHelpers.fromIter(asyncIter([ 1, 2, 3 ]));
+	var y = IOxHelpers.fromIter(asyncIter([ 4, 5, 6 ]),/*closeOnComplete=*/false);
+	var z = IOxHelpers.fromIter(asyncIter([ 7, 8, 9 ]),/*closeOnComplete=*/false);
+	var w = IOxHelpers.fromIter(asyncIter([]));
+
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+	var res4 = [];
+	var res5;
+
+	var it1 = IOxHelpers.toIter(x,/*env=*/undefined);
+	for await (let v of it1) {
+		res1.push("x",v);
+		if (v === 2) {
+			res5 = it1.return(42);
+		}
+	}
+
+	// wait for closure to fully propagate
+	await delayPr(25);
+
+	assert.ok(
+		x.isClosed(),
+		"async source IOx ran (and closed itself)"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ "x", 1, "x", 2 ],
+		"async iterable received all values from async source IOx, until it closed itself"
+	);
+
+	assert.ok(
+		res5 instanceof Promise,
+		"iterable return() produces a promise"
+	);
+
+	res5 = await res5;
+
+	assert.ok(
+		res5.value === 42 && res5.done === true,
+		"iterable return() promise resolves properly"
+	);
+
+	for await (let v of IOxHelpers.toIter(y,/*env=*/undefined)) {
+		res2.push("y",v);
+		if (v === 5) {
+			res2.push("closing");
+			y.close();
+		}
+	}
+
+	assert.ok(
+		y.isClosed(),
+		"async source IOx ran (and was manually closed during consumption)"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "y", 4, "y", 5, "closing" ],
+		"async iterable received all values from async source IOx, until it closed itself"
+	);
+
+	// asynchronously close z
+	setTimeout(function timer(){
+		res3.push("closing");
+		z.close();
+	},50);
+
+	for await (let v of IOxHelpers.toIter(z,/*env=*/undefined)) {
+		res3.push("z",v);
+	}
+
+	assert.ok(
+		z.isClosed(),
+		"async source IOx ran (and was asynchronously closed after consumption)"
+	);
+
+	assert.deepEqual(
+		res3,
+		[ "z", 7, "z", 8, "z", 9, "closing" ],
+		"async iterable received all values from async source IOx"
+	);
+
+	w.run();
+
+	// wait for closure to fully propagate
+	await delayPr(25);
+
+	assert.ok(
+		w.isClosed(),
+		"empty iterable source IOx closed itself eventually"
+	);
+
+	var it2 = IOxHelpers.toIter(w,/*env=*/undefined);
+
+	for await (let v of it2) {
+		res4.push("w, oops",v);
+	}
+
+	assert.ok(
+		res4.length == 0,
+		"async iterable didn't receive any values from an already closed async source IOx"
+	);
+
+	let { value: resValue, done: resDone } = await it2.next();
+
+	assert.ok(
+		resValue === undefined && resDone === true,
+		"iterating an already closed iterator does nothing"
+	);
+
+	let { value: retValue, done: retDone } = await it2.return(100);
+
+	assert.ok(
+		retValue === 100 && retDone === true,
+		"iterator return() after close does nothing"
 	);
 });

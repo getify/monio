@@ -16,10 +16,16 @@ module.exports = {
 	reduce,
 	seq,
 	waitFor,
+
+	// even though these are actually defined in
+	// IOx, they're re-exported on this namespace
+	// for convenience and coherency
 	merge: IOx.merge,
 	zip: IOx.zip,
 	doIOx: IOx.do,
 	doEIOx: IOx.doEither,
+	fromIter: IOx.fromIter,
+	toIter: IOx.toIter,
 };
 module.exports.filterIn = filterIn;
 module.exports.filterOut = filterOut;
@@ -28,10 +34,16 @@ module.exports.distinctUntilChanged = distinctUntilChanged;
 module.exports.reduce = reduce;
 module.exports.seq = seq;
 module.exports.waitFor = waitFor;
+
+// even though these are actually defined in
+// IOx, they're re-exported on this namespace
+// for convenience and coherency
 module.exports.merge = IOx.merge;
 module.exports.zip = IOx.zip;
 module.exports.doIOx = IOx.do;
 module.exports.doEIOx = IOx.doEither;
+module.exports.fromIter = IOx.fromIter;
+module.exports.toIter = IOx.toIter;
 
 
 // **************************
@@ -39,6 +51,7 @@ module.exports.doEIOx = IOx.doEither;
 function filterIn(predicate) {
 	const NeverIOx = IOx.of.empty();
 	NeverIOx.freeze();
+	NeverIOx.close = () => {};
 	var iox = IOx.of.empty();
 
 	return function filter(v){

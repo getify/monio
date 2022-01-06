@@ -285,6 +285,38 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
 
     **Note:** Generators or async-generators passed as iterable sources to `fromIter(..)` are **not** treated as do-routines the way `IO.do(..)` / `IOx.do(..)` operate. Standard generators are synchronously iterated as sources of `yield`ed values, and async generators are asynchronously iterated as sources of `yield`ed values.
 
+    You can construct an async-iterable (suitable to consume with a `for await..of` loop) from any IOx stream using `toIter(..)`. Note that regardless of what type of IOx instance is provided, the returned iterable is always **async-iterable**, not a normal synchronous iterable; a standard `for..of` loop will fail.
+
+    `toIter(..)` takes any IOx instance as its first argument, and the second (optional) argument should be the reader-env (if any) to provide the IOx (if it hasn't already run):
+
+    ```js
+    var counter = 0;
+    var numbers = IOx.of.empty();
+
+    var intv = setInterval(function(){
+        numbers(++counter);
+
+        // be careful not to run forever, unless
+        // that's intentional!
+        if (counter === 100) {
+            clearInterval(intv);
+            numbers.close();
+        }
+    },100);
+
+    // will run as long as the `numbers` IOx is still
+    // open
+    for await (let num of toIter(numbers,/*readerEnv=*/undefined)) {
+        console.log(`num: ${num}`);
+    }
+    // num: 1
+    // num: 2
+    // ...
+    // num: 100
+    ```
+
+    Be aware that if the IOx stays open, the `for await..of` loop that's consuming the async-iterator will keep waiting forever. To stop the iteration, you'll need to either directly `close()` the subscribed-to IOx instance (as shown above), manually `break` / `return` out of the `for await..of` loop, or forcibly close the async-iterator instance itself by calling `return(..)` on it.
+
     Timer-based IOx streams can be created with `IOx.onTimer(..)`, such as:
 
     ```js

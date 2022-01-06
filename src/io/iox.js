@@ -23,7 +23,7 @@ var registerHooks = new WeakMap();
 
 module.exports = Object.assign(IOx,{
 	of, pure: of, unit: of, is, do: $do, doEither, onEvent,
-	onceEvent, onTimer, merge, zip, fromIO, fromIter,
+	onceEvent, onTimer, merge, zip, fromIO, fromIter, toIter,
 });
 module.exports.of = of;
 module.exports.pure = of;
@@ -38,6 +38,7 @@ module.exports.merge = merge;
 module.exports.zip = zip;
 module.exports.fromIO = fromIO;
 module.exports.fromIter = fromIter;
+module.exports.toIter = toIter;
 
 
 // **************************
@@ -1342,6 +1343,138 @@ function fromIter($V,closeOnComplete = true) {
 			run = _run = _stop = stop = _close = close =
 				iox = null;
 		}
+	}
+
+}
+
+function toIter(iox,env) {
+	var finalPr;
+	var prQueue = [];
+	var nextQueue = [];
+	var closed = false;
+	var subscribed = false;
+	var it = {
+		[Symbol.asyncIterator]() { return this; },
+		next: doNext,
+		return: doReturn,
+	};
+
+	return it;
+
+	// *****************************************
+
+	function emptyResult(v) {
+		return { value: v, done: true, };
+	}
+
+	function primeQueues() {
+		var { pr, next, } = getDeferred();
+		prQueue.push(pr);
+		nextQueue.push(next);
+	}
+
+	function subscribe() {
+		// can we register a listener for the IOx?
+		if (!subscribed && registerHooks.has(iox)) {
+			subscribed = true;
+
+			let [ regListener, ] = registerHooks.get(iox);
+			regListener(onIOxUpdate,iox,env);
+		}
+	}
+
+	function unsubscribe() {
+		// can we unregister our listener from the IOx?
+		if (registerHooks.has(iox)) {
+			let [ , unregListener, ] = registerHooks.get(iox);
+			unregListener(onIOxUpdate);
+		}
+	}
+
+	function onIOxUpdate(x,v) {
+		// IOx has closed and nothing is pending in the queue?
+		if (v === CLOSED) {
+			if (prQueue.length == 0) {
+				doReturn();
+			}
+		}
+		else if (!closed) {
+			if (nextQueue.length == 0) {
+				primeQueues();
+			}
+			let next = nextQueue.shift();
+			next({ value: v, done: false, });
+		}
+	}
+
+	function doNext() {
+		// iterator already closed?
+		if (closed) {
+			return Promise.resolve(emptyResult());
+		}
+		else if (
+			// IOx is currently closed?
+			iox.isClosed() &&
+
+			// nothing currently pending?
+			prQueue.length == 0
+		) {
+			return doReturn();
+		}
+
+		if (prQueue.length == 0) {
+			primeQueues();
+		}
+		var pr = prQueue.shift();
+
+		// need to initially subscribe?
+		if (!subscribed) {
+			subscribe();
+		}
+
+		return pr;
+	}
+
+	function doReturn(v) {
+		var res = emptyResult(v);
+
+		if (!closed) {
+			closed = true;
+
+			unsubscribe();
+
+			// make sure return() result is the last to resolve
+			finalPr = (
+				prQueue.length > 0 ?
+					prQueue[prQueue.length - 1] :
+					undefined
+			);
+
+			// clear out any pending results
+			if (nextQueue.length > 0) {
+				for (let next of nextQueue) {
+					next(emptyResult());
+				}
+			}
+			nextQueue = prQueue = env = iox = onIOxUpdate =
+				primeQueues = doNext = doReturn = it = null;
+		}
+
+		return (
+			finalPr ?
+
+				// make sure return() result is the last to resolve
+				finalPr.then(()=>{
+					try {
+						return res;
+					}
+					finally {
+						finalPr = res = null;
+					}
+				}) :
+
+				Promise.resolve(res)
+		);
 	}
 
 }
