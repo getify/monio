@@ -45,8 +45,8 @@ function IOEventStream(el,evtName,opts = {}) {
 			def: null,
 			intv: null,
 		};
-		var prStack;
-		var nextStack;
+		var prQueue;
+		var nextQueue;
 		var forceClosed = Symbol("force closed");
 		var { pr: hasClosed, next: triggerClose, } = getDeferred();
 		var ait = eventStream();
@@ -83,8 +83,8 @@ function IOEventStream(el,evtName,opts = {}) {
 		function start() {
 			if (!started) {
 				started = true;
-				prStack = [];
-				nextStack = [];
+				prQueue = [];
+				nextQueue = [];
 
 				// (lazily) setup event listener
 				if (isFunction(el.addEventListener)) {
@@ -110,14 +110,14 @@ function IOEventStream(el,evtName,opts = {}) {
 
 			try {
 				while (true) {
-					if (prStack.length == 0) {
+					if (prQueue.length == 0) {
 						let { pr, next, } = getDeferred();
-						prStack.push(pr);
-						nextStack.push(next);
+						prQueue.push(pr);
+						nextQueue.push(next);
 					}
 					let res = await Promise.race([
 						hasClosed,
-						prStack.shift(),
+						prQueue.shift(),
 					]);
 					if (res == forceClosed) {
 						return;
@@ -138,7 +138,7 @@ function IOEventStream(el,evtName,opts = {}) {
 				else if (isFunction(el.off)) {
 					el.off(evtName,handler);
 				}
-				prStack.length = nextStack.length = 0;
+				prQueue.length = nextQueue.length = 0;
 			}
 		}
 
@@ -205,13 +205,13 @@ function IOEventStream(el,evtName,opts = {}) {
 				}
 			}
 
-			if (nextStack.length > 0) {
-				let next = nextStack.shift();
+			if (nextQueue.length > 0) {
+				let next = nextQueue.shift();
 				next(evt);
 			}
-			else if (prStack.length < bufferSize) {
+			else if (prQueue.length < bufferSize) {
 				let { pr, next, } = getDeferred();
-				prStack.push(pr);
+				prQueue.push(pr);
 				next(evt);
 			}
 			else if (throwBufferOverflow) {
