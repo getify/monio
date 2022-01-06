@@ -8,6 +8,8 @@ Monio (mō'ne-yo) is an async-capable IO Monad (including "do" style) for JS, wi
 
 ## See Monio In Action
 
+To see how writing **Monio**-based code looks and feels, especially the use of IO/IOx and all its variations, check out these live demos. There's a variety of different approaches/styles demonstrated, which illustrate the flexibility **Monio**'s monads offer.
+
 * [Cancelable Countdown (demo)](https://codepen.io/getify/pen/abvjRRK?editors=0011)
 
 * [Order Lookup (demo)](https://codepen.io/getify/pen/YzyJqZa?editors=1010)
@@ -22,7 +24,7 @@ Monio (mō'ne-yo) is an async-capable IO Monad (including "do" style) for JS, wi
 
 * [IOx Reactive Monad: Stream Operations (demo)](https://codepen.io/getify/pen/JjrNPdm?editors=0010)
 
-* [IOx Countdown Timer (demo)](https://codepen.io/getify/pen/MWErobj?editors=0012)
+* [IOx Countdown Timer (demo)](https://codepen.io/getify/pen/MWErobj?editors=0012) and [IOx Countdown Timer Alternative (demo)](https://codepen.io/getify/pen/abLKeKy?editors=0012)
 
 ## Overview
 
@@ -186,7 +188,11 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     .run();
     ```
 
-* `IOx` is a "reactive IO" monad variant, similar to a basic observable (or event stream). If an `IOx` (*B*) instance is subscribed to (i.e., observing/listening to) another `IOx` instance (*A*), and *A* updates its value, *B* is automatically notified and re-applied.
+* `IOx` is a "reactive IO" monad variant, which is both a conforming IO and also similar to a basic observable (or event stream). If an `IOx` (*B*) instance is subscribed to (i.e., observing/listening to) another `IOx` instance (*A*), and *A* updates its value, *B* is automatically notified and re-applied.
+
+    The `IOx(..)` constructor is like the `IO(..)` constructor -- both expect an effect function as the first argument -- except that `IOx(..)` also expects a second argument: an array of dependencies -- typically, one or more IOx instances, but can also be regular IO instances, or even non-IO values like `42` or `Just("ok")`.
+
+    The effect function (for both `IO(..)` and `IOx(..)`) always receives the reader-env value (the value passed to `run(..)`) as its first argument. For IOx instances, the effect function will then also receive, as additional positional arguments, the resolved value(s) of its listed dependencies.
 
     For example:
 
@@ -195,12 +201,21 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     var doubled = number.map(v => v * 2);
     var tripled = number.map(v => v * 3);
 
+    // `log(..)` here is an effect function to pass to the
+    // `IOx(..)` constructor; it receives both the
+    // reader-env argument and the `v`, which will be the
+    // subscribed-to value of the IOx instance's dependency
     var log = (env,v) => console.log(`v: ${v}`);
+
+    // the `IO(..)` constructor here also takes an effect
+    // function, which receives only the reader-env argument
+    var logIO = v => IO(env => log(env,v));
 
     // subscribe to the `doubled` IOx
     var logDoubled = IOx(log,[ doubled ]);
-    // subscribe to the `tripled` IOx
-    var logTripled = IOx(log,[ tripled ]);
+
+    // an alternate way to "subscribe" is to `chain(..)`:
+    var logTripled = tripled.chain(logIO);
 
     // activate only the `logDoubled` IOx
     logDoubled.run();
@@ -220,13 +235,82 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     // v: 30
     ```
 
-    And for handling typical event streams manually:
+    As shown, successive calls to the IOx instance (itself a function), like `number(7)` above, will "update" the value in the IOx instance, which has the effect of pushing that value out through the stream to any subscribed IOx instances.
+
+    Generally, IO and IOx instances are interchangeable in that most places which expect an IO can receive an IOx, and vice versa. However, there are times when you will need to explicitly convert (aka, lift) from one to the other. These conversions are *natural transformations* in FP-speak.
+
+    For example, you *can* `chain(..)` an IOx instance from an IO (since IOx is a valid IO), but even though this is possible, it probably won't have the desired outcome; the outer resulting chain will still be a single-value IO instance (i.e., whatever the first value eventually is from the IOx). To explicitly convert an IO to an IOx, use `IOx.fromIO(..)`:
+
+    ```js
+    var getElementById = id => IO(() => document.getElementById(id));
+
+    var thisIsAnIONotAnIOx =
+        getElementById("my-btn")
+        .chain(makeSomeIOx);
+
+    var butThisIsAnIOx =
+        IOx.fromIO( getElementById("my-btn") )
+        .chain(makeSomeIOx);
+    ```
+
+    Less often, you need to explicitly convert in the other direction (IOx to IO); use `IO.fromIOx(..)` in those specific cases.
+
+    IOx streams can also be constructed from (i.e., filled with values from) both sync and async iterables, using `IOx.fromIter(..)`. Iterable-based IOx streams are one-time sources of values; once they've been iterated, they won't produce those values again.
+
+    By default, iterable-based IOx streams will close once they've produced their values. However, `fromIter(..)` takes an optional second boolean argument; pass `false` to keep the stream open after its initial iteration is complete. This allows the stream to be updated with additional values later.
+
+    For example:
+
+    ```js
+    const log = IOHelpers.log;
+
+    var range = IOx.fromIter( [ 1, 2, 3, 4, 5 ], /*closeOnComplete=*/false );
+
+    range.chain(log).run();
+    // 1 2 3 4 5
+
+    range(6);
+    // 6
+
+    var asyncOdds = IOx.fromIter(async function *asyncOdds(){
+        for (let i = 1; i < 1000; i += 2) {
+            yield i;
+            await (new Promise(r => setTimeout(r,500)));
+        }
+    });
+
+    asyncOdds.chain(log).run();
+    // 1 .. 3 .. 5 ..... 999
+    ```
+
+    **Note:** Generators or async-generators passed as iterable sources to `fromIter(..)` are **not** treated as do-routines the way `IO.do(..)` / `IOx.do(..)` operate. Standard generators are synchronously iterated as sources of `yield`ed values, and async generators are asynchronously iterated as sources of `yield`ed values.
+
+    Timer-based IOx streams can be created with `IOx.onTimer(..)`, such as:
+
+    ```js
+    const log = IOHelpers.log;
+    const waitFor = IOxHelpers.waitFor;
+
+    var onlyOneSecond = IOx.onTimer( /*timeDelayMs=*/1000, /*countLimint=*/1 );
+    // note: if you omit the second argument, the
+    // timer will keep running at the specified
+    // time-delay interval indefinitely, until
+    // the IOx instance is closed
+
+    waitFor(onlyOneSecond)
+    .chain(timerTick => log("one second passed!"))
+    .run();
+    ```
+
+    **Note:** Timer-based IOx instances don't default to waiting for the timer to fire once initiating it, because you may just want to start a timer in the background and not actually wait for it in that same expression (e.g., `onlyOneSecond.run()`). As such, this example additionally illustrates the helpfulness of the IOx-Helper `waitFor(..)`, which wraps the `onlyOneSecond` in another IOx instance that will indeed wait for the timer to fire.
+
+    And for handling typical event streams, manually (from a standard DOM event listener):
 
     ```js
     var clicksIOx = IOx.of.empty();
 
     // standard DOM event listener
-    btn.addEventListener("click",evt => clicksIOx(evt),false);
+    btn.addEventListener("click",clicksIOx,false);
 
     clicksIOx.chain(evt => {
         // .. click event! ..
@@ -234,35 +318,45 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     .run();
     ```
 
-    More preferably, using the included `IOx.onEvent(..)` helper:
+    **Note:** Unlike the previous `onTimer(..)` example, because `clicksIOx` here is initially an empty IOx, the `chain(..)` call **will** wait for the first value to be pushed through the IOx stream (when the `"click"` event occurs on the button).
+
+    But more preferably/canonically, events can be subscribed as IOx streams using the included `IOx.onEvent(..)` / `IOx.onceEvent(..)` helpers:
 
     ```js
+    const waitFor = IOxHelpers.waitFor;
+
     var clicksIOx = IOx.onEvent(btn,"click",false);
     // or use `IOx.onceEvent(..)` for single-fire event handling
 
-    clicksIOx.chain(evt => {
+    waitFor(clicksIOx).chain(evt => {
         // .. click event! ..
     })
     .run();
     ```
 
-    IOx instances are IO instances (with extensions for reactivity). As such, they can be `yield`ed inside `IO.do(..)` do-blocks:
+    **Note:** As with timer-based IOx instances (described earlier), event-based IOx instances (from `IOx.onEvent(..)` or `IOx.onceEvent(..)`) don't default to waiting for the event they've just subscribed to. The `waitFor(..)` helper is again helpful to wait for the actual event.
+
+    IOx instances are conforming IO instances (with extensions for reactivity). As such, they can be `chain(..)`ed from IOs, or `yield`ed inside `IO.do(..)` do-blocks:
 
     ```js
+    const waitFor = IOxHelpers.waitFor;
+
     IO.do(function *main({ doc, }){
         // IOx event stream that represents the one-time
         // DOM-ready event
         var DOMReadyIOx = IOx.onceEvent(doc,"DOMContentLoaded",false);
 
         // listen (and wait!) for this one-time event to fire
-        yield DOMReadyIOx;
+        yield waitFor(DOMReadyIOx);
 
         // ..
     })
     .run({ doc: document });
     ```
 
-    `IOx.do(..)` is like `IO.do(..)`, except that it also accepts an optional second argument, an array of other IOx instances to subscribe to. The do-block will be re-invoked with each value update from any of the subscribed-to IOx instances:
+    **Note:** `yield DOMReadyIOx` above would be a valid expression in the do-routine, as would `yield`ing any IOx instance. But as previously described, such an expression wouldn't actually wait for the event. Again, the `waitFor(..)` helper waits for the `"DOMContentLoaded"` event to actually fire.
+
+    `IOx.do(..)` is like IO's `IO.do(..)`, except that -- just like the `IOx(..)` constructor -- it expects a second argument: an array of other IOx instances to subscribe to. Since `IOx.do(..)` creates an IOx instance, its do-block will be re-invoked with each value update from any of the subscribed-to IOx instances:
 
     ```js
     var delay = ms => IO(() => new Promise(r => setTimeout(r,ms)));
@@ -304,7 +398,7 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
         var handleClicksIOx = IOx.do(onClick,[ clicksIOx ]);
         // or:
         //    var handleClicksIOx = clicksIOx.chain(
-        //       evt => IOx.do(onClick,[],evt)
+        //       evt => IO.do(onClick,evt)
         //    );
 
         // actually activates the click handling and the DOM
@@ -322,6 +416,8 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     For example:
 
     ```js
+    var { log } = IOHelpers;
+    var { distinct, distinctUntilChained, filterIn, zip, merge } = IOxHelpers;
     var log = msg => IO(() => console.log(msg));
 
     IO.do(function *main({ btn, input }){
@@ -333,14 +429,14 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
         var lettersIOx =
             keypressesIOx.map(evt => evt.key)
             .chain(
-                IOx.filterIn(key => /[a-z]/i.test(key))
+                filterIn(key => /[a-z]/i.test(key))
             );
-        var uniqueLettersIOx = lettersIOx.chain( IOx.distinct() );
+        var uniqueLettersIOx = lettersIOx.chain( distinct() );
         var nonRepeatLettersIOx =
-            lettersIOx.chain( IOx.distinctUntilChanged() );
+            lettersIOx.chain( distinctUntilChanged() );
 
         // zip two streams together
-        var clickAndKeyIOx = IOx.zip([ clicksIOx, uniqueLettersIOx ]);
+        var clickAndKeyIOx = zip([ clicksIOx, uniqueLettersIOx ]);
 
         // NOTE:
         // it's important to realize that everything up to this
@@ -353,8 +449,7 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
         // merge two streams together, and print whatever comes
         // through to the console
         yield (
-            IOx
-            .merge([ clickAndKeyIOx, nonRepeatLettersIOx ])
+            merge([ clickAndKeyIOx, nonRepeatLettersIOx ])
             .chain(log)
         );
     })
@@ -364,7 +459,7 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     });
     ```
 
-    IOx reactive instances can temporarily be paused (using `stop()`), or permanently closed and cleaned up (using `close()`).
+    IOx reactive instances can temporarily be paused (using `stop()`), or permanently closed and cleaned up (using `close()`). They can also be "frozen" (still open, but no more values allowed) with `freeze()`. `isClosed()` and `isFrozen()` indicate the current status of the IOx stream.
 
 ## Using Monio
 
