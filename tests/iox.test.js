@@ -691,6 +691,46 @@ qunit.test("update:async", async (assert) => {
 	);
 });
 
+qunit.test("update:async-concurrent", async (assert) => {
+	var res1 = [];
+
+	var x = IOx.of(2);
+	var y = IOx((env,v) => {
+		if (v < 5) {
+			x(v + 1);
+		}
+		return delayPr(10).then(() => v * 10);
+	},[ x ]);
+	var z = IOx((env,v) => {
+		res1.push(v);
+		return v * 10;
+	},[ y ]);
+
+	var res2 = z.run();
+
+	assert.ok(
+		res2 instanceof Promise,
+		"IOx effect returning a promise is enough to lift subscribed IOx to promise"
+	);
+
+	res2 = await res2;
+
+	// wait to make sure all concurrent-async updates are processed
+	await delayPr(75);
+
+	assert.equal(
+		res2,
+		200,
+		"IOx's first update eventually resolves"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ 20, 30, 40, 50 ],
+		"concurrently queued values still get drained even with async updates"
+	);
+});
+
 qunit.test("close", (assert) => {
 	var vals1 = IOx.of(2);
 	var vals3 = [];

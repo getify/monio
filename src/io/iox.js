@@ -106,7 +106,7 @@ function IOx(iof,deps = []) {
 		if (!closing) {
 			closing = true;
 			stop();
-			updateCurrentVal(CLOSED);
+			updateCurrentVal(CLOSED,/*drainQueueIfAsync=*/false);
 			registerHooks.delete(publicAPI);
 			ioDepsPending = depsPendingClose = waitForDeps = depsComplete =
 				deps = iof = io = publicAPI = listeners = null;
@@ -130,7 +130,7 @@ function IOx(iof,deps = []) {
 		if (!closing && !frozen) {
 			unregisterWithDeps();
 			deps = currentEnv = iof = null;
-			return updateCurrentVal(v);
+			return updateCurrentVal(v,/*drainQueueIfAsync=*/false);
 		}
 	}
 
@@ -190,6 +190,20 @@ function IOx(iof,deps = []) {
 		if (haveDeps()) {
 			return deps.some(is);
 		}
+	}
+
+	function haveQueuedIOxDepVals() {
+		if (haveDeps()) {
+			for (let dep of deps) {
+				if (is(dep)) {
+					let depv = depVals.get(dep);
+					if (depv && depv.length > 1) {
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	function discardCurrentDepVals() {
@@ -317,7 +331,7 @@ function IOx(iof,deps = []) {
 				// was the result of the IOx evaluation non-empty?
 				if (!closing && iofRes !== EMPTY) {
 					// save the current IOx value, either sync or async
-					let updateRes = updateCurrentVal(iofRes,/*drainQueue=*/true);
+					let updateRes = updateCurrentVal(iofRes,/*drainQueueIfAsync=*/haveQueuedIOxDepVals());
 
 					// was the update of the IOx value synchronous,
 					// and are there IOx deps (which may have queued
@@ -335,6 +349,7 @@ function IOx(iof,deps = []) {
 
 						// re-check the collected deps values to see
 						// if this IOx is ready to be re-evaluated
+
 						continue execLoop;
 					}
 					// whether the update was asynchronous, or there
@@ -541,16 +556,25 @@ function IOx(iof,deps = []) {
 		}
 	}
 
-	function updateCurrentVal(v) {
+	function updateCurrentVal(v,drainQueueIfAsync) {
 		var saveEnv = currentEnv;
 
-		return (isPromise(v) ?
-			v.then(handle).catch(logUnhandledError) :
-			handle(v)
-		);
+		// still waiting on the resolved value
+		// to update with?
+		if (isPromise(v)) {
+			return v.then(handle).catch(logUnhandledError);
+		}
+		else {
+			// since this update isn't async, no
+			// need to worry about draining the
+			// queue
+			drainQueueIfAsync = false;
 
-		function handle(v) {
-			currentVal = v;
+			return handle(v);
+		}
+
+		function handle(resV) {
+			currentVal = resV;
 
 			if (Array.isArray(listeners)) {
 				// saving in case an update causes a closing
@@ -561,6 +585,12 @@ function IOx(iof,deps = []) {
 					listener(_publicAPI,currentVal);
 				}
 			}
+
+			// need to drain any IOx dep-values queue(s)?
+			if (drainQueueIfAsync && !runningIOF && currentEnv !== UNSET) {
+				safeIORun(publicAPI,currentEnv);
+			}
+
 			// not yet fully closed?
 			if (currentVal === CLOSED && io) {
 				close();
