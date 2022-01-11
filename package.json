@@ -1,6 +1,6 @@
 {
 	"name": "monio",
-	"description": "Async-capable IO monad for JS",
+	"description": "The most powerful IO monad implementation in JS",
 	"version": "0.33.0",
 	"main": "./src/index.js",
 	"scripts": {

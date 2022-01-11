@@ -69,7 +69,7 @@ twentyOne
 // Just(42)
 ```
 
-Using a `Maybe` monad, which can either representative a `Just` or a `Nothing` depending on if the value is "empty" -- by default, JS primitives `null` and `undefined` are defined as "empty", but this can be configured.
+Using a `Maybe` monad, which can either represent a `Just` or a `Nothing` depending on if the value is "empty" -- by default, JS primitives `null` and `undefined` are defined as "empty", but this can be configured.
 
 For example:
 
@@ -323,7 +323,7 @@ asyncOdds.chain(log).run();
 
 You can construct an async-iterable (suitable to consume with a `for await..of` loop) from any IOx stream using `toIter(..)`. Note that regardless of what type of IOx instance is provided, the returned iterable is always **async-iterable**, not a normal synchronous iterable; a standard `for..of` loop will fail.
 
-`toIter(..)` takes any IOx instance as its first argument, and the second (optional) argument should be the reader-env (if any) to provide the IOx (if it hasn't already run):
+`toIter(..)` takes any IOx instance as its first argument, and the second (optional) argument should be the reader-env (if any) to run the IOx with (if it hasn't already run):
 
 ```js
 var counter = 0;
@@ -342,7 +342,7 @@ var intv = setInterval(function(){
 
 // will run as long as the `numbers` IOx is still
 // open
-for await (let num of toIter(numbers,/*readerEnv=*/undefined)) {
+for await (let num of IOx.toIter(numbers,/*readerEnv=*/undefined)) {
     console.log(`num: ${num}`);
 }
 // num: 1
