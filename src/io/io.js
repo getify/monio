@@ -10,9 +10,11 @@ var Nothing = require("../nothing.js");
 var Either = require("../either.js");
 
 const BRAND = {};
+const IS_CONT = Symbol("is-continuation");
 
 module.exports = Object.assign(IO,{
 	of, pure: of, unit: of, is, do: $do, doEither, fromIOx,
+	_IS_CONT: IS_CONT,
 });
 module.exports.RIO = IO;
 module.exports.of = of;
@@ -22,6 +24,7 @@ module.exports.is = is;
 module.exports.do = $do;
 module.exports.doEither = doEither;
 module.exports.fromIOx = fromIOx;
+module.exports._IS_CONT = IS_CONT;
 
 
 // **************************
@@ -34,43 +37,75 @@ function IO(effect) {
 	};
 	return publicAPI;
 
-	// *********************
+	// *****************************************
 
 	function map(fn) {
-		return IO(env => {
-			var res = effect(env);
-			return (isPromise(res) ? res.then(fn) : fn(res));
-		});
+		return IO(env => continuation([
+			() => effect(env),
+			res => (isPromise(res) ? res.then(fn) : fn(res))
+		]));
 	}
 
 	function chain(fn) {
-		return IO(env => {
-			var res = effect(env);
-			var res2 = (isPromise(res) ? res.then(fn) : fn(res));
-			return (isPromise(res2) ?
-				res2.then(v => v.run(env)) :
-				res2.run(env)
-			);
-		});
+		return IO(env => continuation([
+			() => effect(env),
+			res => {
+				var res2 = (isPromise(res) ? res.then(fn) : fn(res));
+				return (isPromise(res2) ?
+					res2.then(v => v.run(env)) :
+					res2.run(env)
+				);
+			}
+		]));
 	}
 
 	function concat(m) {
-		return IO(env => {
-			var res1 = effect(env);
-			var res2 = m.run(env);
-			return (
-				(isPromise(res1) || isPromise(res2)) ?
-					(
-						Promise.all([ res1, res2, ])
-						.then(([ v1, v2, ]) => v1.concat(v2))
-					) :
-					res1.concat(res2)
-			);
-		});
+		return IO(env => continuation([
+			() => effect(env),
+			res1 => {
+				var res2 = m.run(env);
+				return (
+					(isPromise(res1) || isPromise(res2)) ?
+						(
+							Promise.all([ res1, res2, ])
+							.then(([ v1, v2, ]) => v1.concat(v2))
+						) :
+						res1.concat(res2)
+				);
+			}
+		]));
 	}
 
 	function run(env) {
-		return effect(env);
+		return trampoline(effect(env));
+	}
+
+	function continuation(cont) {
+		cont[IS_CONT] = true;
+		return cont;
+	}
+
+	// note: allows IO chain()s of arbitrary length without
+	// any RangeError call-stack overflow
+	function trampoline(res) {
+		var stack = [];
+
+		while (res && res[IS_CONT] === true) {
+			let res0 = res[0]();
+			stack.push(res[1]);
+			if (res0 && res0[IS_CONT]) {
+				res = res0;
+			}
+			else {
+				res = res0;
+				while (stack.length > 0) {
+					let res1 = stack.pop();
+					res = res1(res);
+				}
+				return res;
+			}
+		}
+		return res;
 	}
 
 	function _inspect() {
@@ -318,7 +353,7 @@ function monadFlatMap(m,fn) {
 
 async function safeUnwrap(v,throwEither) {
 	try {
-		v = isPromise(v) ? await v : v;
+		v = await v;
 		if (throwEither && Either.Left.is(v)) {
 			throw v;
 		}

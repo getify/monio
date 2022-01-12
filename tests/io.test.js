@@ -94,6 +94,27 @@ qunit.test("#chain", (assert) => {
 	);
 });
 
+qunit.test("#chain:very-long", (assert) => {
+	var io = IO(start => start);
+
+	for (var i = 0; i < 150000; i++) {
+		io = io.chain(v => IO.of(v + 1));
+	}
+
+	try {
+		var res = io.run(1);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res,
+		i + 1,
+		"chain() call stack ran very long without RangeError"
+	);
+});
+
 qunit.test("#chain:async", async(assert) => {
 	var r1 = await (
 		IO.of(Promise.resolve({ name: "john" }))
@@ -139,7 +160,6 @@ qunit.test("#chain:async", async(assert) => {
 		"john",
 		"(4) should return an IO with 'john' as a value"
 	);
-
 });
 
 qunit.test("#map", (assert) => {
@@ -153,6 +173,27 @@ qunit.test("#map", (assert) => {
 		IO.of(1).map(identity).run(),
 		IO.of(1).run(),
 		"should follow the identity law"
+	);
+});
+
+qunit.test("#map:very-long", (assert) => {
+	var io = IO(start => start);
+
+	for (var i = 0; i < 150000; i++) {
+		io = io.map(inc);
+	}
+
+	try {
+		var res = io.run(1);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res,
+		i + 1,
+		"map() call stack ran very long without RangeError"
 	);
 });
 
@@ -220,6 +261,27 @@ qunit.test("#concat", (assert) => {
 		IO.of("Hello").concat(IO.of(" World!")).run(),
 		IO.of("Hello World!").run(),
 		"should concat two strings in IO monads together into a new monad"
+	);
+});
+
+qunit.test("#concat:very-long", (assert) => {
+	var io = IO(start => start);
+
+	for (var i = 1; i < 25000; i++) {
+		io = io.concat(IO.of([ i + 1 ]));
+	}
+
+	try {
+		var res = io.run([ 1 ]);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res.length,
+		i,
+		"concat() call stack ran very long without RangeError"
 	);
 });
 
@@ -461,16 +523,30 @@ qunit.test("IO.doEither", async (assert) => {
 		return Either.Left("two 5");
 	}
 
+	function *three() {
+		throw "three 1";
+	}
+
+	function *four() {
+		yield Promise.resolve(Either.Left("four 1"));
+	}
+
 	var r1 = [];
 	var r2 = [];
 	var io1 = IO.doEither(one,3);
 	var io2 = IO.doEither(two);
+	var io3 = IO.doEither(three);
+	var io4 = IO.doEither(four);
 
 	var r3 = io1.run(2);
 	var r4 = io2.run();
+	var r5 = io3.run();
+	var r6 = io4.run();
 
-	// NODE HACK: silence the uncaught exception (since it's caught later)
+	// NODE HACK: silence the uncaught exceptions (since it's caught later)
 	r4.catch(() => {});
+	r5.catch(() => {});
+	r6.catch(() => {});
 
 	assert.ok(
 		(r3 instanceof Promise) && (r4 instanceof Promise),
@@ -500,12 +576,38 @@ qunit.test("IO.doEither", async (assert) => {
 
 	assert.ok(
 		Either.Left.is(r4) && r4._inspect() == "Either:Left(\"two 5\")",
-		"do-either routine treats returned Either:Left as catchable exception"
+		"do-either routine treats returned Either:Left as promise rejection"
 	);
 
 	assert.deepEqual(
 		r2,
 		[ "two 1", "Error: two 2", "two 3", "two 4" ],
 		"do-either routine proceeds, and returns a value"
+	);
+
+	try {
+		await r5;
+		r5 = "oops";
+	}
+	catch (err) {
+		r5 = err;
+	}
+
+	assert.ok(
+		Either.Left.is(r5) && r5._inspect() == "Either:Left(\"three 1\")",
+		"do-either routine lifts uncaught exception into Either:Left as promise rejection"
+	);
+
+	try {
+		await r6;
+		r6 = "oops";
+	}
+	catch (err) {
+		r6 = err;
+	}
+
+	assert.ok(
+		Either.Left.is(r6) && r6._inspect() == "Either:Left(\"four 1\")",
+		"do-either routine lifts and throws Promise<Either:Left> as promise rejection"
 	);
 });
