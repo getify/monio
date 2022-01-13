@@ -269,8 +269,8 @@ function IOx(iof,deps = []) {
 			return currentVal;
 		}
 
-		// note: really shouldn't get here, this is using
-		// IOx incorrectly
+		// note: really shouldn't get here
+		/* istanbul ignore next */
 		return;
 	}
 

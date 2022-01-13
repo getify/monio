@@ -1,5 +1,15 @@
 "use strict";
 
+// NOTE: these are to silence spurious
+// errors/warnings that Node emits b/c
+// it doesn't trust that we know what
+// we're doing with catching promise
+// rejections
+process.on("unhandledRejection",()=>{});
+process.on("rejectionHandled",()=>{});
+// ***************************************************
+
+
 const EventEmitter = require("events");
 const qunit = require("qunit");
 const { identity, inc, twice, ioProp, delayPr, delayIO, delayIOx, } = require("./utils");
@@ -66,7 +76,7 @@ qunit.test("#is", (assert) => {
 
 qunit.test("#run", (assert) => {
 	assert.equal(
-		IOx(() => 1,[]).run(),
+		IOx(() => 1).run(),  // note: intentionally leaving off the [] empty dependencies list
 		1,
 		"should evaluate the function in the IOx monad and return its value"
 	);
@@ -469,7 +479,7 @@ qunit.test("non-IOx dependencies", async (assert) => {
 
 qunit.test("update", (assert) => {
 	var x1 = IOx.of(3);
-	var x2 = IOx((_,v) => v * 2,[ x1, ]);
+	var x2 = IOx((_,v) => v * 2,x1);  // note: intentionally didn't put `x1` into an array
 	var x3 = x2.map(v => v + 3);
 	var x4 = IOx((_,v1,v2) => v1 + v2 + 5, [ x1, x3 ]);
 	var x5 = x4.chain(v => IOx.of(v * 10));
@@ -572,6 +582,26 @@ qunit.test("update", (assert) => {
 		v15,
 		600,
 		"(3) IOx update should propagate through chain"
+	);
+});
+
+qunit.test("update:stacked", async (assert) => {
+	var res = [];
+
+	var x1 = IOx.of(1);
+	var x2 = IO(() => (res.push("x2"),x1(2),Promise.resolve(3)));
+	var x3 = IOx((env,v1,v2) => res.push(v1,v2),[ x1, x2 ]);
+
+	await x3.run();
+
+	x1(4);
+
+	await delayPr(25);
+
+	assert.deepEqual(
+		res,
+		[ "x2", 1, 3, 2, 3, "x2", 4, 3, 2, 3 ],
+		"when an IO pushes a new IOx value, stacked dependency collection still works"
 	);
 });
 
@@ -739,6 +769,8 @@ qunit.test("close", (assert) => {
 		vals3.push(ciox);
 		return ciox;
 	});
+	var res = [];
+	var vals4 = IOx(()=>{ res.push("oops"); },[ vals2 ]);
 	vals2.run();
 
 	assert.ok(
@@ -782,6 +814,19 @@ qunit.test("close", (assert) => {
 			`(${idx}) stream now closed`
 		);
 	}
+
+	vals4.run();
+
+	assert.ok(
+		vals4.isClosed(),
+		"running an IOx whose only dependency is already closed, immediately closes the IOx"
+	);
+
+	assert.deepEqual(
+		res,
+		[],
+		"initially (automatically) closed IOx never runs its effect"
+	);
 });
 
 qunit.test("stop", (assert) => {

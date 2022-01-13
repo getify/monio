@@ -1,5 +1,15 @@
 "use strict";
 
+// NOTE: these are to silence spurious
+// errors/warnings that Node emits b/c
+// it doesn't trust that we know what
+// we're doing with catching promise
+// rejections
+process.on("unhandledRejection",()=>{});
+process.on("rejectionHandled",()=>{});
+// ***************************************************
+
+
 const qunit = require("qunit");
 const { identity, inc, twice, eitherProp } = require("./utils");
 
