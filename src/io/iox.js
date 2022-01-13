@@ -7,6 +7,7 @@ var {
 	curry,
 	getDeferred,
 } = require("../lib/util.js");
+var Either = require("../either.js");
 var IO = require("./io.js");
 
 // curry some public methods
@@ -51,6 +52,7 @@ function IOx(iof,deps = []) {
 		deps = [ deps ];
 	}
 
+	const TAG = "IOx";
 	var currentEnv = UNSET;
 	var currentVal = UNSET;
 	var waitForDeps;
@@ -73,7 +75,7 @@ function IOx(iof,deps = []) {
 		map, chain, flatMap: chain, bind: chain,
 		concat, run, stop, close, isClosed, freeze,
 		isFrozen, toString, _chain_with_IO, _inspect,
-		_is, [Symbol.toStringTag]: "IOx",
+		_is, [Symbol.toStringTag]: TAG,
 	});
 	registerHooks.set(publicAPI,[ registerListener, unregisterListener, ]);
 	return publicAPI;
@@ -708,17 +710,23 @@ function IOx(iof,deps = []) {
 		return (
 			(currentVal !== UNSET && currentEnv !== UNSET) ?
 				fn(currentVal !== CLOSED ? currentVal : undefined) :
-				io.chain(fn)
+				io ? io.chain(fn) :
+				fn(undefined)
 		);
 	}
 
 	function _inspect() {
-		return `${publicAPI[Symbol.toStringTag]}(${
-			isMonad(currentVal) && isFunction(currentVal._inspect) ? currentVal._inspect() :
-			![ UNSET, CLOSED ].includes(currentVal) ? String(currentVal) :
-			isFunction(iof) ? (iof.name || "anonymous function") :
-			".."
-		})`;
+		if (closing) {
+			return `${TAG}(-closed-)`;
+		}
+		else {
+			return `${publicAPI[Symbol.toStringTag]}(${
+				isMonad(currentVal) && isFunction(currentVal._inspect) ? currentVal._inspect() :
+				![ UNSET, CLOSED ].includes(currentVal) ? String(currentVal) :
+				isFunction(iof) ? (iof.name || "anonymous function") :
+				".."
+			})`;
+		}
 	}
 
 	function _is(br) {
@@ -775,6 +783,7 @@ function onEvent(el,evtName,evtOpts = false) {
 			subscribed = true;
 
 			// (lazily) setup event listener
+			/* istanbul ignore next */
 			if (isFunction(el.addEventListener)) {
 				el.addEventListener(evtName,iox,evtOpts);
 			}
@@ -792,6 +801,7 @@ function onEvent(el,evtName,evtOpts = false) {
 			subscribed = false;
 
 			// remove event listener
+			/* istanbul ignore next */
 			if (isFunction(el.removeEventListener)) {
 				el.removeEventListener(evtName,iox,evtOpts);
 			}
@@ -1303,6 +1313,7 @@ function fromIter($V,closeOnComplete = true) {
 				}
 				else {
 					// note: should never get here
+					/* istanbul ignore next */
 					break;
 				}
 			}
@@ -1521,8 +1532,20 @@ function safeIORun(io,env) {
 	}
 }
 
+/* istanbul ignore next */
 function logUnhandledError(err) {
-	console.log(err && (
-		err.stack ? err.stack : err.toString()
-	));
+	if (Either.Left.is(err)) {
+		console.log(
+			err.fold(v=>v,()=>{})
+		);
+	}
+	else if (isMonad(err)) {
+		console.log(err._inspect());
+	}
+	else if (isFunction(err.toString)) {
+		console.log(err.toString());
+	}
+	else {
+		console.log(err);
+	}
 }

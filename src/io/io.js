@@ -32,10 +32,11 @@ module.exports._IS_CONT = IS_CONT;
 // **************************
 
 function IO(effect) {
+	const TAG = "IO";
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
 		concat, run, _inspect, _is,
-		[Symbol.toStringTag]: "IO",
+		[Symbol.toStringTag]: TAG,
 	};
 	return publicAPI;
 
@@ -192,10 +193,9 @@ function $do($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
-		return trampoline(
-			next(),
-			err => trampoline(next(err,"error"),liftDoError)
-		);
+		return (new Promise(res => res(trampoline(next()))))
+			.catch(err => trampoline(next(err,"error")))
+			.catch(liftDoError);
 
 		// ************************************************
 
@@ -214,10 +214,7 @@ function $do($V,...args) {
 						// trampoline()s here unwrap the continuations
 						// immediately, because we're already in an
 						// async microtask from the promise
-						resp.then(
-							v => trampoline(handleResp(v)),
-							err => trampoline(handleError(err))
-						) :
+						resp.then(v => trampoline(handleResp(v))) :
 
 						handleResp(resp)
 				);
@@ -251,18 +248,6 @@ function $do($V,...args) {
 						return processNext(next,resp.value,outerEnv,/*throwEither=*/false);
 					}
 				}
-
-				function handleError(err) {
-					// already tried to throw the error in?
-					if (type == "error") {
-						return liftDoError(err);
-					}
-					// otherwise, at least try to throw
-					// the error back in
-					else {
-						return next(err,"error");
-					}
-				}
 			}
 			catch (err) {
 				return liftDoError(err);
@@ -282,10 +267,9 @@ function doEither($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
-		return trampoline(
-			next(),
-			err => trampoline(next(err,"error"),liftDoEitherError)
-		);
+		return (new Promise(res => res(trampoline(next()))))
+			.catch(err => trampoline(next(err,"error")))
+			.catch(liftDoEitherError);
 
 		// ************************************************
 
@@ -314,10 +298,7 @@ function doEither($V,...args) {
 						// trampoline()s here unwrap the continuations
 						// immediately, because we're already in an
 						// async microtask from the promise
-						resp.then(
-							v => trampoline(handleResp(v)),
-							err => trampoline(handleError(err))
-						) :
+						resp.then(v => trampoline(handleResp(v))) :
 
 						handleResp(resp)
 				);
@@ -370,18 +351,6 @@ function doEither($V,...args) {
 					// Either:Right
 					else {
 						return Either.Right(respVal);
-					}
-				}
-
-				function handleError(err) {
-					// already tried to throw the error in?
-					if (type == "error") {
-						return liftDoEitherError(err);
-					}
-					// otherwise, at least try to throw
-					// the error back in
-					else {
-						return next(err,"error");
 					}
 				}
 			}
@@ -457,28 +426,21 @@ function returnRunContinuation(env) {
 // only used internally, prevents RangeError
 // call-stack overflow when composing many
 // IOs together
-function trampoline(res,onUnhandled = (err) => { throw err; }) {
+function trampoline(res) {
 	var stack = [];
 
 	processContinuation: while (Array.isArray(res) && res[IS_CONT] === true) {
 		let left = res[0];
-		let leftRes;
 
-		try {
-			// compute the left-half of the continuation
-			// tuple
-			leftRes = left();
+		// compute the left-half of the continuation
+		// tuple
+		let leftRes = left();
 
-			// store left-half result directly in the
-			// continuation tuple (for later recall
-			// during processing right-half of tuple)
-			// res[0] = { [CONT_VAL]: leftRes };
-			res[0] = leftRes;
-		}
-		catch (err) {
-			res = onUnhandled(err);
-			continue processContinuation;
-		}
+		// store left-half result directly in the
+		// continuation tuple (for later recall
+		// during processing right-half of tuple)
+		// res[0] = { [CONT_VAL]: leftRes };
+		res[0] = leftRes;
 
 		// store the modified continuation tuple
 		// on the stack
@@ -501,18 +463,12 @@ function trampoline(res,onUnhandled = (err) => { throw err; }) {
 			while (stack.length > 0) {
 				let [ ,	right ] = stack.pop();
 
-				try {
-					res = right(res);
+				res = right(res);
 
-					// right half of continuation tuple returned
-					// another continuation?
-					if (Array.isArray(res) && res[IS_CONT] === true) {
-						// process the next continuation
-						continue processContinuation;
-					}
-				}
-				catch (err) {
-					res = onUnhandled(err);
+				// right half of continuation tuple returned
+				// another continuation?
+				if (Array.isArray(res) && res[IS_CONT] === true) {
+					// process the next continuation
 					continue processContinuation;
 				}
 			}

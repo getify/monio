@@ -120,7 +120,6 @@ qunit.test("doEIOBind", async (assert) => {
 	);
 });
 
-
 qunit.test("iif", async (assert) => {
 	var condEq = v => IO(env => v === env);
 

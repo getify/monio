@@ -799,7 +799,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		r9 == "seven 1",
+		Either.Left.is(r9) && r9._inspect() == "Either:Left(\"seven 1\")",
 		"do-either routine returns promise rejection from yielded IO holding rejected promise"
 	);
 });

@@ -1293,8 +1293,22 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 		return Either.Right(v * 5);
 	}
 
+	function *three(env,v) {
+		var a = IOx.of(env);
+		var b = IOx.of(v);
+		b.close();
+
+		res3.push( b._inspect() );
+		res3.push( a.run() );
+		res3.push( yield a );
+		res3.push( yield b );
+
+		return (env + v);
+	}
+
 	var res1 = [];
 	var res2 = [];
+	var res3 = [];
 	var i1 = IOx.do(one,[ 6 ],7);
 	var i2 = IOx.doEither(two,[ i1 ]);
 	var i3 = IOx((env,v) => {
@@ -1304,18 +1318,20 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 			v2 => v2 * 2
 		);
 	},[ i2 ]);
+	var i4 = IOx.do(three,[ 20 ]);
 
-	var res3 = i3.run(4);
+	var res4 = i3.run(4);
+	var res5 = i4.run(10);
 
 	assert.ok(
-		res3 instanceof Promise,
+		res4 instanceof Promise,
 		"IOx with IO.doEither dep produces a promise"
 	);
 
-	res3 = await res3;
+	res4 = await res4;
 
 	assert.equal(
-		res3,
+		res4,
 		190,
 		"IOx do/doEither values flow through eventually"
 	);
@@ -1354,10 +1370,10 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 		"IOx.doEither re-evaluated when dependency IOx.do is manually updated"
 	);
 
-	res3 = i3.run(4);
+	res4 = i3.run(4);
 
 	assert.equal(
-		res3,
+		res4,
 		250,
 		"IOx final value eventually resolves"
 	);
@@ -1366,5 +1382,35 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 		res2,
 		[ "two", 4, 19, 2, "Either:Right(95)", "two", 4, 25, 2, "Either:Right(125)", "Either:Right(125)" ],
 		"re-running IOx manually does not re-run dependency IOx.doEither"
+	);
+
+	res5 = await res5;
+
+	assert.equal(
+		res5,
+		30,
+		"(1) IOx.do() routine eventually produces a return value"
+	);
+
+	assert.deepEqual(
+		res3,
+		[ "IOx(-closed-)", 10, 10, undefined ],
+		"(1) IOx.do() properly handles yields of already-run and already-closed IOxs"
+	);
+
+	res5 = await i4.run(100);
+
+	await delayPr(10);
+
+	assert.equal(
+		res5,
+		120,
+		"(2) IOx.do() routine eventually produces a return value"
+	);
+
+	assert.deepEqual(
+		res3,
+		[ "IOx(-closed-)", 10, 10, undefined, "IOx(-closed-)", 100, 100, undefined ],
+		"(2) IOx.do() properly handles yields of already-run and already-closed IOxs"
 	);
 });
