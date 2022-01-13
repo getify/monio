@@ -11,6 +11,8 @@ var Either = require("../either.js");
 
 const BRAND = {};
 const IS_CONT = Symbol("is-continuation");
+const RUN_CONT = Symbol("return-continuation");
+const CONT_VAL = Symbol("continuation-value");
 
 module.exports = Object.assign(IO,{
 	of, pure: of, unit: of, is, do: $do, doEither, fromIOx,
@@ -53,7 +55,7 @@ function IO(effect) {
 				var res2 = (isPromise(res) ? res.then(fn) : fn(res));
 				return (isPromise(res2) ?
 					res2.then(v => v.run(env)) :
-					res2.run(env)
+					res2.run(returnRunContinuation(env))
 				);
 			}
 		]));
@@ -77,35 +79,12 @@ function IO(effect) {
 	}
 
 	function run(env) {
-		return trampoline(effect(env));
-	}
-
-	function continuation(cont) {
-		cont[IS_CONT] = true;
-		return cont;
-	}
-
-	// note: allows IO chain()s of arbitrary length without
-	// any RangeError call-stack overflow
-	function trampoline(res) {
-		var stack = [];
-
-		while (res && res[IS_CONT] === true) {
-			let res0 = res[0]();
-			stack.push(res[1]);
-			if (res0 && res0[IS_CONT]) {
-				res = res0;
-			}
-			else {
-				res = res0;
-				while (stack.length > 0) {
-					let res1 = stack.pop();
-					res = res1(res);
-				}
-				return res;
-			}
+		if (env && env[RUN_CONT] === true) {
+			return effect(env.env);
 		}
-		return res;
+		else {
+			return trampoline(effect(env));
+		}
 	}
 
 	function _inspect() {
@@ -130,132 +109,187 @@ function is(v) {
 }
 
 function processNext(next,respVal,outerEnv,throwEither) {
-	return (new Promise(async function c(resv,rej){
-		try {
-			// if respVal is a promise, safely unwrap it
-			let [ nextRespVal, unwrappedType, ] = (
-				isPromise(respVal) ?
-					await safeUnwrap(respVal,throwEither) :
-					[
-						respVal,
-						(
-							(throwEither && Either.Left.is(respVal)) ?
-								"error" :
-								"value"
-						),
-					]
-			);
+	return (isPromise(respVal) ?
 
-			// construct chained IO
-			let chainNextFn = v => (
-				IO(() => next(v,unwrappedType).then(resv,rej))
-			);
-			let m = (
-				// Nothing monad (should short-circuit to no-op)?
-				Nothing.is(nextRespVal) ? IO(() => resv()) :
+		// trampoline()s here unwrap the continuations
+		// immediately, because we're already in an
+		// async microtask from the promise
+		safeUnwrap(respVal,throwEither).then(
+			([nrv,type]) => trampoline(handleNextRespVal(nrv,type))
+		)
+		.catch(err => trampoline(handleNextRespVal(err,"error"))) :
 
-				// IOx monad? (unfortunately, cannot use `IOx.is(..)`
-				// brand check because it creates a circular dependency
-				// between IO and IOx
-				!!(
-					nextRespVal &&
-					isFunction(nextRespVal) &&
-					isFunction(nextRespVal._chain_with_IO) &&
-					isFunction(nextRespVal._inspect) &&
-					/^IOx\b/.test(nextRespVal._inspect())
-				) ?
-					// chain IOx via a regular IO to reduce overhead
-					nextRespVal._chain_with_IO(chainNextFn) :
+		handleNextRespVal(
+			respVal,
+			(
+				(throwEither && Either.Left.is(respVal)) ?
+					"error" :
+					"value"
+			)
+		)
+	);
 
-				// otherwise, chain the generic monad
-				monadFlatMap(
+
+	// ***********************************************************
+
+	function handleNextRespVal(nextRespVal,unwrappedType) {
+		// construct chained IO
+		var chainNextFn = v => (
+			IO(() => next(v,unwrappedType))
+		);
+
+		var m = (
+			// Nothing monad (should short-circuit to no-op)?
+			Nothing.is(nextRespVal) ? IO.of() :
+
+			// IOx monad? (unfortunately, cannot use `IOx.is(..)`
+			// brand check because it creates a circular dependency
+			// between IO and IOx
+			!!(
+				nextRespVal &&
+				isFunction(nextRespVal) &&
+				isFunction(nextRespVal._chain_with_IO) &&
+				isFunction(nextRespVal._inspect) &&
+				/^IOx\b/.test(nextRespVal._inspect())
+			) ?
+				// chain IOx via a regular IO to reduce overhead
+				nextRespVal._chain_with_IO(chainNextFn) :
+
+			// otherwise, chain the generic monad
+			monadFlatMap(
+				(
+					// ensure we're chaining to a monad
 					(
-						// ensure we're chaining to a monad
+						// need to wrap Either:Left error?
 						(
-							// need to wrap Either:Left error?
-							(
-								throwEither &&
-								unwrappedType == "error" &&
-								Either.Left.is(nextRespVal)
-							) ||
+							throwEither &&
+							unwrappedType == "error" &&
+							Either.Left.is(nextRespVal)
+						) ||
 
-							// need to lift non-monad?
-							!isMonad(nextRespVal)
-						) ?
-							// wrap it in an IO
-							IO.of(nextRespVal) :
+						// need to lift non-monad?
+						!isMonad(nextRespVal)
+					) ?
+						// wrap it in an IO
+						IO.of(nextRespVal) :
 
-							// otherwise, must already be a monad
-							nextRespVal
-					),
-					// chain/flatMap the monad to the "next" IO step
-					chainNextFn
-				)
-			);
+						// otherwise, must already be a monad
+						nextRespVal
+				),
+				// chain/flatMap the monad to the "next" IO step
+				chainNextFn
+			)
+		);
 
-			// run the next step of the IO chain
-			try {
-				await m.run(outerEnv);
-			}
-			catch (err) {
-				// if running the next step produced an
-				// exception, try to inject that error back
-				// into the do-routine; if that is cleanly
-				// handled, resolve the promise with that
-				// result
-				resv(
-					// injected error may not be cleanly
-					// handled, so this might throw instead!
-					await next(err,"error")
-				);
-			}
-		}
-		catch (err) {
-			rej(err);
-		}
-	}));
+		return continuation([
+			() => m.run(returnRunContinuation(outerEnv)),
+			v => v
+		]);
+	}
 }
 
 function $do($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
-		return (async function next(v,type){
-			var resp = (
-				type === "error" ?
-					it.throw(v) :
-					it.next(v)
-			);
+		return trampoline(
+			next(),
+			err => trampoline(next(err,"error"),liftDoError)
+		);
 
-			// if resp is a promise (from async iterator),
-			// unwrap it
-			//
-			// note: this might throw!
-			resp = isPromise(resp) ? await resp : resp;
+		// ************************************************
 
-			// is the iterator done?
-			if (resp.done) {
-				return (
-					// if an IO was returned, automatically run it
-					// as if it was yielded before returning
-					IO.is(resp.value) ?
-						resp.value.run(outerEnv) :
-						resp.value
+		function next(v,type) {
+			try {
+				var resp = (
+					type === "error" ?
+						it.throw(v) :
+						it.next(v)
 				);
+
+				return (
+					// iterator from an async generator?
+					isPromise(resp) ?
+
+						// trampoline()s here unwrap the continuations
+						// immediately, because we're already in an
+						// async microtask from the promise
+						resp.then(
+							v => trampoline(handleResp(v)),
+							err => trampoline(handleError(err))
+						) :
+
+						handleResp(resp)
+				);
+
+
+				// ***********************************************
+
+				function handleResp(resp) {
+					// is the iterator done?
+					if (resp.done) {
+						return continuation([
+							() => {
+								try {
+									// if an IO was returned, automatically run it
+									// as if it was yielded before returning
+									return (
+										IO.is(resp.value) ?
+											resp.value.run(returnRunContinuation(outerEnv)) :
+											resp.value
+									);
+								}
+								catch (err) {
+									return liftDoError(err);
+								}
+							},
+							v => v
+						]);
+					}
+					// otherwise, move onto the next step
+					else {
+						return processNext(next,resp.value,outerEnv,/*throwEither=*/false);
+					}
+				}
+
+				function handleError(err) {
+					// already tried to throw the error in?
+					if (type == "error") {
+						return liftDoError(err);
+					}
+					// otherwise, at least try to throw
+					// the error back in
+					else {
+						return next(err,"error");
+					}
+				}
 			}
-			// otherwise, move onto the next step
-			else {
-				return processNext(next,resp.value,outerEnv,/*throwEither=*/false);
+			catch (err) {
+				return liftDoError(err);
 			}
-		})();
+		}
 	});
+}
+
+function liftDoError(err) {
+	var pr = Promise.reject(err);
+	// silence unhandled rejection warnings
+	pr.catch(() => {});
+	return pr;
 }
 
 function doEither($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
-		return (async function next(v,type){
+		return trampoline(
+			next(),
+			err => trampoline(next(err,"error"),liftDoEitherError)
+		);
+
+		// ************************************************
+
+		function next(v,type) {
 			// lift v to an Either (Left or Right) if necessary
 			v = (
 				(type == "error" && !Either.Left.is(v)) ?
@@ -267,7 +301,6 @@ function doEither($V,...args) {
 					v
 			);
 
-			// locally catch exception for Either:Left wrapping
 			try {
 				// v already lifted to ensure it's an Either
 				let resp = v.fold(
@@ -275,41 +308,63 @@ function doEither($V,...args) {
 					v => it.next(v)
 				);
 
-				// if resp is a promise (from async iterator),
-				// unwrap it
-				//
-				// note: this might throw!
-				resp = isPromise(resp) ? await resp : resp;
+				return (
+					isPromise(resp) ?
 
-				// is the iterator done?
-				if (resp.done) {
-					let respVal = (
-						// if final value is a promise, unwrap it
-						isPromise(resp.value) ? await resp.value : resp.value
-					);
-					respVal = (
-						// was an IO returned?
-						IO.is(respVal) ?
-							// automatically run the IO
-							// as if it was yielded before
-							// returning
-							respVal.run(outerEnv) :
-							respVal
-					);
-					respVal = (
-						// if result is (still) a promise, unwrap it
-						isPromise(respVal) ? await respVal : respVal
-					);
+						// trampoline()s here unwrap the continuations
+						// immediately, because we're already in an
+						// async microtask from the promise
+						resp.then(
+							v => trampoline(handleResp(v)),
+							err => trampoline(handleError(err))
+						) :
 
+						handleResp(resp)
+				);
+
+				// ***********************************************
+
+				function handleResp(resp) {
+					// is the iterator done?
+					if (resp.done) {
+						return continuation([
+							() => {
+								try {
+									return (
+										// if an IO was returned, automatically run it
+										// as if it was yielded before returning
+										IO.is(resp.value) ?
+											resp.value.run(returnRunContinuation(outerEnv)) :
+											resp.value
+									);
+								}
+								catch (err) {
+									return liftDoEitherError(err);
+								}
+							},
+							respVal => {
+								return (isPromise(respVal) ?
+									respVal.then(handleRespVal) :
+									handleRespVal(respVal)
+								);
+							}
+						]);
+					}
+					// otherwise, move onto the next step
+					else {
+						return processNext(next,resp.value,outerEnv,/*throwEither=*/true);
+					}
+				}
+
+				function handleRespVal(respVal) {
+					// already an Either:Right?
+					if (Either.Right.is(respVal)) {
+						return respVal;
+					}
 					// returned an Either:Left (to treat as an
 					// exception)?
-					if (Either.Left.is(respVal)) {
-						throw respVal;
-					}
-					// returned an already Either:Right wrapped
-					// final value?
-					else if (Either.Right.is(respVal)) {
-						return respVal;
+					else if (Either.Left.is(respVal)) {
+						return liftDoEitherError(respVal);
 					}
 					// otherwise, wrap the final value as an
 					// Either:Right
@@ -317,26 +372,42 @@ function doEither($V,...args) {
 						return Either.Right(respVal);
 					}
 				}
-				// otherwise, move onto the next step
-				else {
-					return processNext(next,resp.value,outerEnv,/*throwEither=*/true);
+
+				function handleError(err) {
+					// already tried to throw the error in?
+					if (type == "error") {
+						return liftDoEitherError(err);
+					}
+					// otherwise, at least try to throw
+					// the error back in
+					else {
+						return next(err,"error");
+					}
 				}
 			}
 			catch (err) {
-				// any locally caught exception that's not yet
-				// an Either:Left should be wrapped as such;
-				// then rethrow
-				throw (Either.Left.is(err) ?
-					err :
-					Either.Left(err)
-				);
+				return liftDoEitherError(err);
 			}
-		})();
+		}
 	});
 }
 
+function liftDoEitherError(err) {
+	err = (
+		(isPromise(err) || Either.Left.is(err)) ? err :
+		Either.Left(err)
+	);
+	var pr = Promise.reject(err);
+	// silence unhandled rejection warnings
+	pr.catch(() => {});
+	return pr;
+}
+
 function fromIOx(iox) {
-	return IO(env => iox.run(env));
+	return IO(env => continuation([
+		() => iox.run(env),
+		v => v
+	]));
 }
 
 function getIterator(v,env,outerThis,args) {
@@ -362,4 +433,90 @@ async function safeUnwrap(v,throwEither) {
 	catch (err) {
 		return [ err, "error", ];
 	}
+}
+
+// only used internally, marks a tuple
+// as a continuation that trampoline(..)
+// should process
+function continuation(cont) {
+	cont[IS_CONT] = true;
+	return cont;
+}
+
+// only used internally, signals to
+// `run(..)` call that it should return
+// any continuation rather than
+// processing it
+function returnRunContinuation(env) {
+	return {
+		[RUN_CONT]: true,
+		env,
+	};
+}
+
+// only used internally, prevents RangeError
+// call-stack overflow when composing many
+// IOs together
+function trampoline(res,onUnhandled = (err) => { throw err; }) {
+	var stack = [];
+
+	processContinuation: while (Array.isArray(res) && res[IS_CONT] === true) {
+		let left = res[0];
+		let leftRes;
+
+		try {
+			// compute the left-half of the continuation
+			// tuple
+			leftRes = left();
+
+			// store left-half result directly in the
+			// continuation tuple (for later recall
+			// during processing right-half of tuple)
+			// res[0] = { [CONT_VAL]: leftRes };
+			res[0] = leftRes;
+		}
+		catch (err) {
+			res = onUnhandled(err);
+			continue processContinuation;
+		}
+
+		// store the modified continuation tuple
+		// on the stack
+		stack.push(res);
+
+		// left half of continuation tuple returned
+		// another continuation?
+		if (Array.isArray(leftRes) && leftRes[IS_CONT]) {
+			// process the next continuation
+			res = leftRes;
+			continue processContinuation;
+		}
+		// otherwise, process right half of continuation
+		// tuple
+		else {
+			// grab the most recent left-hand value
+			res = stack[stack.length - 1][0];
+
+			// start popping the stack
+			while (stack.length > 0) {
+				let [ ,	right ] = stack.pop();
+
+				try {
+					res = right(res);
+
+					// right half of continuation tuple returned
+					// another continuation?
+					if (Array.isArray(res) && res[IS_CONT] === true) {
+						// process the next continuation
+						continue processContinuation;
+					}
+				}
+				catch (err) {
+					res = onUnhandled(err);
+					continue processContinuation;
+				}
+			}
+		}
+	}
+	return res;
 }

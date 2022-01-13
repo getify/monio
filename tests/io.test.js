@@ -1,5 +1,15 @@
 "use strict";
 
+// NOTE: these are to silence spurious
+// errors/warnings that Node emits b/c
+// it doesn't trust that we know what
+// we're doing with catching promise
+// rejections
+process.on("unhandledRejection",()=>{});
+process.on("rejectionHandled",()=>{});
+// ***************************************************
+
+
 const qunit = require("qunit");
 const { identity, inc, twice, ioProp, delayPr, delayIO, } = require("./utils");
 
@@ -435,19 +445,40 @@ qunit.test("IO.do", async (assert) => {
 		throw new Error("three 4");
 	}
 
+	async function *four() {
+		throw "four 1";
+	}
+
+	function *five() {
+		return IO(() => { throw "five 1"; });
+	}
+
+	function *six() {
+		yield IO(() => { throw "six 1"; });
+	}
+
+	function *seven() {
+		yield IO(() => Promise.reject("seven 1"));
+	}
+
 	var r1 = [];
 	var r2 = [];
 	var r3 = [];
 	var io1 = IO.do(one,3);
 	var io2 = IO.do(two());
 	var io3 = IO.do(three);
+	var io4 = IO.do(four);
+	var io5 = IO.do(five);
+	var io6 = IO.do(six);
+	var io7 = IO.do(seven);
 
 	var r4 = io1.run(2);
 	var r5 = io2.run();
 	var r6 = io3.run();
-
-	// NODE HACK: silence the uncaught exception (since it's caught later)
-	r6.catch(() => {});
+	var r7 = io4.run();
+	var r8 = io5.run();
+	var r9 = io6.run();
+	var r10 = io7.run();
 
 	assert.ok(
 		(r4 instanceof Promise) && (r5 instanceof Promise) && (r6 instanceof Promise),
@@ -482,6 +513,119 @@ qunit.test("IO.do", async (assert) => {
 		[ "three 1", "Error: three 2", "three 3", "Error: three 4" ],
 		"do routine catches and throws exceptions"
 	);
+
+	try {
+		await r7;
+	}
+	catch (err) {
+		r7 = err;
+	}
+
+	assert.equal(
+		r7,
+		"four 1",
+		"do routine returns promise rejection from throw"
+	);
+
+	try {
+		await r8;
+	}
+	catch (err) {
+		r8 = err;
+	}
+
+	assert.equal(
+		r8,
+		"five 1",
+		"do routine returns promise rejection from returned IO that throws"
+	);
+
+	try {
+		await r9;
+	}
+	catch (err) {
+		r9 = err;
+	}
+
+	assert.equal(
+		r9,
+		"six 1",
+		"do routine returns promise rejection from return IO that throws"
+	);
+
+	try {
+		await r10;
+	}
+	catch (err) {
+		r10 = err;
+	}
+
+	assert.equal(
+		r10,
+		"seven 1",
+		"do routine returns promise rejection from yielded IO holding rejected promise"
+	);
+});
+
+qunit.test("IO.do:very-long", async (assert) => {
+	function *one(max) {
+		var sum = 0;
+		for (let i = 0; i < max; i++) {
+			sum += yield IO.of(i);
+		}
+		return sum;
+	}
+
+	function *two(max) {
+		var sum = 0;
+		for (let i = 0; i < max; i++) {
+			sum += yield IO.of(i - 1).map(inc);
+		}
+		return sum;
+	}
+
+	function *three(max) {
+		var list = [];
+		for (let i = 0; i < max; i++) {
+			list = yield IO.of(list).concat(IO.of([ i ]));
+		}
+		var sum = 0;
+		for (let v of list) {
+			sum += v;
+		}
+		return sum;
+	}
+
+	var io1 = IO.do(one);
+	var io2 = IO.do(two);
+	var io3 = IO.do(three);
+
+	var stackDepth = 25000;
+	var res1 = await io1.run(stackDepth);
+
+	assert.equal(
+		res1,
+		stackDepth*(stackDepth - 1)/2,
+		"IO.do() call stack ran very long without RangeError"
+	);
+
+	stackDepth -= 5000;
+	var res2 = await io2.run(stackDepth);
+
+	assert.equal(
+		res2,
+		stackDepth*(stackDepth - 1)/2,
+		"IO.do():map call stack ran very long without RangeError"
+	);
+
+	stackDepth -= 5000;
+	var res3 = await io3.run(stackDepth);
+
+	assert.equal(
+		res3,
+		stackDepth*(stackDepth - 1)/2,
+		"IO.do():concat call stack ran very long without RangeError"
+	);
 });
 
 qunit.test("IO.doEither", async (assert) => {
@@ -489,7 +633,7 @@ qunit.test("IO.doEither", async (assert) => {
 		r1.push("one 1",10);
 		yield delayPr(10);
 		r1.push("one 2",11);
-		return Promise.resolve(IO.of(Promise.resolve(Either.Right(12))));
+		return Promise.resolve(Either.Right(12));
 	}
 
 	function *two() {
@@ -523,12 +667,24 @@ qunit.test("IO.doEither", async (assert) => {
 		return Either.Left("two 5");
 	}
 
-	function *three() {
+	async function *three() {
 		throw "three 1";
 	}
 
 	function *four() {
 		yield Promise.resolve(Either.Left("four 1"));
+	}
+
+	function *five() {
+		return IO(() => { throw "five 1"; });
+	}
+
+	function *six() {
+		yield IO(() => { throw "six 1"; });
+	}
+
+	function *seven() {
+		yield IO(() => Promise.reject("seven 1"));
 	}
 
 	var r1 = [];
@@ -537,16 +693,17 @@ qunit.test("IO.doEither", async (assert) => {
 	var io2 = IO.doEither(two);
 	var io3 = IO.doEither(three);
 	var io4 = IO.doEither(four);
+	var io5 = IO.doEither(five);
+	var io6 = IO.doEither(six);
+	var io7 = IO.doEither(seven);
 
 	var r3 = io1.run(2);
 	var r4 = io2.run();
 	var r5 = io3.run();
 	var r6 = io4.run();
-
-	// NODE HACK: silence the uncaught exceptions (since it's caught later)
-	r4.catch(() => {});
-	r5.catch(() => {});
-	r6.catch(() => {});
+	var r7 = io5.run();
+	var r8 = io6.run();
+	var r9 = io7.run();
 
 	assert.ok(
 		(r3 instanceof Promise) && (r4 instanceof Promise),
@@ -609,5 +766,66 @@ qunit.test("IO.doEither", async (assert) => {
 	assert.ok(
 		Either.Left.is(r6) && r6._inspect() == "Either:Left(\"four 1\")",
 		"do-either routine lifts and throws Promise<Either:Left> as promise rejection"
+	);
+	try {
+		await r7;
+	}
+	catch (err) {
+		r7 = err;
+	}
+
+	assert.ok(
+		Either.Left.is(r7) && r7._inspect() == "Either:Left(\"five 1\")",
+		"do-either routine returns promise rejection from returned IO that throws"
+	);
+
+	try {
+		await r8;
+	}
+	catch (err) {
+		r8 = err;
+	}
+
+	assert.ok(
+		Either.Left.is(r8) && r8._inspect() == "Either:Left(\"six 1\")",
+		"do-either routine returns promise rejection from return IO that throws"
+	);
+
+	try {
+		await r9;
+	}
+	catch (err) {
+		r9 = err;
+	}
+
+	assert.ok(
+		r9 == "seven 1",
+		"do-either routine returns promise rejection from yielded IO holding rejected promise"
+	);
+});
+
+qunit.test("IO.doEither:very-long", async (assert) => {
+	function *one(max) {
+		var sum = 0;
+		for (let i = 0; i < max; i++) {
+			sum += yield IO.of(i);
+		}
+		return sum;
+	}
+
+	var io = IO.doEither(one);
+
+	var stackDepth = 25000;
+	var res = await io.run(stackDepth);
+
+	assert.ok(
+		Either.Right.is(res),
+		"IO.doEither returns an Either:Right"
+	);
+
+	assert.equal(
+		res._inspect(),
+		`Either:Right(${stackDepth*(stackDepth - 1)/2})`,
+		"IO.doEither() call stack ran very long without RangeError"
 	);
 });
