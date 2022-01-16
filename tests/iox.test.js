@@ -1414,3 +1414,90 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 		"(2) IOx.do() properly handles yields of already-run and already-closed IOxs"
 	);
 });
+
+qunit.test("IOx.do:very-long", async (assert) => {
+	function *one(max) {
+		var sum = 0;
+		for (let i = 0; i < max; i++) {
+			sum += yield IO.of(i);
+		}
+		return sum;
+	}
+
+	function *two(max) {
+		var sum = 0;
+		for (let i = 0; i < max; i++) {
+			sum += yield IO.of(i - 1).map(inc);
+		}
+		return sum;
+	}
+
+	function *three(max) {
+		var list = [];
+		for (let i = 0; i < max; i++) {
+			list = yield IO.of(list).concat(IO.of([ i ]));
+		}
+		var sum = 0;
+		for (let v of list) {
+			sum += v;
+		}
+		return sum;
+	}
+
+	var io1 = IOx.do(one);
+	var io2 = IOx.do(two);
+	var io3 = IOx.do(three);
+
+	var stackDepth = 25000;
+	var res1 = await io1.run(stackDepth);
+
+	assert.equal(
+		res1,
+		stackDepth*(stackDepth - 1)/2,
+		"IOx.do() call stack ran very long without RangeError"
+	);
+
+	stackDepth -= 5000;
+	var res2 = await io2.run(stackDepth);
+
+	assert.equal(
+		res2,
+		stackDepth*(stackDepth - 1)/2,
+		"IOx.do():map call stack ran very long without RangeError"
+	);
+
+	stackDepth -= 5000;
+	var res3 = await io3.run(stackDepth);
+
+	assert.equal(
+		res3,
+		stackDepth*(stackDepth - 1)/2,
+		"IOx.do():concat call stack ran very long without RangeError"
+	);
+});
+
+qunit.test("IOx.doEither:very-long", async (assert) => {
+	function *one(max) {
+		var sum = 0;
+		for (let i = 0; i < max; i++) {
+			sum += yield IO.of(i);
+		}
+		return sum;
+	}
+
+	var io = IOx.doEither(one);
+
+	var stackDepth = 25000;
+	var res = await io.run(stackDepth);
+
+	assert.ok(
+		Either.Right.is(res),
+		"IOx.doEither returns an Either:Right"
+	);
+
+	assert.equal(
+		res._inspect(),
+		`Either:Right(${stackDepth*(stackDepth - 1)/2})`,
+		"IOx.doEither() call stack ran very long without RangeError"
+	);
+});
