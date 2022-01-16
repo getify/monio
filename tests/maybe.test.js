@@ -2,7 +2,9 @@
 
 const qunit = require("qunit");
 const sinon = require("sinon");
-const { identity, inc, twice, maybeProp } = require("./utils");
+const { identity, } = MonioUtil;
+const { INJECT_MONIO, inc, twice, maybeProp } = require("./utils");
+INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("maybe");
 

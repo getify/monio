@@ -12,7 +12,8 @@ process.on("rejectionHandled",()=>{});
 
 const EventEmitter = require("events");
 const qunit = require("qunit");
-const { delayPr, } = require("./utils");
+const { INJECT_MONIO, delayPr, } = require("./utils");
+INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("iox-helpers");
 

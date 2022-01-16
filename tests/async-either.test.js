@@ -2,13 +2,15 @@
 
 const qunit = require("qunit");
 const sinon = require("sinon");
+const { identity, } = MonioUtil;
 const {
-	identity,
+	INJECT_MONIO,
 	inc,
 	twice,
 	eitherProp,
 	safeAwait,
 } = require("./utils");
+INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("async-either");
 

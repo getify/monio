@@ -11,7 +11,16 @@ process.on("rejectionHandled",()=>{});
 
 
 const qunit = require("qunit");
-const { identity, inc, twice, ioProp, delayPr, delayIO, } = require("./utils");
+const { identity, } = MonioUtil;
+const {
+	INJECT_MONIO,
+	inc,
+	twice,
+	ioProp,
+	delayPr,
+	delayIO,
+} = require("./utils");
+INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("io");
 
@@ -410,6 +419,7 @@ qunit.test("IO.do", async (assert) => {
 		yield delayPr(10);
 		r1.push("one 1",env);
 		var g = yield delayIO(v,10);
+
 		r1.push("one 2", yield Just(g) );
 
 		yield Maybe.from(null);

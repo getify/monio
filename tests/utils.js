@@ -1,11 +1,17 @@
 "use strict";
 
-const just = require("monio/just");
-const maybe = require("monio/maybe");
-const either = require("monio/either");
-const IO = require("monio/io");
+// *****************************************
+// these are injected by the testing process
+// via `INJECT_MONIO(..)` below
+var just;
+var maybe;
+var either;
+var IO;
+var IOx;
 
-const identity = x => x;
+// *****************************************
+
+
 const inc = x => x + 1;
 const twice = x => x * 2;
 const justProp = (key) => (obj) => just(obj[key]);
@@ -25,8 +31,18 @@ async function safeAwait(pr) {
 	}
 }
 
+function INJECT_MONIO(monio) {
+	({
+		Just: just,
+		Maybe: maybe,
+		Either: either,
+		IO,
+		IOx,
+	} = monio);
+}
+
 module.exports = {
-	identity,
+	INJECT_MONIO,
 	inc,
 	twice,
 	justProp,
