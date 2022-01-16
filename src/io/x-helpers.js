@@ -1,6 +1,7 @@
 "use strict";
 
 var {
+	EMPTY_FUNC,
 	curry,
 } = require("../lib/util.js");
 var IOx = require("./iox.js");
@@ -51,7 +52,7 @@ module.exports.toIter = IOx.toIter;
 function filterIn(predicate) {
 	const NeverIOx = IOx.of.empty();
 	NeverIOx.freeze();
-	NeverIOx.close = () => {};
+	NeverIOx.close = EMPTY_FUNC;
 	var iox = IOx.of.empty();
 
 	return function filter(v){

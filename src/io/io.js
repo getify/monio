@@ -1,22 +1,24 @@
 "use strict";
 
 var {
+	EMPTY_FUNC,
+	identity,
 	isFunction,
 	isPromise,
 	isMonad,
 	getMonadFlatMap,
+	continuation,
+	runSignal,
+	isRunSignal,
+	trampoline,
 } = require("../lib/util.js");
 var Nothing = require("../nothing.js");
 var Either = require("../either.js");
 
 const BRAND = {};
-const IS_CONT = Symbol("is-continuation");
-const RUN_CONT = Symbol("return-continuation");
-const CONT_VAL = Symbol("continuation-value");
 
 module.exports = Object.assign(IO,{
 	of, pure: of, unit: of, is, do: $do, doEither, fromIOx,
-	_IS_CONT: IS_CONT,
 });
 module.exports.RIO = IO;
 module.exports.of = of;
@@ -26,10 +28,9 @@ module.exports.is = is;
 module.exports.do = $do;
 module.exports.doEither = doEither;
 module.exports.fromIOx = fromIOx;
-module.exports._IS_CONT = IS_CONT;
 
 
-// **************************
+// *****************************************
 
 function IO(effect) {
 	const TAG = "IO";
@@ -56,7 +57,7 @@ function IO(effect) {
 				var res2 = (isPromise(res) ? res.then(fn) : fn(res));
 				return (isPromise(res2) ?
 					res2.then(v => v.run(env)) :
-					res2.run(returnRunContinuation(env))
+					res2.run(runSignal(env))
 				);
 			}
 		]));
@@ -80,7 +81,7 @@ function IO(effect) {
 	}
 
 	function run(env) {
-		if (env && env[RUN_CONT] === true) {
+		if (isRunSignal(env)) {
 			return effect(env.env);
 		}
 		else {
@@ -135,9 +136,7 @@ function processNext(next,respVal,outerEnv,throwEither) {
 
 	function handleNextRespVal(nextRespVal,unwrappedType) {
 		// construct chained IO
-		var chainNextFn = v => (
-			IO(() => next(v,unwrappedType))
-		);
+		var chainNextFn = v => IO(() => next(v,unwrappedType));
 
 		var m = (
 			// Nothing monad (should short-circuit to no-op)?
@@ -183,8 +182,8 @@ function processNext(next,respVal,outerEnv,throwEither) {
 		);
 
 		return continuation([
-			() => m.run(returnRunContinuation(outerEnv)),
-			v => v
+			() => m.run(runSignal(outerEnv)),
+			identity
 		]);
 	}
 }
@@ -232,7 +231,7 @@ function $do($V,...args) {
 									// as if it was yielded before returning
 									return (
 										IO.is(resp.value) ?
-											resp.value.run(returnRunContinuation(outerEnv)) :
+											resp.value.run(runSignal(outerEnv)) :
 											resp.value
 									);
 								}
@@ -240,7 +239,7 @@ function $do($V,...args) {
 									return liftDoError(err);
 								}
 							},
-							v => v
+							identity
 						]);
 					}
 					// otherwise, move onto the next step
@@ -259,7 +258,7 @@ function $do($V,...args) {
 function liftDoError(err) {
 	var pr = Promise.reject(err);
 	// silence unhandled rejection warnings
-	pr.catch(() => {});
+	pr.catch(EMPTY_FUNC);
 	return pr;
 }
 
@@ -315,7 +314,7 @@ function doEither($V,...args) {
 										// if an IO was returned, automatically run it
 										// as if it was yielded before returning
 										IO.is(resp.value) ?
-											resp.value.run(returnRunContinuation(outerEnv)) :
+											resp.value.run(runSignal(outerEnv)) :
 											resp.value
 									);
 								}
@@ -368,14 +367,14 @@ function liftDoEitherError(err) {
 	);
 	var pr = Promise.reject(err);
 	// silence unhandled rejection warnings
-	pr.catch(() => {});
+	pr.catch(EMPTY_FUNC);
 	return pr;
 }
 
 function fromIOx(iox) {
 	return IO(env => continuation([
 		() => iox.run(env),
-		v => v
+		identity
 	]));
 }
 
@@ -402,77 +401,4 @@ async function safeUnwrap(v,throwEither) {
 	catch (err) {
 		return [ err, "error", ];
 	}
-}
-
-// only used internally, marks a tuple
-// as a continuation that trampoline(..)
-// should process
-function continuation(cont) {
-	cont[IS_CONT] = true;
-	return cont;
-}
-
-// only used internally, signals to
-// `run(..)` call that it should return
-// any continuation rather than
-// processing it
-function returnRunContinuation(env) {
-	return {
-		[RUN_CONT]: true,
-		env,
-	};
-}
-
-// only used internally, prevents RangeError
-// call-stack overflow when composing many
-// IOs together
-function trampoline(res) {
-	var stack = [];
-
-	processContinuation: while (Array.isArray(res) && res[IS_CONT] === true) {
-		let left = res[0];
-
-		// compute the left-half of the continuation
-		// tuple
-		let leftRes = left();
-
-		// store left-half result directly in the
-		// continuation tuple (for later recall
-		// during processing right-half of tuple)
-		// res[0] = { [CONT_VAL]: leftRes };
-		res[0] = leftRes;
-
-		// store the modified continuation tuple
-		// on the stack
-		stack.push(res);
-
-		// left half of continuation tuple returned
-		// another continuation?
-		if (Array.isArray(leftRes) && leftRes[IS_CONT]) {
-			// process the next continuation
-			res = leftRes;
-			continue processContinuation;
-		}
-		// otherwise, process right half of continuation
-		// tuple
-		else {
-			// grab the most recent left-hand value
-			res = stack[stack.length - 1][0];
-
-			// start popping the stack
-			while (stack.length > 0) {
-				let [ ,	right ] = stack.pop();
-
-				res = right(res);
-
-				// right half of continuation tuple returned
-				// another continuation?
-				if (Array.isArray(res) && res[IS_CONT] === true) {
-					// process the next continuation
-					continue processContinuation;
-				}
-			}
-		}
-	}
-	return res;
 }

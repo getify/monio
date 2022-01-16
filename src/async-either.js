@@ -1,6 +1,6 @@
 "use strict";
 
-var { isFunction, isPromise, } = require("./lib/util.js");
+var { EMPTY_FUNC, isFunction, isPromise, } = require("./lib/util.js");
 var Either = require("./either.js");
 
 const BRAND = {};
@@ -69,10 +69,10 @@ function fromPromise(pr) {
 			var _doChain = fn => {
 				var res = m.chain(fn);
 				return (
-					is(res) ? res.fold(v => v,v => v) :
+					is(res) ? res.fold(identity,identity) :
 					Either.is(res) ? res.fold(
 						e => Promise.reject(e),
-						v => v
+						identity
 					) :
 					res
 				);
@@ -98,7 +98,7 @@ function fromPromise(pr) {
 			whichSide
 		);
 		var pr2 = pr.then(handle(asRight),handle(asLeft));
-		pr2.catch(() => {});
+		pr2.catch(EMPTY_FUNC);
 		return pr2;
 	}
 
@@ -129,6 +129,6 @@ function splitPromise(pr) {
 			Either.is(v) ? v : Either.Left(v)
 		)
 	);
-	pr2.catch(() => {});
+	pr2.catch(EMPTY_FUNC);
 	return pr2;
 }

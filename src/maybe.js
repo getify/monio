@@ -1,6 +1,6 @@
 "use strict";
 
-var { isFunction, } = require("./lib/util.js");
+var { identity, isFunction, } = require("./lib/util.js");
 var Just = require("./just.js");
 var Nothing = require("./nothing.js");
 
@@ -36,7 +36,7 @@ function Maybe(val) {
 	}
 	else if (isJust) {
 		// intentional monad violation, to extract its value
-		val = mn.chain(v => v);
+		val = mn.chain(identity);
 	}
 	// isNothing
 	else {

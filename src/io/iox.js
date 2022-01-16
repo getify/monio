@@ -1,6 +1,8 @@
 "use strict";
 
 var {
+	EMPTY_FUNC,
+	identity,
 	isFunction,
 	isPromise,
 	isMonad,
@@ -42,7 +44,7 @@ module.exports.fromIter = fromIter;
 module.exports.toIter = toIter;
 
 
-// **************************
+// *****************************************
 
 function IOx(iof,deps = []) {
 	if (Array.isArray(deps)) {
@@ -744,7 +746,7 @@ function of(v) {
 }
 
 function ofEmpty() {
-	return IOx(() => {},[ EMPTY, ]);
+	return IOx(EMPTY_FUNC,[ EMPTY, ]);
 }
 
 function $do(gen,deps,...args) {
@@ -1260,8 +1262,10 @@ function merge(ioxs = []) {
 }
 
 function fromIO(io) {
-	return IOx((env,v) => v,[ io, ]);
+	return IOx(skipFirstIdentity,[ io, ]);
 }
+
+function skipFirstIdentity(env,v) { return v; }
 
 function fromIter($V,closeOnComplete = true) {
 	const PAUSED = Symbol("paused");
@@ -1536,7 +1540,7 @@ function safeIORun(io,env) {
 function logUnhandledError(err) {
 	if (Either.Left.is(err)) {
 		console.log(
-			err.fold(v=>v,()=>{})
+			err.fold(identity,EMPTY_FUNC)
 		);
 	}
 	else if (isMonad(err)) {
