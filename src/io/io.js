@@ -56,7 +56,7 @@ function IO(effect) {
 			res => {
 				var res2 = (isPromise(res) ? res.then(fn) : fn(res));
 				return (isPromise(res2) ?
-					res2.then(v => v.run(env)) :
+					res2.then(io2 => io2.run(env)) :
 					res2.run(runSignal(env))
 				);
 			}
@@ -66,17 +66,17 @@ function IO(effect) {
 	function concat(m) {
 		return IO(env => continuation([
 			() => effect(env),
-			res1 => {
-				var res2 = m.run(env);
-				return (
+			res1 => continuation([
+				() => m.run(runSignal(env)),
+				res2 => (
 					(isPromise(res1) || isPromise(res2)) ?
 						(
 							Promise.all([ res1, res2, ])
 							.then(([ v1, v2, ]) => v1.concat(v2))
 						) :
 						res1.concat(res2)
-				);
-			}
+				)
+			])
 		]));
 	}
 
@@ -373,7 +373,7 @@ function liftDoEitherError(err) {
 
 function fromIOx(iox) {
 	return IO(env => continuation([
-		() => iox.run(env),
+		() => iox.run(runSignal(env)),
 		identity
 	]));
 }
