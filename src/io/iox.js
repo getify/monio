@@ -279,7 +279,7 @@ function IOx(iof,deps = []) {
 	}
 
 	function execIOF(env) {
-		var curVal;
+		var curVal = UNSET;
 		var allowIOxCache = true;
 		try {
 			runningIOF = true;
@@ -302,7 +302,7 @@ function IOx(iof,deps = []) {
 
 				// no set of collected deps values was found?
 				if (!dv) {
-					if (curVal) {
+					if (curVal !== UNSET) {
 						return curVal;
 					}
 					else {
