@@ -35,8 +35,7 @@ function Maybe(val) {
 		isJust = true;
 	}
 	else if (isJust) {
-		// intentional monad violation, to extract its value
-		val = mn.chain(identity);
+		val = mn.fold(identity);
 	}
 	// isNothing
 	else {

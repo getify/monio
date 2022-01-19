@@ -135,16 +135,38 @@ function processNext(next,respVal,outerEnv,throwEither) {
 	// ***********************************************************
 
 	function handleNextRespVal(nextRespVal,unwrappedType) {
-		// construct chained IO
-		var chainNextFn = v => IO(() => next(v,unwrappedType));
+		// wrapping IO to process yielded value
+		var ioWrap = v => IO(() => next(v,unwrappedType));
 
-		var m = (
+		// is the yielded value a recognized, "foldable" monad?
+		var isFoldable = (
+			isMonad(nextRespVal) && isFunction(nextRespVal.fold)
+		);
+
+		// might the yielded value need to be wrapped in an IO?
+		var wrapInIO = (
+			// non-monad value?
+			!isMonad(nextRespVal) ||
+
+			// need to wrap Either:Left error?
+			(
+				throwEither &&
+				unwrappedType == "error" &&
+				Either.Left.is(nextRespVal)
+			) ||
+
+			// non-IO monad, but also unrecognized or
+			// non-"foldable"?
+			(!is(nextRespVal) && !isFoldable)
+		);
+
+		var nextIO = (
 			// Nothing monad (should short-circuit to no-op)?
 			Nothing.is(nextRespVal) ? IO.of() :
 
 			// IOx monad? (unfortunately, cannot use `IOx.is(..)`
 			// brand check because it creates a circular dependency
-			// between IO and IOx
+			// between IO and IOx)
 			!!(
 				nextRespVal &&
 				isFunction(nextRespVal) &&
@@ -153,35 +175,19 @@ function processNext(next,respVal,outerEnv,throwEither) {
 				/^IOx\b/.test(nextRespVal._inspect())
 			) ?
 				// chain IOx via a regular IO to reduce overhead
-				nextRespVal._chain_with_IO(chainNextFn) :
+				nextRespVal._chain_with_IO(ioWrap) :
 
-			// otherwise, chain the generic monad
-			monadFlatMap(
-				(
-					// ensure we're chaining to a monad
-					(
-						// need to wrap Either:Left error?
-						(
-							throwEither &&
-							unwrappedType == "error" &&
-							Either.Left.is(nextRespVal)
-						) ||
+			// need to wrap value in an IO?
+			wrapInIO ? ioWrap(nextRespVal) :
 
-						// need to lift non-monad?
-						!isMonad(nextRespVal)
-					) ?
-						// wrap it in an IO
-						IO.of(nextRespVal) :
+			// recognized "foldable" monad?
+			isFoldable ? nextRespVal.fold(ioWrap,ioWrap) :
 
-						// otherwise, must already be a monad
-						nextRespVal
-				),
-				// chain/flatMap the monad to the "next" IO step
-				chainNextFn
-			)
+			// otherwise, must already an IO
+			monadFlatMap(nextRespVal,ioWrap)
 		);
 
-		return m.run(runSignal(outerEnv));
+		return nextIO.run(runSignal(outerEnv));
 	}
 }
 

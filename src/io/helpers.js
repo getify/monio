@@ -1,6 +1,7 @@
 "use strict";
 
 var {
+	getMonadFlatMap,
 	isFunction,
 	isPromise,
 	isMonad,
@@ -312,19 +313,37 @@ function matchReturned(matchIO) {
 }
 
 function getPropIO(prop,obj) {
-	// NOTE: intentional 'chain(..)' instead of 'map(..)'
-	return liftM(obj).chain(obj => (
-		IO(() => obj[prop])
-	));
+	// lift `obj` to a monad
+	var m = liftM(obj);
+
+	// still need to lift monad to IO?
+	if (!IO.is(m) && isFunction(m.fold)) {
+		m = m.fold(IO.of,IO.of);
+	}
+
+	return m.map(obj => obj[prop]);
 }
 
 function assignPropIO(prop,val,obj) {
+	// lift `val` to a monad
+	var m1 = liftM(val);
+	// still need to lift `val` monad to IO?
+	if (!IO.is(m1) && isFunction(m1.fold)) {
+		m1 = m1.fold(IO.of,IO.of);
+	}
+
+	// lift `obj` to a monad
+	var m2 = liftM(obj);
+	// still need to lift `obj` monad to IO?
+	if (!IO.is(m2) && isFunction(m2.fold)) {
+		m2 = m2.fold(IO.of,IO.of);
+	}
+
 	return (
-		liftM(val).chain(val => (
-			// NOTE: intentional 'chain(..)' instead of 'map(..)'
-			liftM(obj).chain(obj => (
-				IO(() => (obj[prop] = val))
-			))
+		// NOTE: intentional outer 'chain(..)'
+		// instead of 'map(..)'
+		m1.chain(val => (
+			m2.map(obj => (obj[prop] = val))
 		))
 	);
 }
@@ -349,7 +368,14 @@ function liftIO(env,v) {
 		}
 		else {
 			// attempt extracting value to "convert" to an IO
-			let res = v.chain(IO.of);
+			let res = (
+				isFunction(v.fold) ? v.fold(IO.of) :
+
+				// intentional "type violation" since we have
+				// an unusual/unrecognized monad that's not
+				// "foldable" to extract its value legally
+				getMonadFlatMap(v).call(v,IO.of)
+			);
 
 			// did "converting" to an IO work?
 			if (IO.is(res)) {

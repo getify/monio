@@ -43,22 +43,21 @@ function fromPromise(pr) {
 
 	function map(v) {
 		var handle = m => {
-			var _doMap = fn => {
-				// note: intentionally using chain() here
-				var res = m.chain(fn);
-				return (isPromise(res) ?
-					splitPromise(res) :
-					(m._is_right() ?
-						res :
-						Promise.reject(res)
-					)
-				);
-			};
-
-			return (isPromise(v) ?
-				v.then(_doMap) :
-				_doMap(v)
+			// note: m is a regular Either (Left or Right)
+			var _doMap = fn => m.fold(
+				Either.Left,
+				rightV => {
+					try {
+						return fn(rightV);
+					}
+					catch (err) {
+						return Either.Left(err);
+					}
+				}
 			);
+
+			// note: ap(..) passes in a promise for a held function
+			return (isPromise(v) ? v.then(_doMap) : _doMap(v));
 		};
 
 		return AsyncEither(pr.then(handle,handle));
@@ -66,18 +65,35 @@ function fromPromise(pr) {
 
 	function chain(v) {
 		var handle = m => {
-			var _doChain = fn => {
-				var res = m.chain(fn);
-				return (
-					is(res) ? res.fold(identity,identity) :
-					Either.is(res) ? res.fold(
-						e => Promise.reject(e),
-						identity
-					) :
-					res
-				);
-			};
+			// note: m is a regular Either (Left or Right)
+			var _doChain = fn => m.fold(
+				Either.Left,
+				rightV => {
+					try {
+						let res = fn(rightV);
+						return (
+							// extract value from AsyncEither
+							// or Either?
+							(is(res) || Either.is(res)) ?
+								res.fold(
+									Either.Left,
+									identity
+								) :
 
+							// otherwise, just pass the value
+							// through as-is
+							res
+						);
+
+					}
+					catch (err) {
+						return Either.Left(err);
+					}
+				}
+			);
+
+			// note: promise check unnecessary, but put here
+			// for consistency with map(..)
 			return (isPromise(v) ? v.then(_doChain) : _doChain(v));
 		};
 
@@ -98,6 +114,7 @@ function fromPromise(pr) {
 			whichSide
 		);
 		var pr2 = pr.then(handle(asRight),handle(asLeft));
+		// silence unhandled rejection warnings
 		pr2.catch(EMPTY_FUNC);
 		return pr2;
 	}
@@ -129,6 +146,7 @@ function splitPromise(pr) {
 			Either.is(v) ? v : Either.Left(v)
 		)
 	);
+	// silence unhandled rejection warnings
 	pr2.catch(EMPTY_FUNC);
 	return pr2;
 }

@@ -11,6 +11,8 @@ process.on("rejectionHandled",()=>{});
 
 
 const qunit = require("qunit");
+const { INJECT_MONIO, inc, } = require("./utils");
+INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("io-helpers");
 
@@ -350,27 +352,85 @@ qunit.test("match", (assert) =>{
 });
 
 qunit.test("getPropIO / assignPropIO", async (assert) => {
-	var obj = { x: 10 };
+	var obj = { x: 10, y: 20, z: 30 };
 
 	var res1 = IOHelpers.getPropIO("x",obj).run();
-	var res2 = IOHelpers.assignPropIO("x",20,obj).run();
-	var res3 = IOHelpers.getPropIO("x",Just(obj)).run();
+	var res2 = IOHelpers.getPropIO("y",Just(obj)).run();
+	var res3 = IOHelpers.getPropIO("z",IO.of(obj)).run();
+
+	var res4 = IOHelpers.assignPropIO("x",obj.x + 5,obj).run();
+	var res5 = IOHelpers.assignPropIO("y",obj.y + 5,Just(obj)).run();
+	var res6 = IOHelpers.assignPropIO("z",obj.z + 5,IO.of(obj)).run();
+
+	var res7 = IOHelpers.assignPropIO("x",Just(obj.x * 10),obj).run();
+	var res8 = IOHelpers.assignPropIO("y",Just(obj.y * 10),Just(obj)).run();
+	var res9 = IOHelpers.assignPropIO("z",Just(obj.z * 10),IO.of(obj)).run();
+
+	var res10 = IOHelpers.assignPropIO("x",IOHelpers.getPropIO("x",obj).map(inc),obj).run();
+	var res11 = IOHelpers.assignPropIO("y",IOHelpers.getPropIO("y",obj).map(inc),Just(obj)).run();
+	var res12 = IOHelpers.assignPropIO("z",IOHelpers.getPropIO("z",obj).map(inc),IO.of(obj)).run();
 
 	assert.equal(
 		res1,
 		10,
-		"get property"
+		"get property from object"
 	);
-
 	assert.equal(
 		res2,
 		20,
-		"set property"
+		"get property from Just<object>"
+	);
+	assert.equal(
+		res3,
+		30,
+		"get property from IO<object>"
 	);
 
 	assert.equal(
-		res3,
-		20,
-		"get property (with Just)"
+		res4,
+		15,
+		"assign value to property in object"
+	);
+	assert.equal(
+		res5,
+		25,
+		"assign value to property in Just<object>"
+	);
+	assert.equal(
+		res6,
+		35,
+		"assign value to property in IO<object>"
+	);
+
+	assert.equal(
+		res7,
+		150,
+		"assign Just<value> to property in object"
+	);
+	assert.equal(
+		res8,
+		250,
+		"assign Just<value> to property in Just<object>"
+	);
+	assert.equal(
+		res9,
+		350,
+		"assign Just<value> to property in IO<object>"
+	);
+
+	assert.equal(
+		res10,
+		151,
+		"assign IO<value> to property in object"
+	);
+	assert.equal(
+		res11,
+		251,
+		"assign IO<value> to property in Just<object>"
+	);
+	assert.equal(
+		res12,
+		351,
+		"assign IO<value> to property in IO<object>"
 	);
 });
