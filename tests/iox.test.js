@@ -690,6 +690,57 @@ qunit.test("update:stacked", async (assert) => {
 	);
 });
 
+qunit.test("update-through-merge-zip:very-long", (assert) => {
+	var first = IOx(start => start,[]);
+	var iox = first;
+
+	var stackDepth = 25000;
+	for (let i = 0; i < stackDepth; i++) {
+		if (i === Math.floor(stackDepth / 3)) {
+			// inserting a merge stream into the chain
+			iox = IOxHelpers.merge([ iox ]).chain(v => IOx.of(v + 1));
+		}
+		else if (i === Math.floor(2 * stackDepth / 3)) {
+			// inserting a zip stream into the chain
+			iox = IOxHelpers.zip([ iox ]).map(([ v ]) => v + 1);
+		}
+		else {
+			iox = IOx((env,v) => v + 1,[ iox ]);
+		}
+	}
+	var final = IOx((env,v) => (res1.push(v), v),[ iox ]);
+
+	var res1 = [];
+	var res2 = final.run(1);
+
+	assert.deepEqual(
+		res1,
+		[ stackDepth + 1 ],
+		"(1) IOx deps propagate env all the way up, then updates all the way down"
+	);
+
+	assert.equal(
+		res2,
+		stackDepth + 1,
+		"(2) IOx deps propagate env all the way up, then updates all the way down"
+	);
+
+	first(10);
+
+	assert.deepEqual(
+		res1,
+		[ stackDepth + 1, stackDepth + 10 ],
+		"IOx update propagatess all the way down"
+	);
+
+	first.close();
+
+	assert.ok(
+		first.isClosed() && iox.isClosed() && final.isClosed(),
+		"close propagates all the way down (including through merge and zip streams)"
+	);
+});
+
 qunit.test("update:async", async (assert) => {
 	var x1 = IOx.of.empty();
 	var x2 = IOx((_,v) => v * 2,[ x1, ]);

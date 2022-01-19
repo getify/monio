@@ -1298,7 +1298,7 @@ function zip(ioxs = []) {
 	function run(env) {
 		if (_run) {
 			let cont = continuation([
-				subscribe,
+				() => subscribe(env),
 				() => _run(env)
 			]);
 			return (isRunSignal(env) ? cont : trampoline(cont));
@@ -1427,7 +1427,7 @@ function merge(ioxs = []) {
 	function run(env) {
 		if (_run) {
 			let cont = continuation([
-				subscribe,
+				() => subscribe(env),
 				() => _run(env)
 			]);
 			return (isRunSignal(env) ? cont : trampoline(cont));
