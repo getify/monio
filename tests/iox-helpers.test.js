@@ -419,7 +419,9 @@ qunit.test("waitFor", async (assert) => {
 qunit.test("zip", (assert) => {
 	var vals1 = IOx.of.empty();
 	var vals2 = IOx.of.empty();
+	var vals3 = IOx.of.empty();
 	var valsZipped = IOxHelpers.zip([ vals1, vals2 ]);
+	var valsZipped2 = IOxHelpers.zip([ vals3 ]);
 	var res = [];
 
 	var pushed = IOx((env,v) => res.push(v),[ valsZipped ]);
@@ -536,12 +538,24 @@ qunit.test("zip", (assert) => {
 		valsZipped.isClosed(),
 		"once all source streams are closed, zip-stream is closed"
 	);
+
+	valsZipped2.run();
+	var res2 = valsZipped2.isClosed();
+	valsZipped2.close();
+	var res3 = valsZipped2.isClosed();
+
+	assert.ok(
+		!res2 && res3 && !vals3.isClosed(),
+		"zip stream doesn't close unless we close it"
+	);
 });
 
 qunit.test("merge", (assert) => {
 	var vals1 = IOx.of.empty();
 	var vals2 = IOx.of.empty();
+	var vals3 = IOx.of.empty();
 	var valsMerged = IOxHelpers.merge([ vals1, vals2 ]);
+	var valsMerged2 = IOxHelpers.merge([ vals3 ]);
 	var res = [];
 
 	var pushed = IOx((env,v) => res.push(v),[ valsMerged ]);
@@ -620,7 +634,7 @@ qunit.test("merge", (assert) => {
 	assert.deepEqual(
 		res,
 		[ 5, 10, 100, 101, 15, 102, 103, 104, 25, 35, 106 ],
-		"merge-stream picks up latest from both participating streams when restarting"
+		"merge-stream pushed out latest from both participating streams when restarting"
 	);
 
 	vals2(107);
@@ -663,6 +677,16 @@ qunit.test("merge", (assert) => {
 	assert.ok(
 		valsMerged.isClosed(),
 		"once all source streams are closed, merge-stream is closed"
+	);
+
+	valsMerged2.run();
+	var res2 = valsMerged2.isClosed();
+	valsMerged2.close();
+	var res3 = valsMerged2.isClosed();
+
+	assert.ok(
+		!res2 && res3 && !vals3.isClosed(),
+		"merge stream doesn't close unless we close it"
 	);
 });
 
