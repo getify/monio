@@ -139,6 +139,35 @@ qunit.test("#chain", (assert) => {
 	);
 });
 
+qunit.test("#chain:very-long", (assert) => {
+	var first;
+	var iox = first = IOx(start => start,[]);
+
+	for (var i = 0; i < 25000; i++) {
+		iox = iox.chain(v => IOx.of(v + 1));
+	}
+
+	try {
+		var res = iox.run(1);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res,
+		i + 1,
+		"chain() call stack ran very long without RangeError"
+	);
+
+	first.close();
+
+	assert.ok(
+		first.isClosed() && iox.isClosed(),
+		"close propagates down a very-long chain"
+	);
+});
+
 qunit.test("#chain:async", async (assert) => {
 	var r1 = await (
 		IOx.of(Promise.resolve({ name: "john" }))
@@ -325,6 +354,28 @@ qunit.test("#map", (assert) => {
 	);
 });
 
+qunit.test("#map:very-long", (assert) => {
+	var iox = IOx(start => start,[]);
+	var start = iox;
+
+	for (var i = 0; i < 25000; i++) {
+		iox = iox.map(inc);
+	}
+
+	try {
+		var res = iox.run(1);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res,
+		i + 1,
+		"map() call stack ran very long without RangeError"
+	);
+});
+
 qunit.test("#map:async", async (assert) => {
 	var r1 = await (
 		IOx.of(Promise.resolve(1))
@@ -389,6 +440,30 @@ qunit.test("#concat", (assert) => {
 		IOx.of("Hello").concat(IOx.of(" World!")).run(),
 		IOx.of("Hello World!").run(),
 		"should concat two strings in IOx monads together into a new monad"
+	);
+});
+
+// TODO: investigate this test case, seems
+// to be MUCH SLOWER than the other "very-long"
+// tests
+qunit.test("#concat:very-long", (assert) => {
+	var iox = IOx(start => start,[]);
+
+	for (var i = 1; i < 10000; i++) {
+		iox = iox.concat(IOx.of([ i + 1 ]));
+	}
+
+	try {
+		var res = iox.run([ 1 ]);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res.length,
+		i,
+		"concat() call stack ran very long without RangeError"
 	);
 });
 
@@ -836,6 +911,29 @@ qunit.test("close", (assert) => {
 		res,
 		[],
 		"initially (automatically) closed IOx never runs its effect"
+	);
+});
+
+qunit.test("#stop:very-long", (assert) => {
+	var first;
+	var iox = first = IOx(start => start,[]);
+
+	for (var i = 0; i < 25000; i++) {
+		iox = iox.map(identity);
+	}
+
+	var res = iox.run(1);
+
+	assert.ok(
+		res === 1 && !first.isClosed() && !iox.isClosed(),
+		"long chain created without problem"
+	);
+
+	first.close();
+
+	assert.ok(
+		first.isClosed() && iox.isClosed(),
+		"close propagates down a very-long chain"
 	);
 });
 
@@ -1454,9 +1552,9 @@ qunit.test("IOx.do:very-long", async (assert) => {
 		return sum;
 	}
 
-	var io1 = IOx.do(one);
+	var io1 = IOx.do(one,[]);
 	var io2 = IOx.do(two);
-	var io3 = IOx.do(three);
+	var io3 = IOx.do(three,[]);
 
 	var stackDepth = 25000;
 	var res1 = await io1.run(stackDepth);
@@ -1495,7 +1593,7 @@ qunit.test("IOx.doEither:very-long", async (assert) => {
 		return sum;
 	}
 
-	var io = IOx.doEither(one);
+	var io = IOx.doEither(one,[]);
 
 	var stackDepth = 25000;
 	var res = await io.run(stackDepth);

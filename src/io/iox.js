@@ -8,6 +8,10 @@ var {
 	isMonad,
 	curry,
 	getDeferred,
+	continuation,
+	runSignal,
+	isRunSignal,
+	trampoline,
 } = require("../lib/util.js");
 var Either = require("../either.js");
 var IO = require("./io.js");
@@ -97,7 +101,10 @@ function IOx(iof,deps = []) {
 
 	function run(env) {
 		if (!closing) {
-			return io.run(env);
+			return (isRunSignal(env) ?
+				io.run(env) :
+				trampoline(io.run(runSignal(env)))
+			);
 		}
 	}
 
@@ -106,14 +113,27 @@ function IOx(iof,deps = []) {
 		currentEnv = UNSET;
 	}
 
-	function close() {
+	function close(signal) {
 		if (!closing) {
 			closing = true;
 			stop();
-			updateCurrentVal(CLOSED,/*drainQueueIfAsync=*/false);
-			registerHooks.delete(publicAPI);
-			ioDepsPending = depsPendingClose = waitForDeps = depsComplete =
-				deps = iof = io = publicAPI = listeners = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return updateCurrentVal(CLOSED,/*drainQueueIfAsync=*/false);
+					}
+					finally {
+						registerHooks.delete(publicAPI);
+						ioDepsPending = depsPendingClose = waitForDeps =
+						depsComplete = deps = iof = io = publicAPI =
+						listeners = null;
+					}
+				},
+				identity
+			]);
+
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -134,7 +154,9 @@ function IOx(iof,deps = []) {
 		if (!closing && !frozen) {
 			unregisterWithDeps();
 			deps = currentEnv = iof = null;
-			return updateCurrentVal(v,/*drainQueueIfAsync=*/false);
+			trampoline(
+				updateCurrentVal(v,/*drainQueueIfAsync=*/false)
+			);
 		}
 	}
 
@@ -146,44 +168,55 @@ function IOx(iof,deps = []) {
 		return IOx(function IOxChain(env,publicAPIv){
 			var res = fn(publicAPIv);
 
-			return (
-				isPromise(res) ? res.then(handle) : handle(res)
+			return (isPromise(res) ?
+				// trampoline() here unwraps the continuation
+				// immediately, because we're already in an
+				// async microtask from the promise
+				res.then(iox => trampoline(handle(iox))) :
+
+				handle(res)
 			);
 
 			// **************************************
 
 			function handle(ciox) {
+				var runCIOx = () => ciox.run(runSignal(env));
+
 				// are we chaining with a valid IOx instance?
 				if (registerHooks.has(ciox)) {
 					// artificially register a listener for our *outer* IOx
-					registerListener(
-						(_,val) => {
-							// *outer* IOx has now closed, but chained IOx
-							// is still open?
-							if (val === CLOSED && ciox && !ciox.isClosed()) {
-								// close the chained IOx (for memory cleanup)
-								ciox.close();
-							}
-						},
-						publicAPI,
-						currentEnv !== UNSET ? currentEnv : env
-					);
+					return continuation([
+						() => registerListener(
+							(_,val) => {
+								// *outer* IOx has now closed, but chained IOx
+								// is still open?
+								if (val === CLOSED && ciox && !ciox.isClosed()) {
+									// close the chained IOx (for memory cleanup)
+									return ciox.close(runSignal());
+								}
+							},
+							publicAPI,
+							currentEnv !== UNSET ? currentEnv : env
+						),
+
+						runCIOx
+					]);
 				}
 
-				return ciox.run(env);
+				return runCIOx();
 			}
 		},[ publicAPI, ]);
 	}
 
 	function concat(m) {
-		return IOx((env,v1) => {
-			var v2 = m.run(env);
-			return (
-				isPromise(v2) ?
-					v2.then(v2 => v1.concat(v2)) :
-					v1.concat(v2)
-			);
-		},[ publicAPI, ]);
+		return IOx((env,res1) => continuation([
+			() => m.run(runSignal(env)),
+
+			res2 => (isPromise(res2) ?
+				res2.then(v2 => res1.concat(v2)) :
+				res1.concat(res2)
+			)
+		]),[ publicAPI, ]);
 	}
 
 	function haveDeps() {
@@ -259,49 +292,49 @@ function IOx(iof,deps = []) {
 		// are we still open and have a valid IOF
 		// to execute?
 		else if (!closing && isFunction(iof)) {
+			var cont = continuation([]);
+
 			// need to register?
 			if (!(registering || registered)) {
-				registerWithDeps(env);
+				cont.push(() => registerWithDeps(env));
 			}
 
-			// ready to evaluate the IOX by executing its IOF?
-			if (!runningIOF) {
-				return execIOF(env);
+			cont.push(() => (
+				// ready to evaluate the IOX by executing
+				// its IOF?
+				!runningIOF ? execIOF(env) : identity
+			));
+
+			if (cont.length == 1) {
+				cont.push(identity);
 			}
+			return cont;
 		}
 		else if (![ UNSET, CLOSED, EMPTY ].includes(currentVal)) {
 			return currentVal;
 		}
 
 		// note: really shouldn't get here
-		/* istanbul ignore next */
-		return;
 	}
 
 	function execIOF(env) {
-		var curVal = UNSET;
-		var allowIOxCache = true;
-		try {
+		return checkDepsAndExecute(/*curVal=*/UNSET,/*allowIOxCache=*/true);
+
+		// ******************************************
+
+		function checkDepsAndExecute(curVal,allowIOxCache) {
+			var dv;
 			runningIOF = true;
 
-			// keep going (synchronously) as long as there are
-			// complete sets of queued dep vals to keep
-			// re-evaluating this IOx with
-			execLoop: while (runningIOF) {
-				let dv;
+			// are we still open and have an IOF to exec?
+			if (!closing && iof) {
+				currentEnv = env;
+				dv = collectDepVals(env,allowIOxCache);
+			}
 
-				// are we still open and have an IOF to exec?
-				if (!closing && iof) {
-					currentEnv = env;
-					dv = collectDepVals(env,allowIOxCache);
-
-					// next iteration (if any), don't allow
-					// pulling dep values from the IOx cache
-					allowIOxCache = false;
-				}
-
-				// no set of collected deps values was found?
-				if (!dv) {
+			// no set of collected deps values was found?
+			if (!dv) {
+				try {
 					if (curVal !== UNSET) {
 						return curVal;
 					}
@@ -312,69 +345,97 @@ function IOx(iof,deps = []) {
 						return waitForDeps;
 					}
 				}
-				else if (
-					// all dependencies are now closed?
-					dv === CLOSED ||
-					// already closed (when registering with deps)?
-					!iof
-				) {
-					try {
-						return (
-							curVal || waitForDeps || getDeferred().pr
-						);
-					}
-					finally {
-						close();
-					}
+				finally {
+					discardCurrentIODepVals();
+					runningIOF = false;
 				}
+			}
+			else if (
+				// all dependencies are now closed?
+				dv === CLOSED ||
+				// already closed (when registering with deps)?
+				!iof
+			) {
+				try {
+					return (
+						(curVal !== UNSET ? curVal : undefined) ||
+						waitForDeps ||
+						getDeferred().pr
+					);
+				}
+				finally {
+					close();
+					runningIOF = false;
+				}
+			}
 
-				// if we get here, we have a complete set of dep
-				// values (if any) to evaluate the IOx with
-				let iofRes = iof(currentEnv,...dv);
+			// if we get here, we have a complete set of dep
+			// values (if any) to evaluate the IOx with
+			return continuation([
+				() => iof(currentEnv,...dv),
+				iofRes => commitIOFResult(iofRes,curVal)
+			]);
+		}
 
+		function commitIOFResult(iofRes,curVal) {
+			// are we still running the IOF (didn't return early)?
+			if (runningIOF) {
 				// was the result of the IOx evaluation non-empty?
 				if (!closing && iofRes !== EMPTY) {
-					// save the current IOx value, either sync or async
-					let updateRes = updateCurrentVal(iofRes,/*drainQueueIfAsync=*/haveQueuedIOxDepVals());
+					return continuation([
+						// save the current IOx value, either sync or async
+						() => updateCurrentVal(iofRes,/*drainQueueIfAsync=*/haveQueuedIOxDepVals()),
 
-					// was the update of the IOx value synchronous,
-					// and are there IOx deps (which may have queued
-					// up more values that need to be processed)?
-					if (!isPromise(updateRes) && haveIOxDeps()) {
-						// remember this newly updated value in case the
-						// next iteration doesn't produce an updated value
-						curVal = updateRes;
-
-						// note: discards IOx dep vals, but preserves
-						// any cached IO dep vals, as there's no reason
-						// to re-evaluate standard IOs during a synchronous
-						// draining of queued dep values
-						discardCurrentIOxDepVals();
-
-						// re-check the collected deps values to see
-						// if this IOx is ready to be re-evaluated
-
-						continue execLoop;
-					}
-					// whether the update was asynchronous, or there
-					// are no IOx deps to have queued up more dep values,
-					// we can now immediately bail on this evaluation of
-					// the IOx
-					else {
-						// nothing else to evaluate for now
-						discardCurrentDepVals();
-						return updateRes;
-					}
+						settleUpdate
+					]);
 				}
 				// otherwise, nothing else to evaluate, so bail
 				else {
-					return (curVal || undefined);
+					try {
+						return ((curVal !== UNSET) ? curVal : undefined);
+					}
+					finally {
+						discardCurrentIODepVals();
+						runningIOF = false;
+					}
 				}
 			}
+			else {
+				return iofRes;
+			}
 		}
-		finally {
-			discardCurrentIODepVals();
-			runningIOF = false;
+
+		function settleUpdate(updateRes) {
+			// was the update of the IOx value synchronous,
+			// and are there IOx deps (which may have queued
+			// up more values that need to be processed)?
+			if (!isPromise(updateRes) && haveIOxDeps()) {
+				// note: discards IOx dep vals, but preserves
+				// any cached IO dep vals, as there's no reason
+				// to re-evaluate standard IOs during a synchronous
+				// draining of queued dep values
+				discardCurrentIOxDepVals();
+
+				// continue the "loop" to re-check the collected
+				// deps values to see if this IOx is ready to be
+				// re-evaluated
+				return checkDepsAndExecute(/*curVal=*/updateRes,/*allowIOxCache=*/false);
+			}
+			// whether the update was asynchronous, or there
+			// are no IOx deps to have queued up more dep values,
+			// we can now immediately bail on this evaluation of
+			// the IOx
+			else {
+				try {
+					// nothing else to evaluate for now
+					discardCurrentDepVals();
+					return updateRes;
+				}
+				finally {
+					discardCurrentIODepVals();
+					runningIOF = false;
+				}
+			}
 		}
 	}
 
@@ -389,12 +450,12 @@ function IOx(iof,deps = []) {
 
 		if (!registering && !runningIOF) {
 			if (currentEnv !== UNSET && newVal !== CLOSED) {
-				safeIORun(publicAPI,currentEnv);
+				return safeIORun(publicAPI,runSignal(currentEnv));
 			}
 			else {
 				let dv = collectDepVals(undefined,/*allowIOxCache=*/false);
 				if (dv === CLOSED) {
-					close();
+					return close(runSignal());
 				}
 			}
 		}
@@ -425,7 +486,7 @@ function IOx(iof,deps = []) {
 
 	function removeDepVal(dep) {
 		if (hasDepVal(dep)) {
-			return depVals.get(dep).shift();
+			depVals.get(dep).shift();
 		}
 	}
 
@@ -503,9 +564,9 @@ function IOx(iof,deps = []) {
 						// otherwise, request the IO value
 						else {
 							// (re)run the IO to get its results
-							let depRes = dep.run(
-								env || (currentEnv !== UNSET ? currentEnv : undefined)
-							);
+							let depRes = trampoline(dep.run(
+								runSignal(env || (currentEnv !== UNSET ? currentEnv : undefined))
+							));
 
 							// IO result not yet ready?
 							if (isPromise(depRes)) {
@@ -516,7 +577,11 @@ function IOx(iof,deps = []) {
 									// still actually waiting on this IO result?
 									if (ioDepsPending && ioDepsPending.has(dep)) {
 										ioDepsPending.delete(dep);
-										onDepUpdate(dep,v);
+
+										// trampoline() here unwraps the continuation
+										// immediately, because we're already in an
+										// async microtask from the promise
+										trampoline(onDepUpdate(dep,v));
 									}
 								})
 								.catch(logUnhandledError);
@@ -561,12 +626,16 @@ function IOx(iof,deps = []) {
 	}
 
 	function updateCurrentVal(v,drainQueueIfAsync) {
-		var saveEnv = currentEnv;
-
 		// still waiting on the resolved value
 		// to update with?
 		if (isPromise(v)) {
-			return v.then(handle).catch(logUnhandledError);
+			return v.then(v2 => (
+				// trampoline() here unwraps the continuation
+				// immediately, because we're already in an
+				// async microtask from the promise
+				trampoline(handleValue(v2))
+			))
+			.catch(logUnhandledError);
 		}
 		else {
 			// since this update isn't async, no
@@ -574,27 +643,47 @@ function IOx(iof,deps = []) {
 			// queue
 			drainQueueIfAsync = false;
 
-			return handle(v);
+			return handleValue(v);
 		}
 
-		function handle(resV) {
+		// *******************************************
+
+		function handleValue(resV) {
 			currentVal = resV;
+			return (
+				// any listeners to notify?
+				(Array.isArray(listeners) && listeners.length > 0) ?
+					notifyListeners(publicAPI,currentVal,listeners) :
+					checkIOxQueue()
+			);
+		}
 
-			if (Array.isArray(listeners)) {
-				// saving in case an update causes a closing
-				let _publicAPI = publicAPI;
-				let _listeners = [ ...listeners ];
+		function notifyListeners(pAPI,cVal,[ nextListener, ...remainingListeners ]) {
+			return continuation([
+				() => nextListener(pAPI,cVal),
 
-				for (let listener of _listeners) {
-					listener(_publicAPI,currentVal);
-				}
-			}
+				(remainingListeners.length > 0 ?
+					() => notifyListeners(pAPI,cVal,remainingListeners) :
+					checkIOxQueue
+				)
+			]);
+		}
 
+		function checkIOxQueue() {
 			// need to drain any IOx dep-values queue(s)?
 			if (drainQueueIfAsync && !runningIOF && currentEnv !== UNSET) {
-				safeIORun(publicAPI,currentEnv);
-			}
+				return continuation([
+					() => safeIORun(publicAPI,runSignal(currentEnv)),
 
+					completeUpdate
+				]);
+			}
+			else {
+				return completeUpdate();
+			}
+		}
+
+		function completeUpdate() {
 			// not yet fully closed?
 			if (currentVal === CLOSED && io) {
 				close();
@@ -617,7 +706,7 @@ function IOx(iof,deps = []) {
 
 	function registerListener(listener,dep,env) {
 		if (currentVal === CLOSED) {
-			listener(dep,CLOSED);
+			return listener(dep,CLOSED);
 		}
 		else {
 			if (!Array.isArray(listeners)) {
@@ -629,11 +718,11 @@ function IOx(iof,deps = []) {
 
 			// haven't run yet?
 			if (currentEnv === UNSET) {
-				safeIORun(publicAPI,env);
+				return safeIORun(publicAPI,runSignal(env));
 			}
 			else if (currentVal !== UNSET) {
 				// respond with most recent value
-				listener(dep,currentVal);
+				return listener(dep,currentVal);
 			}
 		}
 	}
@@ -648,30 +737,59 @@ function IOx(iof,deps = []) {
 	}
 
 	function registerWithDeps(env) {
-		registering = true;
-
 		// need to subscribe to any deps?
 		if (Array.isArray(deps) && deps.length > 0) {
-			for (let dep of deps) {
-				// is this dep an IOx instance that
-				// we haven't registered with before?
-				if (
-					is(dep) &&
-					registerHooks.has(dep) &&
-					!depVals.has(dep)
-				) {
-					depVals.set(dep,[]);
-					let [ regListener, ] = registerHooks.get(dep);
-					// IOx instance still active/valid?
-					if (isFunction(regListener)) {
-						regListener(onDepUpdate,dep,env);
-					}
-				}
-			}
+			registering = true;
+			return registerDep(deps);
+		}
+		else {
+			registrationComplete();
 		}
 
-		registering = false;
-		registered = true;
+		// *********************************
+
+		function registerDep([ dep, ...remainingDeps ]) {
+			// define the next step in the continuation
+			var registerNext = (
+				remainingDeps.length > 0 ?
+					// keep registering the remaining
+					// deps
+					() => registerDep(remainingDeps) :
+
+					// complete dep registration
+					registrationComplete
+			);
+
+			// is this dep an IOx instance that
+			// we haven't registered with before?
+			if (
+				is(dep) &&
+				registerHooks.has(dep) &&
+				!depVals.has(dep)
+			) {
+				depVals.set(dep,[]);
+				let [ regListener, ] = registerHooks.get(dep);
+
+				// can we register with this IOx?
+				if (isFunction(regListener)) {
+					return continuation([
+						() => regListener(onDepUpdate,dep,env),
+
+						registerNext
+					]);
+				}
+			}
+
+			// if we get here, dep wasn't an IOx that
+			// needed registration, so move on to next
+			// step
+			return continuation([ registerNext, identity ]);
+		}
+
+		function registrationComplete() {
+			registering = false;
+			registered = true;
+		}
 	}
 
 	function unregisterWithDeps() {
@@ -817,9 +935,9 @@ function onEvent(el,evtName,evtOpts = false) {
 	}
 
 	function run(env) {
-		subscribe();
 		if (_run) {
-			_run(env);
+			subscribe();
+			return _run(env);
 		}
 	}
 
@@ -828,16 +946,27 @@ function onEvent(el,evtName,evtOpts = false) {
 		_stop();
 	}
 
-	function close() {
+	function close(signal) {
 		if (iox) {
 			// restore original methods
 			Object.assign(iox,{
 				run: _run, stop: _stop, close: _close,
 			});
 			stop();
-			iox.close();
-			run = _run = _stop = stop = _close = close =
-				iox = el = evtOpts = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return iox.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							iox = el = evtOpts = null;
+					}
+				},
+				identity
+			]);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -884,7 +1013,7 @@ function onceEvent(el,evtName,evtOpts = false) {
 			}
 			subscribe();
 			if (listener) {
-				listener.run(env);
+				return listener.run(env);
 			}
 		}
 	}
@@ -897,16 +1026,27 @@ function onceEvent(el,evtName,evtOpts = false) {
 		}
 	}
 
-	function close() {
+	function close(signal) {
 		if (iox) {
 			// restore original methods
 			Object.assign(iox,{
 				run: _run, stop: _stop, close: _close,
 			});
 			stop();
-			iox.close();
-			run = _run = _stop = stop = _close = close =
-				iox = listener = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return iox.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							iox = listener = null;
+					}
+				},
+				identity
+			]);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -962,7 +1102,7 @@ function onTimer(updateInterval,countLimit) {
 	function run(env) {
 		subscribe();
 		if (_run) {
-			_run(env);
+			return _run(env);
 		}
 	}
 
@@ -983,15 +1123,27 @@ function onTimer(updateInterval,countLimit) {
 		_stop();
 	}
 
-	function close() {
+	function close(signal) {
 		if (timer) {
 			// restore original methods
 			Object.assign(timer,{
 				run: _run, stop: _stop, close: _close,
 			});
 			stop();
-			timer.close();
-			run = _run = _stop = stop = _close = close = timer = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return timer.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							timer = null;
+					}
+				},
+				identity
+			]);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1017,30 +1169,42 @@ function zip(ioxs = []) {
 	// *****************************************
 
 	function effect(env) {
-		subscribe(env);
-		return EMPTY;
+		return continuation([
+			() => subscribe(env),
+			() => EMPTY
+		]);
 	}
 
 	function subscribe(env) {
 		if (!subscribed && iox) {
 			subscribed = true;
 
-			if (Array.isArray(ioxs)) {
-				for (let x of ioxs) {
-					// need a queue to hold stream's values?
-					if (!queues.has(x)) {
-						queues.set(x,[]);
-					}
-
-					// register a listener for the stream?
-					if (registerHooks.has(x)) {
-						let [ regListener, ] = registerHooks.get(x);
-						regListener(onUpdate,x,env);
-					}
-				}
-				checkListeners();
+			if (Array.isArray(ioxs) && ioxs.length > 0) {
+				return subscribeToIOxs(ioxs,env);
 			}
 		}
+	}
+
+	function subscribeToIOxs([ nextIOx, ...remainingIOxs ],env) {
+		return continuation([
+			() => {
+				// need a queue to hold stream's values?
+				if (!queues.has(nextIOx)) {
+					queues.set(nextIOx,[]);
+				}
+
+				// register a listener for the stream?
+				if (registerHooks.has(nextIOx)) {
+					let [ regListener, ] = registerHooks.get(nextIOx);
+					return regListener(onUpdate,nextIOx,env);
+				}
+			},
+
+			(remainingIOxs.length > 0 ?
+				() => subscribeToIOxs(remainingIOxs,env) :
+				checkListeners
+			)
+		]);
 	}
 
 	function onUpdate(stream,v) {
@@ -1050,7 +1214,7 @@ function zip(ioxs = []) {
 					queues.get(stream).push(v);
 				}
 			}
-			checkListeners();
+			return checkListeners();
 		}
 	}
 
@@ -1108,7 +1272,7 @@ function zip(ioxs = []) {
 				else {
 					// but, also need to close the zip stream?
 					if (allStreamsClosed) {
-						close();
+						return close(runSignal());
 					}
 					break;
 				}
@@ -1132,9 +1296,12 @@ function zip(ioxs = []) {
 	}
 
 	function run(env) {
-		subscribe(env);
 		if (_run) {
-			_run(env);
+			let cont = continuation([
+				subscribe,
+				() => _run(env)
+			]);
+			return (isRunSignal(env) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1143,16 +1310,27 @@ function zip(ioxs = []) {
 		_stop();
 	}
 
-	function close() {
+	function close(signal) {
 		if (iox) {
 			// restore original methods
 			Object.assign(iox,{
 				run: _run, stop: _stop, close: _close,
 			});
 			stop();
-			iox.close();
-			run = _run = _stop = stop = _close = close =
-				queues = iox = ioxs = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return iox.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							queues = iox = ioxs = null;
+					}
+				},
+				identity
+			]);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1177,25 +1355,37 @@ function merge(ioxs = []) {
 	// *****************************************
 
 	function effect(env) {
-		subscribe(env);
-		return EMPTY;
+		return continuation([
+			() => subscribe(env),
+			() => EMPTY
+		]);
 	}
 
 	function subscribe(env) {
 		if (!subscribed && iox) {
 			subscribed = true;
 
-			if (Array.isArray(ioxs)) {
-				// setup listeners for all merged streams
-				for (let x of ioxs) {
-					if (registerHooks.has(x)) {
-						let [ regListener, ] = registerHooks.get(x);
-						regListener(onUpdate,x,env);
-					}
-				}
-				checkListeners();
+			if (Array.isArray(ioxs) && ioxs.length > 0) {
+				return subscribeToIOxs(ioxs,env);
 			}
 		}
+	}
+
+	function subscribeToIOxs([ nextIOx, ...remainingIOxs ],env) {
+		return continuation([
+			() => {
+				// register a listener for the stream?
+				if (registerHooks.has(nextIOx)) {
+					let [ regListener, ] = registerHooks.get(nextIOx);
+					return regListener(onUpdate,nextIOx,env);
+				}
+			},
+
+			(remainingIOxs.length > 0 ?
+				() => subscribeToIOxs(remainingIOxs,env) :
+				checkListeners
+			)
+		]);
 	}
 
 	function onUpdate(_,v) {
@@ -1203,7 +1393,7 @@ function merge(ioxs = []) {
 			if (v !== CLOSED) {
 				iox(v);
 			}
-			checkListeners();
+			return checkListeners();
 		}
 	}
 
@@ -1215,7 +1405,7 @@ function merge(ioxs = []) {
 			Array.isArray(ioxs) &&
 			ioxs.every(x => x ? x.isClosed() : true)
 		) {
-			close();
+			return close(runSignal());
 		}
 	}
 
@@ -1235,9 +1425,12 @@ function merge(ioxs = []) {
 	}
 
 	function run(env) {
-		subscribe(env);
 		if (_run) {
-			_run(env);
+			let cont = continuation([
+				subscribe,
+				() => _run(env)
+			]);
+			return (isRunSignal(env) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1246,16 +1439,27 @@ function merge(ioxs = []) {
 		_stop();
 	}
 
-	function close() {
+	function close(signal) {
 		if (iox) {
 			// restore original methods
 			Object.assign(iox,{
 				run: _run, stop: _stop, close: _close,
 			});
 			stop();
-			iox.close();
-			run = _run = _stop = stop = _close = close =
-				iox = ioxs = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return iox.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							iox = ioxs = null;
+					}
+				},
+				identity
+			]);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1267,6 +1471,9 @@ function fromIO(io) {
 
 function skipFirstIdentity(env,v) { return v; }
 
+// note: the internals of `fromIter(..)` are
+// all async, so no need for the trampolining
+// here
 function fromIter($V,closeOnComplete = true) {
 	const PAUSED = Symbol("paused");
 	var signalPaused;
@@ -1368,7 +1575,7 @@ function fromIter($V,closeOnComplete = true) {
 
 	function run(env) {
 		if (_run) {
-			_run(env);
+			return _run(env);
 		}
 	}
 
@@ -1377,21 +1584,35 @@ function fromIter($V,closeOnComplete = true) {
 		_stop();
 	}
 
-	function close() {
+	function close(signal) {
 		if (iox) {
 			// restore original methods
 			Object.assign(iox,{
 				run: _run, stop: _stop, close: _close,
 			});
 			stop();
-			iox.close();
-			run = _run = _stop = stop = _close = close =
-				iox = null;
+
+			let cont = continuation([
+				() => {
+					try {
+						return iox.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							iox = null;
+					}
+				},
+				identity
+			]);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
 }
 
+// note: the internals of `toIter(..)` are
+// all async, so no need for the trampolining
+// here
 function toIter(iox,env) {
 	var finalPr;
 	var prQueue = [];
@@ -1424,7 +1645,7 @@ function toIter(iox,env) {
 			subscribed = true;
 
 			let [ regListener, ] = registerHooks.get(iox);
-			regListener(onIOxUpdate,iox,env);
+			trampoline(regListener(onIOxUpdate,iox,env));
 		}
 	}
 
@@ -1436,7 +1657,7 @@ function toIter(iox,env) {
 		}
 	}
 
-	function onIOxUpdate(x,v) {
+	function onIOxUpdate(_,v) {
 		// IOx has closed and nothing is pending in the queue?
 		if (v === CLOSED) {
 			if (prQueue.length == 0) {
@@ -1508,7 +1729,8 @@ function toIter(iox,env) {
 		return (
 			finalPr ?
 
-				// make sure return() result is the last to resolve
+				// make sure return() result is the last to
+				// resolve
 				finalPr.then(()=>{
 					try {
 						return res;
@@ -1527,12 +1749,38 @@ function toIter(iox,env) {
 function safeIORun(io,env) {
 	try {
 		var res = io.run(env);
-		if (isPromise(res)) {
+
+		// might the `run(..)` have returned
+		// continuations to handle?
+		if (isRunSignal(env)) {
+			return (isPromise(res) ?
+				// trampoline() here unwraps the continuation
+				// immediately, because we're already in an
+				// async microtask from the promise
+				res.then(v => trampoline(v)) :
+				res
+			);
+		}
+		// do we need to potentially log
+		// otherwise silent/unhandled async
+		// exceptions?
+		else if (isPromise(res)) {
 			res.catch(logUnhandledError);
 		}
 	}
 	catch (err) {
-		Promise.reject(err).catch(logUnhandledError);
+		// do we need to let the exception
+		// bubble back up through the
+		// the trampoline?
+		if (isRunSignal(env)) {
+			throw err;
+		}
+		// otherwise, asynchronously log the
+		// unhandled exception so it's not
+		// swallowed
+		else {
+			Promise.reject(err).catch(logUnhandledError);
+		}
 	}
 }
 
