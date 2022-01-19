@@ -2,6 +2,7 @@
 
 const qunit = require("qunit");
 const sinon = require("sinon");
+const { identity, } = MonioUtil;
 const { INJECT_MONIO, inc, justProp } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
@@ -66,6 +67,14 @@ qunit.test("#chain", (assert) => {
 		Nothing.of({ name: "john" }).bind(justProp('name'))._inspect(),
 		Nothing.of("john")._inspect(),
 		"should perform no operation"
+	);
+});
+
+qunit.test("#fold", (assert) => {
+	assert.equal(
+		Nothing().fold(identity),
+		undefined,
+		"fold(identity) produces undefined"
 	);
 });
 

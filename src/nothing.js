@@ -15,7 +15,7 @@ module.exports = Object.assign(Nothing,{
 function Nothing() {
 	var publicAPI = {
 		map: noop, chain: noop, flatMap: noop, bind: noop,
-		ap: noop, concat: noop, _inspect, _is,
+		fold, ap: noop, concat: noop, _inspect, _is,
 		[Symbol.toStringTag]: "Nothing",
 	};
 	return publicAPI;
@@ -24,6 +24,10 @@ function Nothing() {
 
 	function noop() {
 		return publicAPI;
+	}
+
+	function fold(fn) {
+		return fn();
 	}
 
 	function _inspect() {

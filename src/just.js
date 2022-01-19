@@ -14,7 +14,7 @@ module.exports = Object.assign(Just,{
 function Just(val) {
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		ap, concat, _inspect, _is,
+		fold, ap, concat, _inspect, _is,
 		[Symbol.toStringTag]: "Just",
 	};
 	return publicAPI;
@@ -27,6 +27,12 @@ function Just(val) {
 
 	// aka: bind, flatMap
 	function chain(fn) {
+		return fn(val);
+	}
+
+	// note: this is like `chain(..)`
+	// but doesn't expect a Just return
+	function fold(fn) {
 		return fn(val);
 	}
 

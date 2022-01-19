@@ -75,6 +75,14 @@ qunit.test("#chain", (assert) => {
 	);
 });
 
+qunit.test("#fold", (assert) => {
+	assert.equal(
+		Just(3).fold(identity),
+		3,
+		"fold(identity) extracts the value"
+	);
+});
+
 qunit.test("#ap", (assert) => {
 	assert.equal(
 		Just.of(inc).ap(Just.of(2))._inspect(),
