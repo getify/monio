@@ -154,10 +154,17 @@ function continuation(cont) {
 // `run(..)` call that it should return any
 // continuation rather than processing it
 function runSignal(env) {
-	return {
-		[RUN_CONT]: true,
-		env,
-	};
+	// signal already marked?
+	if (isRunSignal(env)) {
+		/* istanbul ignore next */
+		return env;
+	}
+	else {
+		return {
+			[RUN_CONT]: true,
+			env,
+		};
+	}
 }
 
 // used internally by IO/IOx, determines

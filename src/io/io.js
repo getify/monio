@@ -181,10 +181,7 @@ function processNext(next,respVal,outerEnv,throwEither) {
 			)
 		);
 
-		return continuation([
-			() => m.run(runSignal(outerEnv)),
-			identity
-		]);
+		return m.run(runSignal(outerEnv));
 	}
 }
 
@@ -210,7 +207,7 @@ function $do($V,...args) {
 					// iterator from an async generator?
 					isPromise(resp) ?
 
-						// trampoline()s here unwrap the continuations
+						// trampoline() here unwraps the continuation
 						// immediately, because we're already in an
 						// async microtask from the promise
 						resp.then(v => trampoline(handleResp(v))) :
@@ -224,23 +221,18 @@ function $do($V,...args) {
 				function handleResp(resp) {
 					// is the iterator done?
 					if (resp.done) {
-						return continuation([
-							() => {
-								try {
-									// if an IO was returned, automatically run it
-									// as if it was yielded before returning
-									return (
-										IO.is(resp.value) ?
-											resp.value.run(runSignal(outerEnv)) :
-											resp.value
-									);
-								}
-								catch (err) {
-									return liftDoError(err);
-								}
-							},
-							identity
-						]);
+						try {
+							// if an IO was returned, automatically run it
+							// as if it was yielded before returning
+							return (
+								IO.is(resp.value) ?
+									resp.value.run(runSignal(outerEnv)) :
+									resp.value
+							);
+						}
+						catch (err) {
+							return liftDoError(err);
+						}
 					}
 					// otherwise, move onto the next step
 					else {
@@ -266,6 +258,9 @@ function doEither($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
 
+		// trampoline()s here unwrap the continuations
+		// immediately, because we're already in an
+		// async microtask from the promise
 		return (new Promise(res => res(trampoline(next()))))
 			.catch(err => trampoline(next(err,"error")))
 			.catch(liftDoEitherError);
@@ -294,7 +289,7 @@ function doEither($V,...args) {
 				return (
 					isPromise(resp) ?
 
-						// trampoline()s here unwrap the continuations
+						// trampoline() here unwraps the continuation
 						// immediately, because we're already in an
 						// async microtask from the promise
 						resp.then(v => trampoline(handleResp(v))) :
@@ -372,10 +367,7 @@ function liftDoEitherError(err) {
 }
 
 function fromIOx(iox) {
-	return IO(env => continuation([
-		() => iox.run(runSignal(env)),
-		identity
-	]));
+	return IO(env => iox.run(runSignal(env)));
 }
 
 function getIterator(v,env,outerThis,args) {
