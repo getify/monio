@@ -145,7 +145,7 @@ function getDeferred() {
 // used internally by IO/IOx, marks a tuple
 // as a continuation that trampoline(..)
 // should process
-function continuation(cont) {
+function continuation(...cont) {
 	cont[IS_CONT] = true;
 	return cont;
 }
@@ -215,13 +215,15 @@ function trampoline(res) {
 			while (stack.length > 0) {
 				let [ ,	right ] = stack.pop();
 
-				res = right(res);
+				if (isFunction(right)) {
+					res = right(res);
 
-				// right half of continuation tuple returned
-				// another continuation?
-				if (Array.isArray(res) && res[IS_CONT] === true) {
-					// process the next continuation
-					continue processContinuation;
+					// right half of continuation tuple returned
+					// another continuation?
+					if (Array.isArray(res) && res[IS_CONT] === true) {
+						// process the next continuation
+						continue processContinuation;
+					}
 				}
 			}
 		}

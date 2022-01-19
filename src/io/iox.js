@@ -118,7 +118,7 @@ function IOx(iof,deps = []) {
 			closing = true;
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return updateCurrentVal(CLOSED,/*drainQueueIfAsync=*/false);
@@ -129,9 +129,8 @@ function IOx(iof,deps = []) {
 						depsComplete = deps = iof = io = publicAPI =
 						listeners = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
@@ -185,7 +184,7 @@ function IOx(iof,deps = []) {
 				// are we chaining with a valid IOx instance?
 				if (registerHooks.has(ciox)) {
 					// artificially register a listener for our *outer* IOx
-					return continuation([
+					return continuation(
 						() => registerListener(
 							(_,val) => {
 								// *outer* IOx has now closed, but chained IOx
@@ -200,7 +199,7 @@ function IOx(iof,deps = []) {
 						),
 
 						runCIOx
-					]);
+					);
 				}
 
 				return runCIOx();
@@ -209,14 +208,14 @@ function IOx(iof,deps = []) {
 	}
 
 	function concat(m) {
-		return IOx((env,res1) => continuation([
+		return IOx((env,res1) => continuation(
 			() => m.run(runSignal(env)),
 
 			res2 => (isPromise(res2) ?
 				res2.then(v2 => res1.concat(v2)) :
 				res1.concat(res2)
 			)
-		]),[ publicAPI, ]);
+		),[ publicAPI, ]);
 	}
 
 	function haveDeps() {
@@ -292,22 +291,15 @@ function IOx(iof,deps = []) {
 		// are we still open and have a valid IOF
 		// to execute?
 		else if (!closing && isFunction(iof)) {
-			var cont = continuation([]);
+			var cont = continuation();
 
 			// need to register?
 			if (!(registering || registered)) {
 				cont.push(() => registerWithDeps(env));
 			}
 
-			cont.push(() => (
-				// ready to evaluate the IOX by executing
-				// its IOF?
-				!runningIOF ? execIOF(env) : identity
-			));
+			cont.push(() => execIOF(env));
 
-			if (cont.length == 1) {
-				cont.push(identity);
-			}
 			return cont;
 		}
 		else if (![ UNSET, CLOSED, EMPTY ].includes(currentVal)) {
@@ -318,7 +310,10 @@ function IOx(iof,deps = []) {
 	}
 
 	function execIOF(env) {
-		return checkDepsAndExecute(/*curVal=*/UNSET,/*allowIOxCache=*/true);
+		return (!runningIOF ?
+			checkDepsAndExecute(/*curVal=*/UNSET,/*allowIOxCache=*/true) :
+			undefined
+		);
 
 		// ******************************************
 
@@ -371,10 +366,10 @@ function IOx(iof,deps = []) {
 
 			// if we get here, we have a complete set of dep
 			// values (if any) to evaluate the IOx with
-			return continuation([
+			return continuation(
 				() => iof(currentEnv,...dv),
 				iofRes => commitIOFResult(iofRes,curVal)
-			]);
+			);
 		}
 
 		function commitIOFResult(iofRes,curVal) {
@@ -382,12 +377,12 @@ function IOx(iof,deps = []) {
 			if (runningIOF) {
 				// was the result of the IOx evaluation non-empty?
 				if (!closing && iofRes !== EMPTY) {
-					return continuation([
+					return continuation(
 						// save the current IOx value, either sync or async
 						() => updateCurrentVal(iofRes,/*drainQueueIfAsync=*/haveQueuedIOxDepVals()),
 
 						settleUpdate
-					]);
+					);
 				}
 				// otherwise, nothing else to evaluate, so bail
 				else {
@@ -659,24 +654,24 @@ function IOx(iof,deps = []) {
 		}
 
 		function notifyListeners(pAPI,cVal,[ nextListener, ...remainingListeners ]) {
-			return continuation([
+			return continuation(
 				() => nextListener(pAPI,cVal),
 
 				(remainingListeners.length > 0 ?
 					() => notifyListeners(pAPI,cVal,remainingListeners) :
 					checkIOxQueue
 				)
-			]);
+			);
 		}
 
 		function checkIOxQueue() {
 			// need to drain any IOx dep-values queue(s)?
 			if (drainQueueIfAsync && !runningIOF && currentEnv !== UNSET) {
-				return continuation([
+				return continuation(
 					() => safeIORun(publicAPI,runSignal(currentEnv)),
 
 					completeUpdate
-				]);
+				);
 			}
 			else {
 				return completeUpdate();
@@ -772,18 +767,18 @@ function IOx(iof,deps = []) {
 
 				// can we register with this IOx?
 				if (isFunction(regListener)) {
-					return continuation([
+					return continuation(
 						() => regListener(onDepUpdate,dep,env),
 
 						registerNext
-					]);
+					);
 				}
 			}
 
 			// if we get here, dep wasn't an IOx that
 			// needed registration, so move on to next
 			// step
-			return continuation([ registerNext, identity ]);
+			return continuation(registerNext);
 		}
 
 		function registrationComplete() {
@@ -954,7 +949,7 @@ function onEvent(el,evtName,evtOpts = false) {
 			});
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return iox.close(signal);
@@ -963,9 +958,8 @@ function onEvent(el,evtName,evtOpts = false) {
 						run = _run = _stop = stop = _close = close =
 							iox = el = evtOpts = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
@@ -1034,7 +1028,7 @@ function onceEvent(el,evtName,evtOpts = false) {
 			});
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return iox.close(signal);
@@ -1043,9 +1037,8 @@ function onceEvent(el,evtName,evtOpts = false) {
 						run = _run = _stop = stop = _close = close =
 							iox = listener = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
@@ -1131,7 +1124,7 @@ function onTimer(updateInterval,countLimit) {
 			});
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return timer.close(signal);
@@ -1140,9 +1133,8 @@ function onTimer(updateInterval,countLimit) {
 						run = _run = _stop = stop = _close = close =
 							timer = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
@@ -1169,10 +1161,10 @@ function zip(ioxs = []) {
 	// *****************************************
 
 	function effect(env) {
-		return continuation([
+		return continuation(
 			() => subscribe(env),
 			() => EMPTY
-		]);
+		);
 	}
 
 	function subscribe(env) {
@@ -1186,7 +1178,7 @@ function zip(ioxs = []) {
 	}
 
 	function subscribeToIOxs([ nextIOx, ...remainingIOxs ],env) {
-		return continuation([
+		return continuation(
 			() => {
 				// need a queue to hold stream's values?
 				if (!queues.has(nextIOx)) {
@@ -1204,7 +1196,7 @@ function zip(ioxs = []) {
 				() => subscribeToIOxs(remainingIOxs,env) :
 				checkListeners
 			)
-		]);
+		);
 	}
 
 	function onUpdate(stream,v) {
@@ -1297,10 +1289,10 @@ function zip(ioxs = []) {
 
 	function run(env) {
 		if (_run) {
-			let cont = continuation([
+			let cont = continuation(
 				() => subscribe(env),
 				() => _run(env)
-			]);
+			);
 			return (isRunSignal(env) ? cont : trampoline(cont));
 		}
 	}
@@ -1318,7 +1310,7 @@ function zip(ioxs = []) {
 			});
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return iox.close(signal);
@@ -1327,9 +1319,8 @@ function zip(ioxs = []) {
 						run = _run = _stop = stop = _close = close =
 							queues = iox = ioxs = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
@@ -1355,10 +1346,10 @@ function merge(ioxs = []) {
 	// *****************************************
 
 	function effect(env) {
-		return continuation([
+		return continuation(
 			() => subscribe(env),
 			() => EMPTY
-		]);
+		);
 	}
 
 	function subscribe(env) {
@@ -1372,7 +1363,7 @@ function merge(ioxs = []) {
 	}
 
 	function subscribeToIOxs([ nextIOx, ...remainingIOxs ],env) {
-		return continuation([
+		return continuation(
 			() => {
 				// register a listener for the stream?
 				if (registerHooks.has(nextIOx)) {
@@ -1385,7 +1376,7 @@ function merge(ioxs = []) {
 				() => subscribeToIOxs(remainingIOxs,env) :
 				checkListeners
 			)
-		]);
+		);
 	}
 
 	function onUpdate(_,v) {
@@ -1426,10 +1417,10 @@ function merge(ioxs = []) {
 
 	function run(env) {
 		if (_run) {
-			let cont = continuation([
+			let cont = continuation(
 				() => subscribe(env),
 				() => _run(env)
-			]);
+			);
 			return (isRunSignal(env) ? cont : trampoline(cont));
 		}
 	}
@@ -1447,7 +1438,7 @@ function merge(ioxs = []) {
 			});
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return iox.close(signal);
@@ -1456,9 +1447,8 @@ function merge(ioxs = []) {
 						run = _run = _stop = stop = _close = close =
 							iox = ioxs = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}
@@ -1592,7 +1582,7 @@ function fromIter($V,closeOnComplete = true) {
 			});
 			stop();
 
-			let cont = continuation([
+			let cont = continuation(
 				() => {
 					try {
 						return iox.close(signal);
@@ -1601,9 +1591,8 @@ function fromIter($V,closeOnComplete = true) {
 						run = _run = _stop = stop = _close = close =
 							iox = null;
 					}
-				},
-				identity
-			]);
+				}
+			);
 			return (isRunSignal(signal) ? cont : trampoline(cont));
 		}
 	}

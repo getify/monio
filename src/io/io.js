@@ -2,7 +2,6 @@
 
 var {
 	EMPTY_FUNC,
-	identity,
 	isFunction,
 	isPromise,
 	isMonad,
@@ -44,14 +43,14 @@ function IO(effect) {
 	// *****************************************
 
 	function map(fn) {
-		return IO(env => continuation([
+		return IO(env => continuation(
 			() => effect(env),
 			res => (isPromise(res) ? res.then(fn) : fn(res))
-		]));
+		));
 	}
 
 	function chain(fn) {
-		return IO(env => continuation([
+		return IO(env => continuation(
 			() => effect(env),
 			res => {
 				var res2 = (isPromise(res) ? res.then(fn) : fn(res));
@@ -60,13 +59,13 @@ function IO(effect) {
 					res2.run(runSignal(env))
 				);
 			}
-		]));
+		));
 	}
 
 	function concat(m) {
-		return IO(env => continuation([
+		return IO(env => continuation(
 			() => effect(env),
-			res1 => continuation([
+			res1 => continuation(
 				() => m.run(runSignal(env)),
 				res2 => (
 					(isPromise(res1) || isPromise(res2)) ?
@@ -76,8 +75,8 @@ function IO(effect) {
 						) :
 						res1.concat(res2)
 				)
-			])
-		]));
+			)
+		));
 	}
 
 	function run(env) {
@@ -308,7 +307,7 @@ function doEither($V,...args) {
 				function handleResp(resp) {
 					// is the iterator done?
 					if (resp.done) {
-						return continuation([
+						return continuation(
 							() => {
 								try {
 									return (
@@ -329,7 +328,7 @@ function doEither($V,...args) {
 									handleRespVal(respVal)
 								);
 							}
-						]);
+						);
 					}
 					// otherwise, move onto the next step
 					else {
