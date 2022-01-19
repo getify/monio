@@ -88,28 +88,26 @@ function getReader() {
 }
 
 function waitAll(...list) {
-	return IO(env =>
+	return IO(env => (
 		Promise.all(
 			list.map(v => liftIO(env,v).run(env))
 		)
-	);
+	));
 }
 
 function maybeFromIO(v,env = {}) {
 	var res = liftIO(env,v).run(env);
-	return (
-		isPromise(res) ?
-			res.then(Maybe.from) :
-			Maybe.from(res)
+	return (isPromise(res) ?
+		res.then(Maybe.from) :
+		Maybe.from(res)
 	);
 }
 
 function eitherFromIO(v,env = {}) {
 	var res = liftIO(env,v).run(env);
-	return (
-		isPromise(res) ?
-			res.then(v => Either.fromFoldable(Maybe.from(v))) :
-			Either.fromFoldable(Maybe.from(res))
+	return (isPromise(res) ?
+		res.then(v => Either.fromFoldable(Maybe.from(v))) :
+		Either.fromFoldable(Maybe.from(res))
 	);
 }
 
@@ -358,7 +356,9 @@ function liftIO(env,v) {
 				return res;
 			}
 			// final fallback: wrap the monad in an IO
+			// (note: shouldn't get here)
 			else {
+				/* istanbul ignore next */
 				return IO.of(v);
 			}
 		}
