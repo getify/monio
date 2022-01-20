@@ -4,6 +4,7 @@ const IS_CONT = Symbol("is-continuation");
 const RUN_CONT = Symbol("return-continuation");
 const CONT_VAL = Symbol("continuation-value");
 const EMPTY_FUNC = () => {};
+const EMPTY_SLOT = Object.freeze(Object.create(null));
 const builtInFunctions = Object.freeze(new Set(
 	// list of candidates (may or may not be real functions)
 	[
@@ -16,6 +17,11 @@ const builtInFunctions = Object.freeze(new Set(
 	// include only actual real functions from that list
 	.filter(isFunction)
 ));
+
+// used for object pooling of continuation tuples
+var continuationPool = [];
+var nextFreeSlot = 0;
+__GROW_CONTINUATION_POOL(100);
 
 // curry some public methods
 fold = curry(fold,2);
@@ -33,6 +39,12 @@ module.exports = {
 	fold,
 	foldMap,
 	getDeferred,
+
+	// configure object pooling
+	__GROW_CONTINUATION_POOL,
+	__EMPTY_CONTINUATION_POOL,
+
+	// internal use only
 	continuation,
 	runSignal,
 	isRunSignal,
@@ -49,6 +61,12 @@ module.exports.curry = curry;
 module.exports.fold = fold;
 module.exports.foldMap = foldMap;
 module.exports.getDeferred = getDeferred;
+
+// configure object pooling
+module.exports.__GROW_CONTINUATION_POOL = __GROW_CONTINUATION_POOL;
+module.exports.__EMPTY_CONTINUATION_POOL = __EMPTY_CONTINUATION_POOL;
+
+// internal use only
 module.exports.continuation = continuation;
 module.exports.runSignal = runSignal;
 module.exports.isRunSignal = isRunSignal;
@@ -142,11 +160,24 @@ function getDeferred() {
 	return { pr, next, };
 }
 
+
+// ***************************************************************
+// ***************************************************************
+
 // used internally by IO/IOx, marks a tuple
 // as a continuation that trampoline(..)
 // should process
-function continuation(...cont) {
-	cont[IS_CONT] = true;
+function continuation(left,right) {
+	var cont = getContinuation();
+
+	if (arguments.length > 1) {
+		cont[0] = left;
+		cont[1] = right;
+	}
+	else if (arguments.length == 1) {
+		cont[0] = left;
+	}
+
 	return cont;
 }
 
@@ -213,7 +244,9 @@ function trampoline(res) {
 
 			// start popping the stack
 			while (stack.length > 0) {
-				let [ ,	right ] = stack.pop();
+				let cont = stack.pop();
+				let right = cont[1];
+				recycleContinuation(cont);
 
 				if (isFunction(right)) {
 					res = right(res);
@@ -229,4 +262,37 @@ function trampoline(res) {
 		}
 	}
 	return res;
+}
+
+// pooling continuation tuples to reduce GC
+// (adapted from: https://github.com/getify/deePool)
+function getContinuation() {
+	// pool used up, need to grow it?
+	if (nextFreeSlot == continuationPool.length) {
+		__GROW_CONTINUATION_POOL(continuationPool.length || 100);
+	}
+
+	var cont = continuationPool[nextFreeSlot];
+	continuationPool[nextFreeSlot++] = EMPTY_SLOT;
+	return cont;
+}
+
+function recycleContinuation(cont) {
+	cont.length = 0;
+	continuationPool[--nextFreeSlot] = cont;
+}
+
+function __GROW_CONTINUATION_POOL(growByCount) {
+	growByCount = Math.max(1,growByCount);
+	var curLen = continuationPool.length;
+	continuationPool.length += growByCount;
+	for (let i = curLen; i < continuationPool.length; i++) {
+		let cont = [];
+		cont[IS_CONT] = true;
+		continuationPool[i] = cont;
+	}
+}
+
+function __EMPTY_CONTINUATION_POOL() {
+	continuationPool.length = nextFreeSlot = 0;
 }
