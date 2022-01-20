@@ -1,6 +1,13 @@
 "use strict";
 
-var { isFunction, isPromise, } = require("../lib/util.js");
+var {
+	isFunction,
+	isPromise,
+	continuation,
+	runSignal,
+	isRunSignal,
+	trampoline,
+} = require("../lib/util.js");
 var IO = require("./io.js");
 
 const BRAND = {};
@@ -22,20 +29,20 @@ function AnyIO(effect) {
 	// *********************
 
 	function chain(fn) {
-		return AnyIO(env => io.chain(fn).run(env));
+		return AnyIO(env => io.chain(fn).run(runSignal(env)));
 	}
 
 	function map(fn) {
-		return AnyIO(env => io.map(fn).run(env));
+		return AnyIO(env => io.map(fn).run(runSignal(env)));
 	}
 
 	function concat(aio) {
 		return AnyIO(env => (
-			IO(io.run)
+			IO(env => io.run(runSignal(env)))
 			.map(v => (
-				v || aio.run(env)
+				v || aio.run(runSignal(env))
 			))
-			.run(env)
+			.run(runSignal(env))
 		));
 	}
 

@@ -8,6 +8,7 @@ var {
 	liftM,
 	curry,
 	foldMap,
+	runSignal,
 } = require("../lib/util.js");
 var IO = require("./io.js");
 var AllIO = require("./all.js");
@@ -113,18 +114,18 @@ function eitherFromIO(v,env = {}) {
 }
 
 function applyIO(io,env) {
-	return IO(() => io.run(env));
+	return IO(() => io.run(runSignal(env)));
 }
 
 function doIOBind(gen,env) {
 	return (...args) => (
-		IO(() => IO.do(gen,...args).run(env))
+		IO(() => IO.do(gen,...args).run(runSignal(env)))
 	);
 }
 
 function doEIOBind(gen,env) {
 	return (...args) => (
-		IO(() => IO.doEither(gen,...args).run(env))
+		IO(() => IO.doEither(gen,...args).run(runSignal(env)))
 	);
 }
 
@@ -230,7 +231,7 @@ function match(...args) {
 			),
 			IO.of()
 		)
-		.run(env)
+		.run(runSignal(env))
 	));
 }
 
@@ -260,7 +261,7 @@ function iReturn(val) {
 			returnedValues.add(ret);
 			return ret;
 		})
-		.run(env)
+		.run(runSignal(env))
 	));
 }
 
@@ -268,7 +269,7 @@ function iNot(val) {
 	return IO(env => (
 		liftIO(env,val)
 		.map(v => !v)
-		.run(env)
+		.run(runSignal(env))
 	));
 }
 
@@ -276,11 +277,11 @@ function iAnd(...vals) {
 	return IO(env => (
 		foldMap(
 			val => AllIO(env => (
-				liftIO(env,val).run(env)
+				liftIO(env,val).run(runSignal(env))
 			)),
 			vals
 		)
-		.run(env)
+		.run(runSignal(env))
 	));
 }
 
@@ -288,11 +289,11 @@ function iOr(...vals) {
 	return IO(env => (
 		foldMap(
 			v => AnyIO(env => (
-				liftIO(env,v).run(env)
+				liftIO(env,v).run(runSignal(env))
 			)),
 			vals
 		)
-		.run(env)
+		.run(runSignal(env))
 	));
 }
 
