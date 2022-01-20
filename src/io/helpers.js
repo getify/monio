@@ -276,9 +276,7 @@ function iNot(val) {
 function iAnd(...vals) {
 	return IO(env => (
 		foldMap(
-			val => AllIO(env => (
-				liftIO(env,val).run(runSignal(env))
-			)),
+			val => AllIO.fromIO(liftIO(env,val)),
 			vals
 		)
 		.run(runSignal(env))
@@ -288,9 +286,7 @@ function iAnd(...vals) {
 function iOr(...vals) {
 	return IO(env => (
 		foldMap(
-			v => AnyIO(env => (
-				liftIO(env,v).run(runSignal(env))
-			)),
+			val => AnyIO.fromIO(liftIO(env,val)),
 			vals
 		)
 		.run(runSignal(env))

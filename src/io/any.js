@@ -12,7 +12,7 @@ var IO = require("./io.js");
 
 const BRAND = {};
 
-module.exports = Object.assign(AnyIO,{ of, is, empty, });
+module.exports = Object.assign(AnyIO,{ of, is, fromIO, empty, });
 
 
 // **************************
@@ -67,6 +67,10 @@ function of(v) {
 
 function is(v) {
 	return !!(v && isFunction(v._is) && v._is(BRAND));
+}
+
+function fromIO(io) {
+	return AnyIO(env => io.run(runSignal(env)));
 }
 
 function empty() {
