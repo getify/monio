@@ -167,6 +167,8 @@ Boiling this all down: the *Monad* type only strictly requires two things:
 1. a function (of any name) to construct an "instance" of the type (the unit constructor)
 2. a function (of any name) to perform the "chain" operations shown in the 3 laws
 
+In fact, to illustrate this idea, **I believe this is [the simplest implementation of a monad expressed in JS](https://gist.github.com/getify/3f05b7106913161f580fd235d0b82097).**
+
 Everything else you see in the code snippets in this guide, such as wrapper monad instances, specific method names, ["friends of monads" behaviors](#-and-friends), etc -- that's all convenient affordance provided specifically by **Monio**.
 
 ----
