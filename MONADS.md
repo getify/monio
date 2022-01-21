@@ -590,7 +590,9 @@ Bonus exercise: contemplate how you'd compute `noOptionsChecked` -- `true` when 
 
 Applicative is a bit more unusual (and less common, in my experience) than Semigroup. But occasionally it's helpful. **Monio** chooses to implement this behavior on most of its monads with the `ap(..)` method.
 
-I think the best way to explain Applicative is to just show concrete code:
+Applicative is a pattern for holding a function in a monad, then "applying" the value from another monad as an input to the function, returning the result back to another monad. If the function requires multiple inputs, this "application" can be performed multiple times, providing one input at a time.
+
+But I think the best way to explain Applicative is to just show concrete code:
 
 ```js
 const add = x => y => x + y;
@@ -611,9 +613,21 @@ addThree.ap(four);
 four.map( addThree.fold(fn => fn) );
 ```
 
-Recall from [Foldable above](#foldable) that `fold(..)` passed the identity function essentially extracts the value from the monad. As shown, `ap(..)` is sort of "extracting" a mapping function held in second monad and running it (via `map(..)`) against the value held in the first monad.
+Recall from [Foldable above](#foldable) that passing the identity function into a **Monio** monad's `fold(..)`, essentially extracts the value from the monad. As shown, `ap(..)` is sort of "extracting" a mapping function held in second monad and running it (via `map(..)`) against the value held in the first monad.
 
-All of **Monio**'s non-`IO` monads are applicatives. Again, you may not use applicative behavior very frequently, but at least you're now aware of it.
+Another way of expressing the above in a single expression:
+
+```js
+const add = x => y => x + y;
+
+Just(add)               // Just(x => y => x + y)
+    .ap( Just(3) )      // Just(y => 3 + y)
+    .ap( Just(4) );     // Just(7)
+```
+
+We put `add(..)` by itself into a `Just`. The first `ap(..)` call "extracts" that function, passes the `3` into it, and makes another `Just` with the `y => 3 + x` function in it. The second `ap(..)` call then does the same as the previous snippet, extracting that function and passing `4` into it. The final result of `add(3)(4)` is `7`, and that's put back into a `Just`.
+
+All of **Monio**'s non-`IO` monads are applicatives. Again, you may not use applicative behavior very frequently, but at least you're now aware of how it works.
 
 ## *Wrap*ping Up
 
