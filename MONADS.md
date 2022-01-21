@@ -45,7 +45,9 @@ I think your first big goal should be to understand and feel comfortable with --
 * Currying
 * Basic List Operations (filter/map/reduce)
 
-Once you do, I think you'll be able to both read and write code in a style like this (as opposed to the previous snippet):
+There are of course many ways -- for example, with `reduce(..)` -- to approach the code snippet above from an FP perspective. I'm not going to assert that there's "one right way".
+
+But one approach that's somewhat common in FP, which relies on chained expressions and composed functions, goes by the name "point-free style", and could look like this:
 
 ```js
 const FPBookNames = data
@@ -56,7 +58,7 @@ const FPBookNames = data
     .map( getProp("bookName") );
 ```
 
-If/once code like that *speaks to you*, I think you're ready to dip your toes into the ocean of monads.
+Again, not to say this is the "right" way to do it, but... code like this represents the combination of ideas from FP that I think will help prepare you to take on *monads*, especially as I will present them throughout the rest of this guide. If/when code like that *speaks to you*, I think it's time to dip your toes into the ocean of monads.
 
 ## Brief Intro To Monads
 
@@ -64,9 +66,9 @@ In addition to the guide I present here, I recommend checking out a [recording o
 
 ----
 
-*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe category theory as a way to categorize things based on how they behave.
+*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe category theory as a way to categorize/group things based on how they behave.
 
-The Monad type is a way to represent a value or operation in your program, which associates some specific behaviors with/around that (underlying) value/operation. These specific behaviors augment (i.e., improve!) the original value/operation with some additional "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
+The Monad type is a way to represent a value or operation in your program, which associates some specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
 
 Monads have somewhat (in)famously been described with a variety of silly-sounding metaphors, like burritos. Others call monads "wrappers" or "boxes", or "data structures" or... the truth is, all these ways of describing a monad are partial descriptions. It's like looking at a Rubik's Cube. You can look at one face of the cube, then turn it around and look at a different face, and get more of the whole thing.
 
@@ -82,15 +84,15 @@ const myAge = Just(41);
 const printGreeting = IO(() => console.log("Hello, friend!"));
 ```
 
-The above code implies a function called `Just(..)` that acts as a constructor (aka, "unit") of the `Just` monad type (aka, "identity" monad type). It also implies a function called `IO(..)` that acts as a constructor for the `IO` monad type (which holds functions).
+The above code implies a function called `Just(..)` that acts as a constructor (aka, "unit") of the `Just` monad (aka, "identity" monad). It also implies a function called `IO(..)` that acts as a constructor for the `IO` monad (which holds functions).
 
-What sort of benefits would this extra effort, to represent values and operations like this, get us, in these extra behaviors?
+What sort of benefits could we see from the extra effort to represent values and operations like this?
 
 ### Identity Monad (aka `Just`)
 
 **Monio Reference: [`Just`](MONIO.md)**
 
-Here's an example of using `Just(..)` to represent a number value monadically (`myAge`), and then produce another monadic number value `myNextAge` from it:
+Here's an example of using **Monio**'s `Just(..)` to construct a kind of monad, which represents a number value monadically (`myAge`), and then produce another monadic number value `myNextAge` from it:
 
 ```js
 // function birthday(age) { return age + 1 };
@@ -99,13 +101,13 @@ const myAge = Just(41);
 const myNextAge = myAge.map(birthday);
 ```
 
-If `myAge` had been *just* a primitive number, we could have used an operator like `+` *directly* on it to increment it to `42`. That works fine in imperative code, but it doesn't fit very well in the declarative style of code with chaining expressions and function calls together (as shown earlier in the "FP" section).
+If `myAge` had been *just* a primitive number, we could have used an operator like `+` *directly* on it to increment it to `42`. That works fine in imperative code, but it doesn't fit very well in the declarative style of code with chaining expressions and function calls together (as shown earlier in [the "FP" section](#functional-programming-fp)).
 
-In representing `41` as a `Just` monad -- aka, the "Identity" monad -- we were able use the `map(..)` method from it, which invokes the `birthday(..)` function with the underlying value. That *indirectly* delegates to the `+` value operation inside `birthday(..)`. The result of the `map(..)` call is a new instace of `Just` that represents (i.e., "holds") the value `42` (my age after my upcoming birthday).
+In representing `41` with **Monio**'s `Just` monad -- aka, the "Identity" monad -- we were able use the `map(..)` method from it, which invokes the `birthday(..)` function with the underlying value. That *indirectly* delegates to the `+` value operation inside `birthday(..)`. The result of the `map(..)` call is a new instance of `Just` that represents (i.e., "holds") the value `42` (my age after my upcoming birthday).
 
-The ability for a monad instance to be "mapped" to another monad instance is from the Functor type, but that's **NOT** saying that all monads have to have a method named `map(..)`; `map(..)` could be implemented with the `chain(..)` method (explained later), thus you could do Functor mapping without having a `map(..)` call. It's a convenience that **Monio** provides `map(..)` for all its monads.
+The ability for a monad instance to be "mapped" to another monad instance is from the Functor type, but that's **NOT** saying that all monads have a method named `map(..)`; `map(..)` could be implemented with the `chain(..)` method (explained later), so you could do Functor mapping without having a `map(..)` method at all. It's merely a convenience that **Monio** provides `map(..)` for all its monads.
 
-I should point out that "wrapping" a value with a call to `Just(..)`, as shown above, is **NOT AT ALL** the only way to express monads, even in JS. You could express a conforming monad type in JS with just one or two separate/unrelated functions. We have chosen in **Monio** to collect behaviors together into these "wrappers" like `Just` and `IO` for convenience, not out of monadic-necessity.
+I should point out that "wrapping" a value with a call to `Just(..)`, as shown above, is **NOT AT ALL** the only way to express monads, even in JS. You could express a conforming monad type in JS with just one or two separate/unrelated functions. We have chosen in **Monio** to collect behaviors together into these "wrappers" like `Just` and `IO` for convenience, not out of monadic necessity.
 
 Other sides of the Monad Rubik's Cube include "the three laws" of monads:
 
@@ -113,7 +115,7 @@ Other sides of the Monad Rubik's Cube include "the three laws" of monads:
 2. Right Identity
 3. Associativity
 
-These "laws" are required behaviors for a value to be considered a "monad". That's what gives us the *guarantees* of how such a value or operation will interact with other monad-conforming values in the program.
+These "laws" are required behaviors for a value to act like a "monad". That's what gives us the *guarantees* of how such a value or operation will interact with other monad-conforming values in the program.
 
 The formality and mathematical importance of these laws is not super important to immerse in right now. But to illustrate them very simply with our trivial identity monad `Just` from **Monio**:
 
@@ -135,9 +137,9 @@ Just(20).chain(v => inc(v).chain(double));  // Just(42)
 
 Notice I used the `chain(..)` method in this snippet?
 
-That's distinct from the `map(..)` method (shown earlier). The `chain(..)` method expects you to return another instance of the monad type in question, whereas `map(..)` automatically produces/wraps the return value in an instance of the associated monad type.
+That's distinct from the `map(..)` method (shown earlier). The `chain(..)` method expects you to return another instance of the monad kind in question, whereas `map(..)` automatically produces/wraps the return value in an instance of the associated monad kind.
 
-I asserted above that the `map(..)` method isn't required for a monad, even though monads are always Functors, which typically would have a `map(..)` method. That's because `map(..)` could alternately be implemented with `chain(..)`:
+I asserted earlier that the `map(..)` method isn't required for a monad, even though monads are always Functors, which often would have a `map(..)` method of some sort. That's because `map(..)` could alternately be implemented with `chain(..)`:
 
 ```js
 // function birthday(age) { return age + 1 };
@@ -148,13 +150,13 @@ const myAge = Just(41);
 myAge.map(birthday);        // Just(42)
 
 // we could do:
-const JustMap = fn => m => m.chain(v => m.of(fn(v)));
-JustMap(birthday)(myAge);   // Just(42)
+const justMap = (m,fn) => m.chain(v => Just.of(fn(v)));
+justMap(myAge,birthday);    // Just(42)
 ```
 
 Again, it's important to note: *Monad* does not **require** a specific method named `chain(..)` -- indeed, many other libraries and languages use different names for it, like `bind(..)` or `flatMap(..)`; it doesn't even require it to be a method on a data structure, as ours is. *Monad* just requires that an operation, like the one `chain(..)` is performing above, is available to be used against monad-conforming values.
 
-The name `flatMap(..)` is illustrative of the relationship between this function and `map(..)`. If you do `Just(42).map(Just.of)`, you'll get `Just(Just(42))` (nesting!) because `map(..)` always wraps the result in an instance of the monad type. By contrast, if you did `Just(42).flatMap(Just.of)`, you plainly end up with `Just(42)` (no nesting!). In essence, `flatMap(..)` "flattens" the nesting where `map(..)` does not.
+The name `flatMap(..)` is illustrative of the relationship between this function and `map(..)`. If you do `Just(42).map(Just.of)`, you'll get `Just(Just(42))` (nesting!) because `map(..)` always wraps the result in an instance of the monad kind. By contrast, if you did `Just(42).flatMap(Just.of)`, you plainly end up with `Just(42)` (no nesting!). In essence, `flatMap(..)` "flattens" the nesting where `map(..)` does not.
 
 **Monio**'s monads all alias `chain(..)` as `flatMap(..)` and `bind(..)`, just in case you prefer to use those method names over `chain(..)`.
 
@@ -165,7 +167,7 @@ Boiling this all down: the *Monad* type only strictly requires two things:
 1. a function (of any name) to construct an "instance" of the type (the unit constructor)
 2. a function (of any name) to perform the "chain" operations shown in the 3 laws
 
-Everything else you see in the code snippets in this guide, such as wrapper monad instances, specific method names, ["friends of monads" behaviors](#-and-friends), etc -- that's all convenience affordance provided specifically by **Monio**.
+Everything else you see in the code snippets in this guide, such as wrapper monad instances, specific method names, ["friends of monads" behaviors](#-and-friends), etc -- that's all convenient affordance provided specifically by **Monio**.
 
 ----
 
@@ -173,7 +175,7 @@ You may also be wondering: how do we ever extract the value (like primitive numb
 
 One key idea of FP, and especially of monads, is to *defer* the need for the underlying values until the last possible moment. With respect to monads, we prefer to keep everything "lifted" in the monadic space as long as possible.
 
-But yes, we typically do *eventually* have to reduce the monad down to a "real" value. This is a preview of what we'll [talk about later below](#-and-friends), but one way of "extracting" the value from a monad like the `Just` identity monad is with a method **Monio** calls `fold(..)`:
+But yes, we typically do *eventually* have to reduce the monad down to a "real" value. This is a preview of what we'll [talk about later below](#-and-friends), but one way of "extracting" the value from a monad like the `Just` identity monad is with a method **Monio** provides, called `fold(..)`:
 
 ```js
 const identity = v => v;
@@ -187,9 +189,9 @@ console.log(`I'm about to be ${ ageIsJustANumber } years old!`);
 // I'm about to be 42 years old!
 ```
 
-So yes, there's an "escape valve" (`fold(identity)`) where we can exit from our `Just` monad. But monads play best with other monads, so it's better to stay in that space as much as we can. Let's defer ditching the monad until we absolutely have to!
+So yes, there's an "escape valve" (`fold(identity)`) where we can exit from our `Just` monad. But monads play best with other monads ([and their friends!](#-and-friends)), so it's better to stay in that space as much as we can. Let's hold off ditching the monad until we absolutely have to!
 
-Keep in mind: `fold(..)` as shown here, and provided on many of **Monio**'s monads, is **NOT** a monad-specific behavior; it comes [from a *friend* called Foldable](#foldable).
+Keep in mind: `fold(..)` as shown here, and provided on many of **Monio**'s monads, is **NOT** a *Monad* behavior; it comes [from a *friend* called Foldable](#foldable).
 
 ### *Maybe* Something More?
 
@@ -201,7 +203,7 @@ It's foundational. It's not supposed to seem revolutionary in and of itself, as 
 
 If `Just` *seems* (too) simple to you, that's probably a good thing! You're likely well on your way to *getting* monads. But don't let its simplicity bore you as there not being anything worth your time; there is!
 
-There are lots of variations/augmentations on top of this basic monad concept that get more interesting. I could spend many hours and many dozens of pages detailing even a sampling of them. But let me briefly illustrate another example of monads that builds off the identity monad.
+There are lots of variations/augmentations on top of this basic monad concept that get more interesting. I could spend many hours and many dozens of pages detailing even a sampling of them. But let me continue incrementally by briefly illustrating another example of monads that builds off the identity monad.
 
 You've probably written code like this before in your imperative-style programs:
 
@@ -229,20 +231,23 @@ The `?.` operator (as opposed to bare `.`) right before `shipping`, is a short-c
 
 We're protected now from `record.address` being null'ish, but `record.address.shipping` could still be null'ish, and we want to skip calling `formatLabel(..)` in that case; that's why we still need the final `!= null` check.
 
-The `Maybe` monad type -- sometimes referred to by different names like `Option` or `Optional` in other libraries and languages -- allows us to define a behavior that delegates these sorts of `!= null` checks completely to the monad behavior, freeing up our code from that burden.
+The `Maybe` monad -- sometimes referred to by different names like `Option` or `Optional` in other libraries and languages -- allows us to define a behavior that delegates these sorts of `!= null` checks completely to the monad behavior, freeing up our code from that burden.
 
-To understand `Maybe`, let's first add another monad type besides `Just` (identity) we discussed previously: the trivial-and-unimpressive monad type we'll call `Nothing` (empty). `Nothing` does even less than `Just`. All it does is short-circuit any behavior/methods you invoke on it. It's like a blackhole where operations are safely skipped as no-ops. `Nothing` the safe, monadic equivalent of empty values like `null` or `undefined`.
+To understand `Maybe`, let's first add another monad kind besides `Just` (identity) we discussed previously: the trivial-and-unimpressive monad we'll call `Nothing` (empty). `Nothing` does even less than `Just`: it short-circuits out of any methods you invoke on it. It's like a blackhole where operations are safely skipped as no-ops. `Nothing` is the safe, monadic equivalent of empty values like `null` or `undefined`.
 
-`Maybe` is a *Sum Type*, in that it represents a "duality" of these two monad types (`Just` and `Nothing`). That's not to say a `Maybe` instance is *both* simultaneously, but rather that it can *either* be one or the other.
+`Maybe` is a *Sum Type*, in that it represents a "duality" of these two monad kinds (`Just` and `Nothing`). That's not to say a `Maybe` instance is *both* simultaneously, but rather that it can *either* be one or the other.
 
-The way the selection between `Maybe:Just` (aka `Just`) and `Maybe:Nothing` (aka `Nothing`) occurs might be a little confusing. You might expect the decision itself to built into the type (invoked by its unit constructor `Maybe(..)`). In fact, most popular monad tutorials/blog posts out there in the wild do just that, because it makes the illustration of `Maybe` much more convenient and marketable.
+**Note:** Most monad implementations would not expose `Just` and `Nothing` as separate monad kinds, but rather only as part of `Maybe`. **Monio** choose to present them separately as well as combined in `Maybe`, for convenience of illustration purposes.
+
+The way the selection between `Maybe:Just` (aka `Just`) and `Maybe:Nothing` (aka `Nothing`) occurs might be a little confusing at first. You might expect the decision itself to built into the unit constructor `Maybe(..)`. In fact, most popular monad tutorials/blog posts out there in the wild do just that, because it makes the illustration of `Maybe` much more convenient and satisfying.
 
 That's not proper monad'ing, though. **Monio** does the more appropriate thing and externalizes the decision away from the `Maybe(..)` / `Maybe.of(..)` constructor, into a separate helper called `Maybe.from(..)`. `Maybe.from(null)` will result in a `Maybe:Nothing{}` instance, and `Maybe.from(42)` will result in a `Maybe:Just{42}` instance.
 
-Actually, `Maybe.from(..)` delegates the question ("is it empty (aka null'ish)?") to a static function `Nothing.isEmpty(..)`. That function by default does a `== null` null'ish check, but you could override that function to re-define what JS value(s) you want to treat as empty/nothing.
+By contrast, calling `Maybe(..)` / `Maybe.of(..)` will not do any conditional selection, but only represent any non-`Maybe` value as a `Maybe:Just`.
 
-So we use `Maybe.from(..)` to create the `Maybe:Just` or `Maybe:Nothing` instance. In the following snippet, the `.chain(..)` calls will thus in effect be against `Just` or `Nothing` (though technically `Maybe` is acting like a pass-through wrapper for convenience sake):
+Moreover, `Maybe.from(..)` delegates the question -- "is it empty (aka null'ish)?" -- to the static function `Nothing.isEmpty(..)`. That function by default does a `== null` null'ish check, but you could override it to re-define what value(s) you want to treat as empty/nothing for `Maybe.from(..)`'s purposes.
 
+So we use `Maybe.from(..)` to create either the `Maybe:Just` or `Maybe:Nothing` instance. In the following snippet, the `.chain(..)` calls will thus in effect be against one or the other (with the `Maybe` itself acting merely as a thin, pass-through wrapper):
 
 ```js
 const shippingLabel = (
@@ -252,9 +257,13 @@ const shippingLabel = (
 );
 ```
 
-Here, `shippingLabel` is an instance of the `Maybe` type. It will either be a `Maybe:Just` holding the formatted label, or it will be a `Maybe:Nothing`. It doesn't matter to the way we write our further monad-aware code, though!
+Here, `shippingLabel` is an instance of the `Maybe` type. It will either represent a `Maybe:Just` holding the formatted label, or it will represent a `Maybe:Nothing` (holding no value).
 
-That above code is a little cumbersome, so let's further clean it up with a couple of helpers:
+But whichever one it is, that doesn't matter to the way we write our further monad-aware code, though! If `Maybe.from(..)` produces a `Maybe:Nothing`, the subsequent `chain(..)` calls are skipped as no-ops, thus protecting our program from exceptions like property access on a null'ish value.
+
+`Maybe` safely abstracts away our previous concerns over the conditional decision logic that protects operations from throwing exceptions.
+
+That above code may seem a little cumbersome, so let's further clean it up with a couple of helpers:
 
 ```js
 // assumed:
@@ -275,9 +284,9 @@ That's much nicer than before. And there's no `!= null` checks cluttering up our
 
 Our `shippingLabel` monad is now ready to interact with other monads/monad behaviors, and will do so safely and predictably, regardless of whether it's `Maybe:Just` or `Maybe:Nothing`.
 
-By the way, `Maybe` is also "foldable", so to "exit" from it (as we saw earlier with `Just`), you can use the `fold(..)` function; since `Maybe` is a *Sum Type*, `fold(..)` here expects two functions, the first invoked for `Maybe:Nothing` and the second invoked for `Maybe:Just`. Again, more on [using "foldable" and other adjacent behaviors later](#-and-friends).
+By the way, `Maybe` is also [Foldable](#foldable), so to "exit" from it (as we saw earlier with `Just`), you can use the `fold(..)` function; but since `Maybe` is a *Sum Type*, `fold(..)` here expects two functions, the first invoked for `Maybe:Nothing` and the second invoked for `Maybe:Just`. Again, more on [using Foldable and other adjacent behaviors later](#-and-friends).
 
-You're hopefully starting to see a *little bit* more benefit to representing our values/expressions with monads rather than *just* as underlying primitive values.
+You're hopefully starting to see a *little bit* more benefit to representing our values/expressions with monads rather than *just* using bare values.
 
 ### I Know, IO
 
@@ -285,13 +294,13 @@ You're hopefully starting to see a *little bit* more benefit to representing our
 
 So far, we've seen monads that represent concrete primitive values like `42` or a shipping address object. But monads are far more than just "value wrappers".
 
-Monads can also represent operations (functions), especially the sort of operations that either rely on, or cause, side effects. That's what the `IO` monad is all about!
+Monads can also be thought of as "behavior wrappers", representing operations (functions), like the sort of operations that either rely on, or cause, side effects. That's what the `IO` monad is all about!
 
-The heart of **Monio** is the `IO` monad. It's designed and implemented here as an uber-powerful *Sum Type* that incorporates a variety of useful behaviors. I claim that **Monio**'s `IO` is the "most powerful IO implementation in JS (and possibly any language)". I know that's quite a daunting claim.
+The heart of **Monio** is its `IO` monad implementation. It's designed as an uber-powerful *Sum Type* that incorporates a variety of useful behaviors, similar in spirit to [Scala's ZIO](https://zio.dev/). I claim that **Monio**'s `IO` is the "most powerful IO implementation in JS (and possibly any language)". But I know that's quite a daunting claim.
 
-But don't worry, here we're just going to focus on a small part of what `IO` can do, just so we don't get too overwhelmed.
+Don't worry: to continue, we're just going to focus on a small part of what `IO` can do, just so we don't get too overwhelmed.
 
-What you put in `IO` is (typically) a function, which when executed will perform some sort of operation, (again, typically) of a side-effect nature. It doesn't *have to be* a side-effect operation; it can be pure, like simply returning a value.
+What you put in `IO` is (typically) a function, which when executed will perform some sort of operation, (again, typically) of a side-effect nature. It doesn't *have to be* a side-effect operation; it can be static and pure, like simply returning a value.
 
 The key idea behind the `IO` monad type is that it's lazy; it doesn't *do* anything -- like execute the function you put in it -- automatically. You have to evaluate the IO to perform the operation (and thus *apply* the side-effect to the program).
 
@@ -315,13 +324,14 @@ const customerName = IO(() => (
 customerName.run();  // "Kyle"
 ```
 
-The `run(..)` method can sort of be thought of like the `fold(..)` method we saw on `Just(..)` and `Maybe(..)`. It's how you "exit" the monad and apply its behavior to the surrounding program.
+The `run(..)` method can be thought of kinda like the `fold(..)` method we saw on `Just(..)` and `Maybe(..)`. It's how you "exit" the `IO` monad, in applying its behavior (side-effects) to the surrounding program.
 
-Like we've already asserted a few times in our discussion of monads, the "best practice" key idea is to keep all our program's side-effect operations as `IO`s, and only reduce/apply them at the last moment, when our program needs them to be applied.
+Like we've already asserted a few times, the "best practice" key idea is to keep all our program's side-effect operations as `IO`s, and only reduce/apply them at the last moment, when our program needs them to be applied.
 
 Here's a more sophisticated example that chains `IO` instances together:
 
 ```js
+// helpers:
 const getProp = prop => obj => obj[prop];
 const assignProp = prop => val => obj => obj[prop] = val;
 
@@ -355,15 +365,17 @@ The most boiled down answer: we get a predictable interaction (and guarantees!) 
 
 When the side-effects are straightforward and synchronous like pulling a DOM element reference out of the DOM, or injecting its contents, it doesn't seem like the predictability/guarantees is benefitting us very much.
 
-However, I strongly believe, the most complex side-effects in our programs come from asynchronus operations, like performing an Ajax `fetch(..)` request, running a timer, listening for an event, performing an animation, etc. An `IO` implementation that can represent and model any form of asynchrony (and thus asynchronous side-effects) in our program, and thus extend our predictability and guarantees over *time*, is truly a game-changer.
+So really the question I want to address here is: **why Monio's `IO` in particular?**
 
-That's exactly what **Monio**'s `IO` is. It automatically transforms/consumes JS promises and lifts the evaluation of an `IO` chain to a promise if any asynchronous operation is encountered. And for event streams (where a single promise doesn't adequately represent the asynchrony), `IOx` is like `IO` plus Observables (e.g., `RxJS`, etc).
+I strongly believe the most complex side-effects in our programs come from asynchronus operations, like performing an Ajax `fetch(..)` request, running a timer, listening for an event, performing an animation, etc. An `IO` implementation like the one **Monio** provides, which can represent and model any form of asynchrony (and thus asynchronous side-effects) in our program, and thus extend our predictability and guarantees over *time*, is truly a game-changer.
 
-And if that's not enough to intrigue you, there's another challenge that programs face (whether you realize it or not) that `IO` addresses like a champion: how do you isolate a set of operations from the environment (like DOM, etc) around it, so that you can provide an environment/context for the code to run against? This is critical for preventing unintended side-effects in the program, but it's also the most effective way to create **TESTABLE** side-effect code.
+**Monio**'s `IO` automatically transforms/consumes JS promises and lifts the evaluation of an `IO` chain to a promise if any asynchronous operation is encountered. And for event streams (where a single promise doesn't adequately represent the asynchrony), `IOx` is like `IO` plus Observables (e.g., `RxJS`, etc).
 
-`IO` also holds the `Reader` monad type's behavior. This means that an `IO` (no matter how long/involved the chain is) carries with it a provided "environment" as passed as an argument to `run(..)`.
+And if that's not enough to intrigue you, there's another challenge that programs face (whether you realize it or not) that **Monio**'s `IO` addresses like a champ: how do you isolate a set of operations from the environment (like DOM, etc) around it, so that you can provide an environment/context for the code to run against? This is critical for preventing unintended side-effects in the program, but it's also the most effective way to create **TESTABLE** side-effect code.
 
-IOW, you could define your entire program to boil down to a single `IO` instance, and if you call `run(window)`, you're running your program in the context of the browser's DOM. But in your test suite, you could call `run(fakeDOMglobal)` on the same `IO`, and now all of the code and side-effects are automatically threaded through that alternate environment.
+**Monio**'s `IO` also holds the `Reader` monad type's behavior. This means that an `IO` (no matter how long/involved the chain is) carries with it a provided "environment", passed as an argument to `run(..)`.
+
+You could define your entire program to boil down to a single `IO` instance, and if you call `run(window)`, you're running your program in the context of the browser's DOM. But in your test suite, you could call `run(fakeDOMglobal)` on the same `IO`, and now all of the code and side-effects are automatically threaded through that alternate environment.
 
 It's effectively passing the entire "global" (aka, universe/scope-of-concern) into your program, whatever appropriate value that is, instead of the program automatically assuming which "global" it should apply against.
 
@@ -371,7 +383,7 @@ But ultimately, the *real power* of **Monio**'s `IO` is not even encompassed by 
 
 Do you like to use `if` and `try..catch` and `for..of` loops? You may have noticed that FP and monads seem to throw all that stuff out the window, in favor of long chains of curried and composed function calls. What if you could get all the power of `IO` but opt-in to the more typically-imperative style of code where helpful?
 
-`IO.do(..)` takes a JS generator, whose code looks like the `async..await` style that most JS devs are so familiar with. When you `yield` a value, if its monadic, it's automatically chained and unwrapped. And if it's asynchronous (a promise), the code automatically "awaits" the completion.
+`IO.do(..)` takes a JS generator, whose code looks like the `async..await` style that most JS devs are so familiar with. When you `yield` a value, if its monadic, it's automatically chained and unwrapped (just as if you had an `IO` to `chain(..)` from). And if the result is asynchronous (a promise), the code inside the generator automatically pauses to "await" the completion.
 
 Taken together with all its facets, **Monio**'s `IO` (and `IOx` superset) is the "one monad to rule them all".
 
@@ -385,13 +397,15 @@ But compared to the larger space *monad* fits in, *monad* is a fairly narrow con
 
 These "friends" include:
 
-* foldable
-* concatable (aka, semigroup)
-* applicative
+* Foldable
+* Concatable (aka, Semigroup)
+* Applicative
 
-There are many, many other topics out there, but these are the main three "Friends" that **Monio** focuses on (and mixes with its monads).
+There are many, many other topics out there, but these are the main three "friends" that **Monio** focuses on (and mixes with its monads).
 
-To be clear, these are *not* monad behaviors. I call them "friends of monads" because I find monads mixed with these other behaviors to be more useful/practical in my JS code than monads (or any of these other types) standing alone; it's the combination of these type behaviors that I think makes monads attractive and powerful solutions for our programs.
+To be clear, these three are *not* monad behaviors. I call them "friends of monads" because I find monads mixed with these other behaviors to be more useful/practical in my JS code than monads (or any of these other types) standing alone; it's the combination of these type behaviors that I think makes monads attractive and powerful solutions for our programs.
+
+I know many in the FP space prefer to think of each type completely independently. That's OK if it works well for them. But I find the combinations much more compelling.
 
 ### Foldable
 
@@ -403,9 +417,9 @@ We didn't talk about List type monads (because **Monio** doesn't provide such), 
 
 By contrast, Foldable in the context of a single-value monad (like `Just`) executes a provided function with its single associated/underlying value. It can be thought of as a special case of the generalized List foldable, since it doesn't need to "accumulate" its result across multiple invocations.
 
-Similarly, *Sum Types* like `Maybe` and `Either` are also Foldable in **Monio**; this is a further specialization in that `fold(..)` here takes two functions, but will execute only one of them. If the associated value is a `Maybe:Nothing` / `Either:Left`, the first function is applied. Otherwise, if the associated value is a `Maybe:Just` / `Either:Right`, the second function is applied.
+Similarly, *Sum Types* like `Maybe` and `Either` are also Foldable in **Monio**; this is a further specialization in that `fold(..)` here takes two functions, but will execute only one of them. If the associated value is a `Maybe:Nothing`, the first function is applied, otherwise (when the associated value is a `Maybe:Just`), the second functino is applied. The same goes for `Either:Left` invoking the first function and `Either:Right` invoking the second function.
 
-How might we use Foldable practically?
+But how might we use Foldable practically?
 
 As I implied earlier a few times in this guide, one such transformation is the sort-of "unwrapping" of the underlying/associated value from its monad, by passing the identity function (e.g., `v => v`) to `fold(..)`.
 
@@ -426,7 +440,7 @@ const shippingLabel = (
 );
 ```
 
-If we want to render the shipping label, but only if it's actually valid/defined, and otherwise print a default notice, we can arrange our program like this:
+If we want to then render the shipping label, but only if it's actually valid/defined, and otherwise print a default notice, we can arrange our program like this:
 
 ```js
 // assumed:
@@ -468,13 +482,13 @@ Take your time reading and analyzing that code. It's illustrating how our monad 
 
 A key aspect of the snippet is the `Maybe`'s `fold(..)` call, which folds down to either a fallback `IO` value if the shipping address was missing, or the computed `IO` holding the valid shipping address, and then `chain(..)`s off whichever `IO` was folded to.
 
-Again, Foldable is distinct from monads. But I think this discussion illustrates how useful it is when paired with a monad. That's why it's a *honored friend*.
+Again, Foldable is distinct from monads. But I think this discussion illustrates how useful it is when paired with a monad. That's why it's an *honored friend*.
 
 ### Concatable (Semigroup)
 
 Concatable, formally referred to as Semigroup, is another interesting friend of monads. You won't necessarily see it used explicitly all that often, but it can be useful, especially when using `foldMap(..)` (which is an abstraction over `reduce(..)`).
 
-**Monio** choosed to implement Concatable as the `concat(..)` method on its monads. That name is not required by the type, of course, it's just how **Monio** does it.
+**Monio** choose to implement Concatable as the `concat(..)` method on its monads. That name is not required by the type, of course, it's just how **Monio** does it.
 
 The basic idea here is that a value type is "concatable" if two or more values of it can be concatenated together. For example, primitive, non-monad value types like strings and arrays are concatable, and indeed they even expose the same `concat(..)` method name:
 
@@ -506,17 +520,15 @@ foldMap(
 );                                              // Just("HELLO, FRIEND!")
 ```
 
-Yes, monad instances can even represent/hold/nest other monad instances!
+**NOTE:** Despite the name overlap, the standalone `fold(..)` and `foldMap(..)` utilities provided by the `MonioUtil` module are *not* related to the [Foldable type](#foldable) and the `fold(..)` method that appears on **Monio** monad instances.
 
 #### Monoid
 
-Additionally, the term Monoid means a Concatable/Semigroup plus an "empty" (identity) value for the concatenation. For example, a string is a monoid because it can be concatenated, and if it's concatenated with the empty `""` string, it's still the same value. An array is a monoid with the empty `[]` array.
+Additionally, the term Monoid means a Concatable/Semigroup plus an "empty" (identity) value for the concatenation. For example, string concatenation is a monoid with the empty `""` string. Array concatenation is a monoid with the empty `[]` array. Even numeric addition is a monoid with the 0 "empty" number.
 
-An example of extending this notion of monoid to something that wouldn't seem at first as "concatable" is with multiple booleans combined in a `&&` or `||` style logical expression. For the logical-AND operation, the "empty" value is `true`, and for the logical-OR operation, the "empty" value is `false`. The "concatenation" of these values is the computed logical result (`true` or `false`).
+An example of extending this notion of monoid to something that wouldn't seem at first as "concatable" is with multiple booleans combined in a `&&` or `||` logical expression. For the logical-AND operation, the "empty" value is `true`, and for the logical-OR operation, the "empty" value is `false`. The "concatenation" of these values is the computed logical result (`true` or `false`).
 
-**Monio** provides `AllIO` and `AnyIO` as `IO` variants that are monoids -- again, both an "empty" value and a `concat(..)` method. In particular, the `concat(..)` method on these two `IO` variants is designed to compute the logical-AND / logical-OR (respectively) between two boolean-resulting IOs. That makes `AllIO` and `AnyIO` easy to use with the `fold(..)` and `foldMap(..)` utilities.
-
-**NOTE:** Despite the name overlap, the standalone `fold(..)` and `foldMap(..)` utilities in the `MonioUtil` module are *not* related to the Foldable type and the `fold(..)` method that appears on **Monio** monad instances.
+**Monio** provides `AllIO` and `AnyIO` as `IO` variants that are monoids -- again, both an "empty" value and a `concat(..)` method. In particular, the `concat(..)` method on these two `IO` variants is designed to compute the logical-AND / logical-OR (respectively) between two boolean-resulting IOs. That makes `AllIO` and `AnyIO` easy to use with the `fold(..)` and `foldMap(..)` utilities mentioned earlier.
 
 **Monio Reference: [`AllIO`, `AnyIO`](MONIO.md#other-helpful-io-variants)**
 
@@ -541,7 +553,7 @@ foldMap( AllIO.fromIO, IObools ).run();   // false
 foldMap( AnyIO.fromIO, IObools ).run();   // true
 ```
 
-As an added convenience, **Monio**'s' `IOHelpers` module provides `iAnd(..)` and `iOr(..)`, which automatically applies this logical-And / logical-Or `foldMap(..)` logic to two or more `IO` instances:
+As an added convenience, **Monio**'s' `IOHelpers` module also provides `iAnd(..)` and `iOr(..)`, which automatically applies this logical-And / logical-Or `foldMap(..)` logic to two or more provided `IO` instances:
 
 ```js
 const trueIO = IO.of(true);
@@ -551,11 +563,12 @@ iAnd( trueIO, trueIO, falseIO, trueIO ).run();  // false
 iOr(  trueIO, trueIO, falseIO, trueIO ).run();  // true
 ```
 
-I'm illustrating `IO` instances with direct `true` and `false` values, but that's not really how you'd actually use these capabilities. Since they're all `IO` instances, the boolean results (`true` or `false`) can be computed lazily (and asynchronously!) in their respective `IO`s, even as a result of complex side-effects.
+I'm illustrating creating `IO` instances with direct `true` and `false` values, but that's not really how you'd actually use these mechanisms. Since they're all `IO` instances, the boolean results (`true` or `false`) can be computed lazily (and asynchronously!) in their respective `IO`s, even as a result of complex side-effects.
 
 For example, you could define a list of several `IO` instances representing DOM element states, like this:
 
 ```js
+// helpers:
 const getElement = id => IO(() => document.getElementById(id));
 const getCheckboxState = id => getElement(id).map(el => !!el.checked);
 
@@ -565,9 +578,11 @@ const options = [
     getCheckboxState("option-3")
 ];
 
-const allOptionsChecked = iAnd( ...options ).run();
-const someOptionsChecked = iOr( ...options ).run();
+const allOptionsChecked = iAnd( ...options ).run();    // true / false
+const someOptionsChecked = iOr( ...options ).run();    // true / false
 ```
+
+Bonus exercise: contemplate how you'd compute `noOptionsChecked` -- `true` when none of the checkboxes are checked.
 
 ### Applicative
 
@@ -594,7 +609,7 @@ addThree.ap(four);
 four.map( addThree.fold(fn => fn) );
 ```
 
-Recall from [Foldable above](#foldable) that `fold(..)` with the identity function essentially extracts the value from the monad. As shown essentially, `ap(..)` is sort of "extracting" a mapping function held in second monad and running it (via `map(..)`) against the value held in the first monad.
+Recall from [Foldable above](#foldable) that `fold(..)` passed the identity function essentially extracts the value from the monad. As shown, `ap(..)` is sort of "extracting" a mapping function held in second monad and running it (via `map(..)`) against the value held in the first monad.
 
 All of **Monio**'s non-`IO` monads are applicatives. Again, you may not use applicative behavior very frequently, but at least you're now aware of it.
 
