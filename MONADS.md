@@ -446,7 +446,8 @@ const getPropSafe = prop => obj => Maybe.from(obj[prop]);
 const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
 const shippingLabel = (
-    getPropSafe("address")(record)
+    Maybe.from(record)
+    .chain( getPropSafe("address") )
     .chain( getPropSafe("shipping") )
     .chain( formatLabelSafe )
 );
@@ -604,7 +605,8 @@ const getPropSafe = prop => obj => Maybe.from(obj[prop]);
 const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
 const shippingLabel = (
-    getPropSafe("address")(record)
+    Maybe.from(record)
+    .chain( getPropSafe("address") )
     .chain( getPropSafe("shipping") )
     .chain( formatLabelSafe )
 );
@@ -624,7 +626,12 @@ const assignProp = prop => val => obj => (
 );
 const getElement = id => IO(() => document.getElementById(id));
 const renderTextValue = id => val => (
-    getElement(id).map( assignProp("innerText")(val) )
+    getElement(id).map( el => (
+        Maybe.from(el).fold(
+            IO.of,
+            assignProp("innerText")(val)
+        )
+    )
 );
 const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
@@ -640,7 +647,8 @@ const renderShippingLabel = v => (
 );
 
 const renderIO = renderShippingLabel(
-    getPropSafe("address")(record)
+    Maybe.from(record)
+    .chain( getPropSafe("address") )
     .chain( getPropSafe("shipping") )
     .chain( formatLabelSafe )
 );
