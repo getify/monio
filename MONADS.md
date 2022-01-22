@@ -626,12 +626,12 @@ const assignProp = prop => val => obj => (
 );
 const getElement = id => IO(() => document.getElementById(id));
 const renderTextValue = id => val => (
-    getElement(id).map( el => (
+    getElement(id).map(el => (
         Maybe.from(el).fold(
             IO.of,
             assignProp("innerText")(val)
         )
-    )
+    ))
 );
 const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
