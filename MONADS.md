@@ -193,9 +193,9 @@ It's important to note that even though I use the names `Identity` and `chain` h
 
 That `chain(..)` function looks pretty basic, but it's really important (whatever it's called). We'll dig more into it in a bit.
 
-I'm sure that code snippet pretty underwhelming to most readers. Why not just stick with `41` and `42` instead of `{ val: 41 }` and `{ val: 42 }`?
+I'm sure that code snippet seems pretty underwhelming to most readers. Why not just stick with `41` and `42` instead of `{ val: 41 }` and `{ val: 42 }`? The *WHY* of monads is likely not at all apparent yet. You'll have to hang with me for a bit to start to uncover the *WHY*.
 
-I know the *WHY* of monads is not at all apparent yet. You'll have to hang with me for a bit to start to uncover the *WHY*. But hopefully I've at least shown you that down at the very core, a monad is not a mystical or complex *thing*.
+But hopefully I've at least shown you that down at the very core, a monad is not a mystical or complex *thing*.
 
 ### Building Up Monads
 
@@ -332,7 +332,7 @@ Just(20).chain(v => inc(v).chain(double));  // Just(42)
 
 Notice I used the `chain(..)` method in this snippet? The laws are stated in terms of the "chain" operation, regardless of what an implementation chooses to call it.
 
-----
+### Back To The Core Of Monad
 
 Boiling this all down: the *Monad* type only strictly requires two things:
 
@@ -341,13 +341,15 @@ Boiling this all down: the *Monad* type only strictly requires two things:
 
 Everything else you see in the code snippets in this guide, such as wrapper monad instances, specific method names, ["friends of monads" behaviors](#-and-friends), etc -- that's all convenient affordance provided specifically by **Monio**.
 
-#### How Do I Get The Value!?
+But from that narrow perspective, a monad doesn't have to be a "container" (like a wrapping object or class instance) and there doesn't even have to be a concrete "value" (like `42`) involved. While a "container wrapping a value" is one potentially helpful side of the Rubik's Cube to look at, it's not *all* that a monad is or can be. Don't get too *wrapped up* in that way of thinking!
 
-You may also be wondering: how do we ever extract the value (like primitive number `42`) from a monadic representation? It seems like every monadic operation just produces another monad instance. At some point, we need the actual number `42` to print to the screen or insert in a database, right!?
+#### But... How Do I Get Something Out!?
+
+You may still be wondering: how do we ever extract the value (like primitive number `42`) -- or indeed, whatever *thing* the monad is representing -- out/away from a monadic representation? It seems like every monadic operation just produces another monad instance. At some point, we might need the actual number `42` to print to the screen or insert in a database, right!?
 
 One key idea of FP, and especially of monads, is to *defer* the need for the underlying values until the last possible moment. With respect to monads, we prefer to keep everything "lifted" in the monadic space as long as possible.
 
-But yes, we typically do *eventually* have to reduce the monad down to a "real" value. This is a preview of what we'll [talk about later below](#-and-friends), but one way of "extracting" the value from a monad like the `Just` identity monad is with a method **Monio** provides, called `fold(..)`:
+But yes, sometimes we *do* need to reduce a monad down to a "real" value. There are other ways of accomplishing that outcome, but here's one approach, a preview of what we'll [talk about later in the guide](#-and-friends). To "extract" the value from a monad like the `Just` identity monad, we can use a method **Monio** provides, called `fold(..)`:
 
 ```js
 const identity = v => v;
@@ -361,9 +363,11 @@ console.log(`I'm about to be ${ ageIsJustANumber } years old!`);
 // I'm about to be 42 years old!
 ```
 
-So yes, there's an "escape valve" (`fold(identity)`) where we can exit from our `Just` monad. But monads play best with other monads ([and their friends!](#-and-friends)), so it's better to stay in that space as much as we can. Let's hold off ditching the monad until we absolutely have to!
+So yes, there's an "escape valve" (`fold(identity)`) where we can exit from our `Just` monad.
 
-Keep in mind: `fold(..)` as shown here, and provided on many of **Monio**'s monads, is **NOT** a *Monad* behavior; it comes [from a *friend* called Foldable](#foldable).
+But remember: monads play best with other monads ([and their friends!](#-and-friends)), so it's better to stay in that space as much as we can. Let's hold off discarding the monad representation until (unless!) we absolutely have to.
+
+Also keep in mind: `fold(..)` as shown here, and provided on many of **Monio**'s monads, is **NOT** a *Monad* behavior; it comes [from a *friend* called Foldable](#foldable).
 
 ### *Maybe* Something More?
 
