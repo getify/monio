@@ -272,7 +272,7 @@ That above code may seem a little cumbersome, so let's further clean it up with 
 // function formatLabel(label) { .. }
 
 // helpers:
-const getPropSafe = prop => obj => Maybe.from(obj[prop]);
+const getPropSafe = prop => obj => Maybe.from(obj).map(obj => obj[prop]);
 const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
 const shippingLabel = (
@@ -430,7 +430,7 @@ But more commonly, we use Foldable to define a natural transformation from one k
 // function formatLabel(label) { .. }
 
 // helpers:
-const getPropSafe = prop => obj => Maybe.from(obj[prop]);
+const getPropSafe = prop => obj => Maybe.from(obj).map(obj => obj[prop]);
 const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
 const shippingLabel = (
@@ -448,7 +448,7 @@ If we want to then render the shipping label, but only if it's actually valid/de
 
 // helpers:
 const identity = v => v;
-const getPropSafe = prop => obj => Maybe.from(obj[prop]);
+const getPropSafe = prop => obj => Maybe.from(obj).map(obj => obj[prop]);
 const assignProp = prop => val => obj => (
     Maybe.from(obj).map(o => o[prop] = val)
 );
