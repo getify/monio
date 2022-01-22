@@ -157,52 +157,160 @@ In addition to the guide I present here, I recommend checking out a [recording o
 
 The Monad type is a way to represent a value or operation in your program, which associates some specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
 
+That definition is the *WHAT* of monads, conceptually. But you probably also want to see code.
+
+### Simplest JS Illustration
+
+What's the most stripped-down way we could do something like that in JS? How about this:
+
+```js
+function Identity(v) {
+  return { val: v };
+}
+
+function chain(m,fn) {
+  return fn(m.val);
+}
+```
+
+That's it, that's a monad at its most basic. In particular, it's the "Identity" monad, which means that it will merely hold onto a value, and let you use that value untouched when you want to.
+
+```js
+const myAge = Identity(41);   // { val: 41 }
+```
+
+We put a value inside an object container only so we could recognize the value as having been represented monadically. This "container"ness is one convenient way of implementing a monad, but it's not actually required.
+
+The `chain(..)` function provides a minimum basic capability to interact with our monad instance. For example, imagine we wanted to take the monadic representation of `41` and produce another monad instance where `41` was incremented to `42`?
+
+```js
+const myAge = Identity(41);   // { val: 42 }
+
+const myNextAge = chain( myAge, v => Identity(v + 1) );   // { val: 42 }
+```
+
+It's important to note that even though I use the names `Identity` and `chain` here, those are just plain choices. There's nothing explicitly required by the concept of *Monad* in terms of what we name these things. But if we use names that others have regularly chosen, it helps create a familiarity that improves our communications.
+
+That `chain(..)` function looks pretty basic, but it's really important (whatever it's called). We'll dig more into it in a bit.
+
+I'm sure that code snippet pretty underwhelming to most readers. Why not just stick with `41` and `42` instead of `{ val: 41 }` and `{ val: 42 }`?
+
+I know the *WHY* of monads is not at all apparent yet. You'll have to hang with me for a bit to start to uncover the *WHY*. But hopefully I've at least shown you that down at the very core, a monad is not a mystical or complex *thing*.
+
+### Building Up Monads
+
 Monads have somewhat (in)famously been described with a variety of silly-sounding metaphors, like burritos. Others call monads "wrappers" or "boxes", or "data structures" or... the truth is, all these ways of describing a monad are partial descriptions. It's like looking at a Rubik's Cube. You can look at one face of the cube, then turn it around and look at a different face, and get more of the whole thing.
 
 A complete understanding requires being familiar with all sides. But complete understanding is not a single atomic event. It's often built up by lots of smaller bits of understanding, like looking at each face of the cube one at a time.
 
 For now, I just want you to focus on the idea that you could take a value like `42` or an operation like `console.log("Hello, friend!")` and attach/associate additional behaviors to them which will give them super powers.
 
-Here's one possible way of expressing monads, which happens to use capabilities provided by **Monio**:
+Here's another possible way of expressing monads, using capabilities provided by **Monio**:
 
 ```js
 const myAge = Just(41);
-
-const printGreeting = IO(() => console.log("Hello, friend!"));
 ```
-
-The above code implies a function called `Just(..)` that acts as a constructor (aka, "unit") of the `Just` monad (aka, "identity" monad). It also implies a function called `IO(..)` that acts as a constructor for the `IO` monad (which holds functions).
-
-What sort of benefits could we see from the extra effort to represent values and operations like this?
-
-### Identity Monad (aka `Just`)
 
 **Monio Reference: [`Just`](MONIO.md)**
 
-Here's an example of using **Monio**'s `Just(..)` to construct a kind of monad, which represents a number value monadically (`myAge`), and then produce another monadic number value `myNextAge` from it:
+The above code shows a function called `Just(..)`, which is pretty similar to the `Identity(..)` function shown previously. It acts as a constructor (aka, "unit") of the `Just` monad.
+
+And also...
 
 ```js
-// function birthday(age) { return age + 1 };
-
-const myAge = Just(41);
-const myNextAge = myAge.map(birthday);
+const printGreeting = IO(() => console.log("Hello, friend!"));
 ```
 
-If `myAge` had been *just* a primitive number, we could have used an operator like `+` *directly* on it to increment it to `42`. That works fine in imperative code, but it doesn't fit very well in the declarative style of code with chaining expressions and function calls together (as shown earlier in [the "FP" section](#functional-programming-fp)).
+Here we see another **Monio** function called `IO(..)`, which acts as a constructor for the `IO` monad (which holds functions).
 
-In representing `41` with **Monio**'s `Just` monad -- aka, the "Identity" monad -- we were able use the `map(..)` method from it, which invokes the `birthday(..)` function with the underlying value. That *indirectly* delegates to the `+` value operation inside `birthday(..)`. The result of the `map(..)` call is a new instance of `Just` that represents (i.e., "holds") the value `42` (my age after my upcoming birthday).
+Thinking of our sketch in the previous section, you could sort of think of `myAge` as `{ val: 41 }` and `printGreeting` as `{ val: () => console.log("Hello, friend!") }`. **Monio**'s representation is more sophisticated than just an object like that. But under the covers, it's not that far different.
 
-The ability for a monad instance to be "mapped" to another monad instance is from the Functor type, but that's **NOT** saying that all monads have a method named `map(..)`; `map(..)` could be implemented with the `chain(..)` method (explained later), so you could do Functor mapping without having a `map(..)` method at all. It's merely a convenience that **Monio** provides `map(..)` for all its monads.
+I'm going to use **Monio** throughout the rest of the guide. The convenient affordances are nice to use, and easier to illustrate with. But just keep in mind that under all the trappings, we could be doing something as straight-forward as making an object like `{ val: 41 }`.
 
-I should point out that "wrapping" a value with a call to `Just(..)`, as shown above, is **NOT AT ALL** the only way to express monads, even in JS. You could express a conforming monad type in JS with just one or two separate/unrelated functions. We have chosen in **Monio** to collect behaviors together into these "wrappers" like `Just` and `IO` for convenience, not out of monadic necessity.
+#### Digging Into Map
 
-Other sides of the Monad Rubik's Cube include "the three laws" of monads:
+Consider the notion of an array's `map(..)` method. Its job is to apply a mapping (value translation) operation against all the contents of the associated array.
+
+```js
+[ 1, 2, 3 ].map(v => v * 2);   // [ 2, 4, 6 ]
+```
+
+**Note:** the technical term for this capability is Functor. In fact, all monads are Functors, but don't worry too much about that term for now. Just file in the back of your head.
+
+This mapping on arrays of course works even if our array has a single element, right?
+
+```js
+[ 41 ].map(v => v + 1);   // [ 42 ]
+```
+
+An extremely important detail there, that's easy to miss, is that the `map(..)` function didn't just give us `42` but gave us `[ 42 ]`. Why? Because `map(..)`'s job is to produce a new instance of the same type of "container" it was invoked against. In other words, if you use array's `map(..)`, you're going to always get back an array.
+
+But what if our "container" is a monad instance, and what if there's only one underlying value, like `41` in it? Since the monad is also a functor (able to be "mapped"), we should still expect the same kind of outcome, right?
+
+```js
+const myAge = Just(41);
+
+const myNextAge = myAge.map(v => v + 1);   // Just(42)
+```
+
+Hopefully it makes intuitive sense here that `myNextAge` should be another `Just` instance, representing the underlying number `42`.
+
+Recall this bare-bones example from the previous section?
+
+```js
+// assumed: function Identity(val) { .. }
+// assumed: myAge ==> { val: 41 }
+
+const myNextAge = chain( myAge, v => Identity(v + 1) );   // { val: 42 }
+```
+
+Substituting **Monio**'s implementation, that looks like:
+
+```js
+const myNextAge = myAge.chain(v => Just(v + 1));
+```
+
+So what's the relationship here between the `map(..)` and `chain(..)`? Let's line the operations up next to each other, to see *it*:
+
+```js
+myAge.map(   v =>      v + 1  );    // Just(42)
+myAge.chain( v => Just(v + 1) );    // Just(42)
+```
+
+Now do you see *it*? `map(..)` assumes that its returned value needs to be automatically "wrapped up" in an instance of the "container", whereas `chain(..)` expects the return value to already be "wrapped up" in the right type of "container".
+
+The `map(..)` function doesn't at all have to be named that to satisfy the functor'ness of the monad instance. In fact, you don't even strictly *need* a `map(..)` function at all, if you have `chain(..)`, because `map(..)` can be implemented with `chain(..)`:
+
+```js
+function JustMap(m,fn) { return m.chain(v => Just(fn(v))); }
+
+fortyOne.map(    v => v + 1);   // Just(42)
+JustMap(fortyOne,v => v + 1);   // Just(42)
+```
+
+`chain(..)` sometimes goes by other names (in other libraries or languages), like `flatMap(..)` or `bind(..)`. In **Monio**'s monads, all three methods names are aliased to each other, so pick whichever one you prefer.
+
+The name `flatMap(..)` can help reinforce the relationship between it and `map(..)`.
+
+```js
+Just(41).map(     v => Just(v + 1) );    // Just(Just(42)) -- oops!?
+
+Just(41).flatMap( v => Just(v + 1) );    // Just(42) -- phew!
+```
+
+If we return a `Just` monad instance from `map(..)`, it still wraps that in another `Just`, so we end up with nesting. That is perfectly valid and sometimes desired, but often not. But if we return the same kind of value from `flatMap(..)` (again, aka `chain(..)`), there's no nesting. Essentially, the `flatMap(..)` flattens out the nesting!
+
+### Monadic Chain
+
+I've asserted `chain(..)` (or whatever we call it!) is pretty central to something being monadic.
+
+Even as simple as it looks to implement, it works in such a specific way that we get some guarantees about how one monad instance can interact with another monad instance. Such interactions and transformations are critical to building up a program of monads without chaos.
+
+Another side of the **Monad** Rubik's Cube is these guarantees; they're ensured by a set of "laws" that all conforming monad implementations must satisfy:
 
 1. Left Identity
 2. Right Identity
 3. Associativity
-
-These "laws" are required behaviors for a value to act like a "monad". That's what gives us the *guarantees* of how such a value or operation will interact with other monad-conforming values in the program.
 
 The formality and mathematical importance of these laws is not super important to immerse in right now. But to illustrate them very simply with our trivial identity monad `Just` from **Monio**:
 
@@ -222,30 +330,7 @@ Just(20).chain(inc).chain(double);          // Just(42)
 Just(20).chain(v => inc(v).chain(double));  // Just(42)
 ```
 
-Notice I used the `chain(..)` method in this snippet?
-
-That's distinct from the `map(..)` method (shown earlier). The `chain(..)` method expects you to return another instance of the monad kind in question, whereas `map(..)` automatically produces/wraps the return value in an instance of the associated monad kind.
-
-I asserted earlier that the `map(..)` method isn't required for a monad, even though monads are always Functors, which often would have a `map(..)` method of some sort. That's because `map(..)` could alternately be implemented with `chain(..)`:
-
-```js
-// function birthday(age) { return age + 1 };
-
-const myAge = Just(41);
-
-// instead of:
-myAge.map(birthday);        // Just(42)
-
-// we could do:
-const justMap = (m,fn) => m.chain(v => Just.of(fn(v)));
-justMap(myAge,birthday);    // Just(42)
-```
-
-Again, it's important to note: *Monad* does not **require** a specific method named `chain(..)` -- indeed, many other libraries and languages use different names for it, like `bind(..)` or `flatMap(..)`; it doesn't even require it to be a method on a data structure, as ours is. *Monad* just requires that an operation, like the one `chain(..)` is performing above, is available to be used against monad-conforming values.
-
-The name `flatMap(..)` is illustrative of the relationship between this function and `map(..)`. If you do `Just(42).map(Just.of)`, you'll get `Just(Just(42))` (nesting!) because `map(..)` always wraps the result in an instance of the monad kind. By contrast, if you did `Just(42).flatMap(Just.of)`, you plainly end up with `Just(42)` (no nesting!). In essence, `flatMap(..)` "flattens" the nesting where `map(..)` does not.
-
-**Monio**'s monads all alias `chain(..)` as `flatMap(..)` and `bind(..)`, just in case you prefer to use those method names over `chain(..)`.
+Notice I used the `chain(..)` method in this snippet? The laws are stated in terms of the "chain" operation, regardless of what an implementation chooses to call it.
 
 ----
 
@@ -254,11 +339,9 @@ Boiling this all down: the *Monad* type only strictly requires two things:
 1. a function (of any name) to construct an "instance" of the type (the unit constructor)
 2. a function (of any name) to perform the "chain" operations shown in the 3 laws
 
-In fact, to illustrate this idea, **I believe this is [the simplest implementation of a monad expressed in JS](https://gist.github.com/getify/3f05b7106913161f580fd235d0b82097).**
-
 Everything else you see in the code snippets in this guide, such as wrapper monad instances, specific method names, ["friends of monads" behaviors](#-and-friends), etc -- that's all convenient affordance provided specifically by **Monio**.
 
-----
+#### How Do I Get The Value!?
 
 You may also be wondering: how do we ever extract the value (like primitive number `42`) from a monadic representation? It seems like every monadic operation just produces another monad instance. At some point, we need the actual number `42` to print to the screen or insert in a database, right!?
 
