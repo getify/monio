@@ -1,6 +1,6 @@
 # Monio's Monads
 
-**[More background information on the `Just` monad](MONADS.md#identity-monad-aka-just)**
+**[More background information on the `Just` monad](MONADS.md#building-up-monads)**
 
 Using an identity (`Just`) monad:
 
