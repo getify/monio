@@ -36,9 +36,11 @@ Well... to be clear, what I mean is, you don't have to do all that *just to get 
 
 ----
 
-**Now, it's time to [dive into FP + Monads](MONADS.md).**
+**Now, it's time to [dive into FP + Monads](MONADS.md).** If you're already solid with FP and ready to tackle learning monads, you can [jump directly to that part of the guide](MONADS.md#expansive-intro-to-monads).
 
-If you're not already pretty comfortable with FP and monads, make sure you take your time reading through that guide; it's pretty detailed and there's a lot to digest.
+If you're not already pretty comfortable with both FP and monads, make sure you take your time reading through that guide; it's pretty long and detailed, and there's a lot to digest.
+
+----
 
 ## See Monio In Action
 
