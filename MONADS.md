@@ -1,6 +1,6 @@
 # FP + Monads
 
-If you're already comfortable with Functional Programming (FP), especially side effects and pure functions and such, you can [skip to "Brief Intro To Monads"](#brief-intro-to-monads) below.
+If you're already comfortable with Functional Programming (FP), especially side effects and pure functions and such, you can [skip to "Expansive Intro To Monads"](#expansive-intro-to-monads) below.
 
 ## Functional Programming (FP)
 
@@ -26,7 +26,88 @@ What if your code could be more "declarative" and state the *what* and *why* mor
 
 That's why FP exists.
 
-If you're intrigued, but new to FP concepts, I invite you to check out -- at least the first several chapters -- my free-to-read-online FP book: [Functional-Light JavaScript](https://github.com/getify/functional-light-js).
+### From Loop To Map And Filter
+
+For example, imagine you have a single string value, and you want to uppercase the value.
+
+```js
+function uppercase(str) { return str.toUpperCase(); }
+
+var greeting = "Hello, friend!";
+
+console.log( uppercase(greeting) );   // HELLO, FRIEND!
+```
+
+That's pretty straightforward. But now let's say you had multiple strings to uppercase. You could manually call `uppercase(..)` for each string. But when we have multiple values, it's often more convenient to stick them in an array. Imperatively, uppercasing an array of strings would likely be done like this:
+
+```js
+// assumed: function uppercase(str) { .. }
+// assumed: `listOfStrings` (array of string values)
+
+for (let i = 0; i < listOfStrings.length; i++) {
+    listOfStrings[i] = uppercase(listOfStrings[i]);
+}
+```
+
+But here we modified the entries in the array by replacing each original string with its uppercase version. In FP, we generally prefer not to modify/reassign but rather to create *new* values, as a way to cut down on the chances of unexpected side-effects causing bugs in the program. So let's do that by creating a new list:
+
+```js
+// assumed: function uppercase(str) { .. }
+// assumed: `listOfStrings` (array of string values)
+
+let listOfUpperStrings = [];
+
+for (let i = 0; i < listOfStrings.length; i++) {
+    listOfUpperStrings[i] = uppercase(listOfStrings[i]);
+}
+```
+
+That code is perfectly *fine*. But the first time you encounter it, to understand the overall "what", you have to mentally execute that code and infer its purpose. Afterwards, you can assert, "this code takes a list of string values and produces a new list of all the values uppercased".
+
+Performing the same operation for each value in a list, is a pretty common task in programming. So much so that we have named this task and invented well known utilities for it, specifically `map(..)`. Let's see it:
+
+```js
+// assumed: function uppercase(str) { .. }
+// assumed: `listOfStrings` (array of string values)
+
+const listOfUpperStrings = listOfStrings.map(uppercase);
+```
+
+The array `map(..)` takes a single function as input. This function needs to receive a single value and return a value back. `uppercase(..)` fits that description, so we pass it directly. `map(..)` gives us back a new array, containing all the return values from calling the provided function (`uppercase(..)`) against the original values.
+
+One general assertion of FP is that the mechanics of looping over a list, and calling a function against each value in the list, are so well known as to not need to be written explicitly in code. Instead, we use `map(..)`. The resulting code is more *declarative* than *imperative*. As such, the reader -- if they know what `map(..)` does, already -- can more readily glance at it and recognize, *without much mental execution*, that the outcome (the "what") of this code is a new list of uppercased strings.
+
+FP has recognized a whole bunch of these common tasks, and named and implemented them as recognized utilities.
+
+For example, `filter(..)` does something similar to `map(..)`, but instead of producing new values, it performs an `if` to decide if a value should be kept/included in the new list or not.
+
+```js
+// assumed: `listOfStrings` (array of string values)
+
+function isLongEnough(str) { return str.length > 50; }
+
+const listOfLongStrings = listOfStrings.filter(isLongEnough);
+```
+
+`listOfLongStrings` will be a new array that includes only strings from the original `listOfStrings` that are longer than 50 characters. And that outcome should be more readily discernable than if we'd written the `for` loop imperative equivalent.
+
+And we can even "compose" (i.e., do both together) the `map(..)` and `filter(..)` operations:
+
+```js
+// assumed: function uppercase(str) { .. }
+// assumed: function isLongEnough(str) { .. }
+// assumed: `listOfStrings` (array of string values)
+
+listOfStrings.filter(isLongEnough).map(uppercase);
+```
+
+Now we have a list of long-enough strings that have all been uppercased!
+
+So that's a bit of the early mindset adoption that getting into FP brings you. It's the tip of a massive iceberg.
+
+### Where To Learn More FP?
+
+If you're intrigued, but new to such FP concepts, I invite you to check out -- at least the first several chapters -- my free-to-read-online FP book: [Functional-Light JavaScript](https://github.com/getify/functional-light-js).
 
 There are also several [high-quality video courses about FP on Frontend Masters](https://frontendmasters.com/courses/?q=functional), including:
 
@@ -45,9 +126,13 @@ I think your first big goal should be to understand and feel comfortable with --
 * Currying
 * Basic List Operations (filter/map/reduce)
 
-There are of course many ways -- for example, with `reduce(..)` -- to approach the code snippet above from an FP perspective. I'm not going to assert that there's "one right way".
+### How Do I Know...?
 
-But one approach that's somewhat common in FP, which relies on chained expressions and composed functions, goes by the name "point-free style", and could look like this:
+How might you know if you're on the right path and comfortable enough with FP to move on to monads? There's no great way for me to answer that for all readers of this guide. But I at least want to offer a bit of a glimpse or hint instead of leaving you only with the unsatisfying, "it depends".
+
+There are of course many ways -- for example, with `reduce(..)` -- to approach the `FPBookNames` code snippet at the beginning, from an FP perspective. I'm not going to assert that there's "one right way".
+
+But one approach that's somewhat common in FP, which relies on chained expressions and composed (and curried!) functions, goes by the name "point-free style", and could look like this:
 
 ```js
 const FPBookNames = data
@@ -58,15 +143,17 @@ const FPBookNames = data
     .map( getProp("bookName") );
 ```
 
-Again, not to say this is the "right" way to do it, but... code like this represents the combination of ideas from FP that I think will help prepare you to take on *monads*, especially as I will present them throughout the rest of this guide. If/when code like that *speaks to you*, I think it's time to dip your toes into the ocean of monads.
+Again, not to say this is the "right" way to do it, but... code like this represents the combination of ideas from FP that I think will help prepare you to take on *monads*, especially as I will present them throughout the rest of this guide.
 
-## Brief Intro To Monads
+When code like that *speaks to you*, I think it's time to dip your toes into the ocean of monads.
+
+## Expansive Intro To Monads
 
 In addition to the guide I present here, I recommend checking out a [recording of my conference talk, "Mo'problems, Mo'nads"](https://www.youtube.com/watch?v=bg0Wtz3sR9U).
 
 ----
 
-*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe category theory as a way to categorize/group things based on how they behave with respect to composition and transformation.
+*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe Category Theory as a way to categorize/group things based on how they behave with respect to composition and transformation.
 
 The Monad type is a way to represent a value or operation in your program, which associates some specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
 
@@ -395,7 +482,7 @@ OK, if you've made it this far, take a deep breath. Seriously, maybe go for a wa
 
 We've already seen a decent, if basic, illustration of the idea of monads. And we didn't cover `Either` -- another *Sum Type* like `Maybe` but which holds values on both sides. `Either` is typically used to represent synchronous `try..catch` style exception handling. We also didn't cover `AsyncEither`, which extends `Either` to operate asynchronously (over promises), the same way `IO` transforms/handles them. `AsyncEither` is essentially **Monio**'s representation of a Promise/Future type.
 
-But compared to the larger Category Theory *monad* fits in, it's a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts that come from, or are at least adapted from parts other parts of Category Theory, and more specifically, "Algebraic Data Types" (ADTs). These "friends" include:
+But compared to the expanse of Category Theory that *monad* fits in, it's a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts that come from Category Theory, and more specifically, "Algebraic Data Types" (ADTs) -- or are at least adapted from parts of it. These "friends" include:
 
 * Foldable
 * Concatable (aka, Semigroup)
@@ -631,7 +718,7 @@ All of **Monio**'s non-`IO` monads are applicatives. Again, you may not use appl
 
 We've now scratched the surface of monads (and several *friends*). That's by no means a complete exploration of the topic, but I hope you're starting to feel they're a little less mysterious or intimidating.
 
-A monad is a narrow set of behavior (required by "laws") you associate with a value or operation. Category Theory includes other adjacent/related behaviors, such as foldable and concatable, that can augment the capabilities of this representation.
+A monad is a narrow set of behavior (required by "laws") you associate with a value or operation. Category Theory yields other adjacent/related behaviors, such as Foldable and Concatable, that can augment the capabilities of this representation.
 
 This set of behavior improves coordination/interoperation between other monad-and-friends-compliant values, such that results are more predictable. The behaviors also offer many opportunities to abstract (shift into the behavioral-definitions) certain logic that usually clutters up our imperative code, such as null'ish checks.
 
