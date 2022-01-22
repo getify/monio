@@ -22,7 +22,7 @@ for (const record of data) {
 
 This is what we typically call "imperative" style code. It's comfortable and familiar to most of us. But it focuses on *how* to do a task. To understand the *what* or *why* of that code, you have to sort of mentally execute the code and infer its meaning. Only after reading it, you might realize: "that code is selecting records with a topic of 'FP' and sticking their book-name into an array".
 
-What if your code could be more "declarative" and state the *what* and *why* more clearly at a glance, de-emphasizing the *how* as a less important implementation detail? Would being able to determine the purpose of a snippet of code more readily and effectively, make that code *more readable*? What if that code was also more resiliant (less susceptible to bugs) and more testable (more isolated/pure)?
+What if your code could be more "declarative" and state the *what* and *why* more clearly at a glance, de-emphasizing the *how* as a less important implementation detail? Would being able to determine the purpose of a snippet of code more readily and effectively, make that code *more readable*? What if that code was also more resilient (less susceptible to bugs) and more testable (more isolated/pure)?
 
 That's why FP exists.
 
@@ -66,7 +66,7 @@ In addition to the guide I present here, I recommend checking out a [recording o
 
 ----
 
-*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe category theory as a way to categorize/group things based on how they behave.
+*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe category theory as a way to categorize/group things based on how they behave with respect to composition and transformation.
 
 The Monad type is a way to represent a value or operation in your program, which associates some specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
 
@@ -346,7 +346,7 @@ const renderTextValue = id => val => (
 
 const renderCustomerNameIO = (
     getInputValue("customer-name-input")
-    .map( renderTextValue("customer-name-display") )
+    .chain( renderTextValue("customer-name-display") )
 );
 
 // later:
@@ -395,9 +395,7 @@ OK, if you've made it this far, take a deep breath. Seriously, maybe go for a wa
 
 We've already seen a decent, if basic, illustration of the idea of monads. And we didn't cover `Either` -- another *Sum Type* like `Maybe` but which holds values on both sides. `Either` is typically used to represent synchronous `try..catch` style exception handling. We also didn't cover `AsyncEither`, which extends `Either` to operate asynchronously (over promises), the same way `IO` transforms/handles them. `AsyncEither` is essentially **Monio**'s representation of a Promise/Future type.
 
-But compared to the larger space *monad* fits in, *monad* is a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) type behaviors in addition to monad'ness that provide additional capabilities and guarantees. In more formal terms, "monad" sits alongside them in "Category Theory", specifically a category called "Algebraic Data Types" (ADTs).
-
-These "friends" include:
+But compared to the larger Category Theory *monad* fits in, it's a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts that come from, or are at least adapted from parts other parts of Category Theory, and more specifically, "Algebraic Data Types" (ADTs). These "friends" include:
 
 * Foldable
 * Concatable (aka, Semigroup)
