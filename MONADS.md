@@ -107,7 +107,7 @@ So that's a bit of the early mindset adoption that getting into FP brings you. I
 
 ### Where To Learn More FP?
 
-If you're intrigued, but new to such FP concepts, I invite you to check out -- at least the first several chapters -- my free-to-read-online FP book: [Functional-Light JavaScript](https://github.com/getify/functional-light-js).
+If you're intrigued, but new to such FP concepts, I invite you to check out -- at least the first several chapters of -- my free-to-read-online FP book: [Functional-Light JavaScript](https://github.com/getify/functional-light-js).
 
 There are also several [high-quality video courses about FP on Frontend Masters](https://frontendmasters.com/courses/?q=functional), including:
 
@@ -117,7 +117,7 @@ There are also several [high-quality video courses about FP on Frontend Masters]
 
 * My ["Functional-Light JavaScript"](https://frontendmasters.com/courses/functional-javascript-v3/) -- a companion course to [my book](https://github.com/getify/functional-light-js) of the same name
 
-I think your first big goal should be to understand and feel comfortable with -- not an expert on! -- the following topics:
+I think your first big goal should be to understand and feel comfortable with -- but not an expert on! -- the following topics:
 
 * Side Effects
 * Pure Functions
@@ -130,7 +130,7 @@ I think your first big goal should be to understand and feel comfortable with --
 
 How might you know if you're on the right path and comfortable enough with FP to move on to monads? There's no great way for me to answer that for all readers of this guide. But I at least want to offer a bit of a glimpse or hint instead of leaving you only with the unsatisfying, "it depends".
 
-There are of course many ways -- for example, with `reduce(..)` -- to approach the `FPBookNames` code snippet at the beginning, from an FP perspective. I'm not going to assert that there's "one right way".
+There are of course many ways (e.g., with `reduce(..)`) to approach the `FPBookNames` code snippet at the beginning, in FP style. I'm not going to assert that there's "one right way".
 
 But one approach that's somewhat common in FP, which relies on chained expressions and composed (and curried!) functions, goes by the name "point-free style", and could look like this:
 
@@ -288,6 +288,10 @@ fortyOne.map(    v => v + 1);   // Just(42)
 JustMap(fortyOne,v => v + 1);   // Just(42)
 ```
 
+Having `map(..)` (or whatever it's called) is a convenience over using just the `chain(..)` by itself, but not strictly required.
+
+### Monadic Chain
+
 `chain(..)` sometimes goes by other names (in other libraries or languages), like `flatMap(..)` or `bind(..)`. In **Monio**'s monads, all three methods names are aliased to each other, so pick whichever one you prefer.
 
 The name `flatMap(..)` can help reinforce the relationship between it and `map(..)`.
@@ -299,8 +303,6 @@ Just(41).flatMap( v => Just(v + 1) );    // Just(42) -- phew!
 ```
 
 If we return a `Just` monad instance from `map(..)`, it still wraps that in another `Just`, so we end up with nesting. That is perfectly valid and sometimes desired, but often not. But if we return the same kind of value from `flatMap(..)` (again, aka `chain(..)`), there's no nesting. Essentially, the `flatMap(..)` flattens out the nesting!
-
-### Monadic Chain
 
 I've asserted `chain(..)` (or whatever we call it!) is pretty central to something being monadic.
 
@@ -343,7 +345,7 @@ Everything else you see in the code snippets in this guide, such as wrapper mona
 
 But from that narrow perspective, a monad doesn't have to be a "container" (like a wrapping object or class instance) and there doesn't even have to be a concrete "value" (like `42`) involved. While a "container wrapping a value" is one potentially helpful side of the Rubik's Cube to look at, it's not *all* that a monad is or can be. Don't get too *wrapped up* in that way of thinking!
 
-#### But... How Do I Get Something Out!?
+### But... How Do I Get Something Out!?
 
 You may still be wondering: how do we ever extract the value (like primitive number `42`) -- or indeed, whatever *thing* the monad is representing -- out/away from a monadic representation? It seems like every monadic operation just produces another monad instance. At some point, we might need the actual number `42` to print to the screen or insert in a database, right!?
 
@@ -385,7 +387,7 @@ You've probably written code like this before in your imperative-style programs:
 
 ```js
 const shippingLabel = (
-    (record.address != null && record.address.shipping != null) ?
+    (record != null && record.address != null && record.address.shipping != null) ?
         formatLabel(record.address.shipping) :
         null
 );
@@ -397,15 +399,15 @@ However, JS recently (ES2020) added an "optional chaining" operator which simpli
 
 ```js
 const shippingLabel = (
-    (record.address?.shipping != null) ?
+    (record?.address?.shipping != null) ?
         formatLabel(record.address.shipping) :
         null
 );
 ```
 
-The `?.` operator (as opposed to bare `.`) right before `shipping`, is a short-circuiting operator that skips out of further expression evaluation if the preceeding element evaluates as null'ish. That means we don't need the `record.address != null` check, because the `?.` operator does it for us.
+The `?.` operator (as opposed to bare `.`), right before `address` and `shipping`, is a short-circuiting operator that skips out of further expression evaluation if the preceeding element evaluates as null'ish. That means we don't need the `record != null` or `record.address != null` checks, because the `?.` operator does it for us.
 
-We're protected now from `record.address` being null'ish, but `record.address.shipping` could still be null'ish, and we want to skip calling `formatLabel(..)` in that case; that's why we still need the final `!= null` check.
+We're protected now from `record` or `record.address` being null'ish, but `record.address.shipping` could still be null'ish, and we want to skip calling `formatLabel(..)` in that case; that's why we still need the final `!= null` check.
 
 The `Maybe` monad -- sometimes referred to by different names like `Option` or `Optional` in other libraries and languages -- allows us to define a behavior that delegates these sorts of `!= null` checks completely to the monad behavior, freeing up our code from that burden.
 
@@ -427,7 +429,8 @@ So we use `Maybe.from(..)` to create either the `Maybe:Just` or `Maybe:Nothing` 
 
 ```js
 const shippingLabel = (
-    Maybe.from(record.address)
+    Maybe.from(record)
+    .chain( record => Maybe.from(record.address) )
     .chain( address => Maybe.from(address.shipping) )
     .chain( shipping => Maybe.from(formatLabel(shipping)) )
 );
@@ -435,7 +438,7 @@ const shippingLabel = (
 
 Here, `shippingLabel` is an instance of the `Maybe` type. It will either represent a `Maybe:Just` holding the formatted label, or it will represent a `Maybe:Nothing` (holding no value).
 
-But whichever one it is, that doesn't matter to the way we write our further monad-aware code, though! If `Maybe.from(..)` produces a `Maybe:Nothing`, the subsequent `chain(..)` calls are skipped as no-ops, thus protecting our program from exceptions like property access on a null'ish value.
+But whichever one it is, that doesn't matter to the way we write our subsequent monad-aware code! If `Maybe.from(..)` produces a `Maybe:Nothing` anywhere along that chain, any subsequent `chain(..)` calls are skipped as no-ops, thus protecting our program from exceptions like property access on a null'ish value.
 
 `Maybe` safely abstracts away our previous concerns over the conditional decision logic that protects operations from throwing exceptions.
 
@@ -706,7 +709,7 @@ foldMap(
 
 #### Monoid
 
-Additionally, the term Monoid means a Concatable/Semigroup plus an "empty" (identity) value for the concatenation. For example, string concatenation is a monoid with the empty `""` string. Array concatenation is a monoid with the empty `[]` array. Even numeric addition is a monoid with the 0 "empty" number.
+Additionally, the term Monoid means a Concatable/Semigroup plus an "empty" (identity) value for the concatenation. For example, string concatenation is a monoid with the empty `""` string. Array concatenation is a monoid with the empty `[]` array. Even numeric addition is a monoid with the `0` "empty" number.
 
 An example of extending this notion of monoid to something that wouldn't seem at first as "concatable" is with multiple booleans combined in a `&&` or `||` logical expression. For the logical-AND operation, the "empty" value is `true`, and for the logical-OR operation, the "empty" value is `false`. The "concatenation" of these values is the computed logical result (`true` or `false`).
 
@@ -805,9 +808,9 @@ Just(add)               // Just(x => y => x + y)
     .ap( Just(4) );     // Just(7)
 ```
 
-We put `add(..)` by itself into a `Just`. The first `ap(..)` call "extracts" that function, passes the `3` into it, and makes another `Just` with the `y => 3 + x` function in it. The second `ap(..)` call then does the same as the previous snippet, extracting that function and passing `4` into it. The final result of `add(3)(4)` is `7`, and that's put back into a `Just`.
+We put `add(..)` by itself into a `Just`. The first `ap(..)` call "extracts" that function, passes the `3` into it, and makes another `Just` with the returned `y => 3 + x` function in it. The second `ap(..)` call then does the same as the previous snippet, extracting that `y => 3 + x` function and passing `4` into it. The final result of `4 => 3 + 4` is `7`, and that's put back into a `Just`.
 
-All of **Monio**'s non-`IO` monads are applicatives. Again, you may not use applicative behavior very frequently, but at least you're now aware of how it works.
+All of **Monio**'s non-`IO` monads are Applicatives. Again, you may not use such behavior very frequently, but hopefully you may now be able to recognize the need when it arises.
 
 ## *Wrap*ping Up
 
