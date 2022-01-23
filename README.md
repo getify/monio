@@ -35,11 +35,13 @@ I don't want you to feel intimidated. This isn't going to require you to speak i
 Well... to be clear, what I mean is, you don't have to do all that *just to get started*. There are small and comfortable baby steps you can begin taking to kick off the journey. The further you explore down the path, I think the more FP and monads will "hook" you, nudging and tugging you into different ways of thinking about and solving problems.
 
 ----
+----
 
-**Now, it's time to [dive into FP + Monads](MONADS.md).** If you're already solid with FP and ready to tackle learning monads, you can [jump directly to that part of the guide](MONADS.md#expansive-intro-to-monads).
+**Now, it's time to [dive into FP... and then Monads](MONADS.md#fp--monads).** But if you're already comfortable with FP, and ready to tackle learning monads specifically, you can [jump directly to "Expansive Intro To Monads"](MONADS.md#expansive-intro-to-monads).
 
-If you're not already pretty comfortable with both FP and monads, make sure you take your time reading through that guide; it's pretty long and detailed, and there's a lot to digest.
+Make sure you take your time reading through that guide; it's pretty long and detailed, and there's a lot to digest.
 
+----
 ----
 
 ## See Monio In Action
