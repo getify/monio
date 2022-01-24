@@ -184,7 +184,7 @@ We put a value inside an object container only so we could recognize the value a
 The `chain(..)` function provides a minimum basic capability to interact with our monad instance. For example, imagine we wanted to take the monadic representation of `41` and produce another monad instance where `41` was incremented to `42`?
 
 ```js
-const myAge = Identity(41);   // { val: 42 }
+const myAge = Identity(41);   // { val: 41 }
 
 const myNextAge = chain( myAge, v => Identity(v + 1) );   // { val: 42 }
 ```
