@@ -277,7 +277,7 @@ myAge.map(   v =>      v + 1  );    // Just(42)
 myAge.chain( v => Just(v + 1) );    // Just(42)
 ```
 
-Now do you see *it*? `map(..)` assumes that its returned value needs to be automatically "wrapped up" in an instance of the "container", whereas `chain(..)` expects the return value to already be "wrapped up" in the right type of "container".
+Now do you see *it*? `map(..)` assumes that its returned value needs to be automatically "wrapped up" in an instance of the "container", whereas `chain(..)` expects the return value to already be "wrapped up" in the right kind of "container".
 
 The `map(..)` function doesn't at all have to be named that to satisfy the functor'ness of the monad instance. In fact, you don't even strictly *need* a `map(..)` function at all, if you have `chain(..)`, because `map(..)` can be implemented with `chain(..)`:
 
@@ -288,7 +288,7 @@ fortyOne.map(    v => v + 1);   // Just(42)
 JustMap(fortyOne,v => v + 1);   // Just(42)
 ```
 
-Having `map(..)` (or whatever it's called) is a convenience over using just the `chain(..)` by itself, but not strictly required.
+Having `map(..)` (or whatever it's called) available is a convenience over using just the `chain(..)` by itself; but it's not strictly required.
 
 ### Monadic Chain
 
@@ -302,11 +302,11 @@ Just(41).map(     v => Just(v + 1) );    // Just(Just(42)) -- oops!?
 Just(41).flatMap( v => Just(v + 1) );    // Just(42) -- phew!
 ```
 
-If we return a `Just` monad instance from `map(..)`, it still wraps that in another `Just`, so we end up with nesting. That is perfectly valid and sometimes desired, but often not. But if we return the same kind of value from `flatMap(..)` (again, aka `chain(..)`), there's no nesting. Essentially, the `flatMap(..)` flattens out the nesting!
+If we return a `Just` monad instance from `map(..)`, it still wraps that in another `Just`, so we end up with nesting. That is perfectly valid and sometimes desired, but often not. If we return the same form of value from `flatMap(..)` (again, aka `chain(..)`), there's no nesting. Essentially, the `flatMap(..)` flattens out the nesting by one level!
 
-I've asserted `chain(..)` (or whatever we call it!) is pretty central to something being monadic.
+The `chain(..)` method is intended for the provided function to return a monad of the same kind (`Just`, `Maybe`, etc) as the one the method was invoked on. However, **Monio** does not generally perform explicit type enforcement, so there's nothing that strictly prevents such crossing of monad kinds (e.g., between `Just` and `Maybe`). It's up to the developer to follow (or not) the implied type characteristics of these mechanisms.
 
-Even as simple as it looks to implement, it works in such a specific way that we get some guarantees about how one monad instance can interact with another monad instance. Such interactions and transformations are critical to building up a program of monads without chaos.
+I've asserted `chain(..)` (or whatever we call it!) is pretty central to something being monadic. Yet even as simple as `chain` looks to implement ([see earlier](#simplest-js-illustration)), it works in such a specific way that it provides some very important guarantees about how one monad instance can interact with another monad instance. Such interactions and transformations are critical to building up a program of monads without chaos.
 
 Another side of the **Monad** Rubik's Cube is these guarantees; they're ensured by a set of "laws" that all conforming monad implementations must satisfy:
 
@@ -332,14 +332,14 @@ Just(20).chain(inc).chain(double);          // Just(42)
 Just(20).chain(v => inc(v).chain(double));  // Just(42)
 ```
 
-Notice I used the `chain(..)` method in this snippet? The laws are stated in terms of the "chain" operation, regardless of what an implementation chooses to call it.
+Here I used **Monio**'s `chain(..)` method; that's again merely for convenient illustration. The monad laws are stated in terms of a *chain* operation, regardless of what an implementation chooses to call it.
 
 ### Back To The Core Of Monad
 
 Boiling this all down: the *Monad* type only strictly requires two things:
 
 1. a function (of any name) to construct an "instance" of the type (the unit constructor)
-2. a function (of any name) to perform the "chain" operations shown in the 3 laws
+2. a function (of any name) to properly perform the "chain" operation, as shown in the 3 laws
 
 Everything else you see in the code snippets in this guide, such as wrapper monad instances, specific method names, ["friends of monads" behaviors](#-and-friends), etc -- that's all convenient affordance provided specifically by **Monio**.
 
@@ -417,7 +417,7 @@ To understand `Maybe`, let's first add another monad kind besides `Just` (identi
 
 **Note:** Most monad implementations would not expose `Just` and `Nothing` as separate monad kinds, but rather only as part of `Maybe`. **Monio** choose to present them separately as well as combined in `Maybe`, for convenience of illustration purposes.
 
-The way the selection between `Maybe:Just` (aka `Just`) and `Maybe:Nothing` (aka `Nothing`) occurs might be a little confusing at first. You might expect the decision itself to built into the unit constructor `Maybe(..)`. In fact, most popular monad tutorials/blog posts out there in the wild do just that, because it makes the illustration of `Maybe` much more convenient and satisfying.
+The way the selection between `Maybe:Just` (aka `Just`) and `Maybe:Nothing` (aka `Nothing`) occurs might be a little confusing at first. You might expect the decision itself to be built into the unit constructor `Maybe(..)`. In fact, most popular monad tutorials/blog posts out there in the wild do just that, because it makes the illustration of `Maybe` much more convenient and satisfying.
 
 That's not proper monad'ing, though. **Monio** does the more appropriate thing and externalizes the decision away from the `Maybe(..)` / `Maybe.of(..)` constructor, into a separate helper called `Maybe.from(..)`. `Maybe.from(null)` will result in a `Maybe:Nothing{}` instance, and `Maybe.from(42)` will result in a `Maybe:Just{42}` instance.
 
@@ -587,7 +587,7 @@ I know many in the FP space prefer to think of each type completely independentl
 
 ### Foldable
 
-The `fold(..)` method mixed into (most of) **Monio**'s monads is implementing the "Foldable" type. Notably, `IO` and its variations are not directly Foldable, but that's because the nature of `IO` is already doing a `fold(..)` of sorts when you call `run(..)`.
+The `fold(..)` method mixed into (most of) **Monio**'s monads is implementing behavior from the "Foldable" type. Notably, `IO` and its variations are not directly Foldable, but that's because the nature of `IO` is already doing a `fold(..)` of sorts when you call `run(..)`.
 
 We already saw `fold(..)` referenced earlier a few times. That's merely the name **Monio** provides, but just like `chain(..)` vs `flatMap(..)` vs `bind(..)`, the name itself doesn't matter, only the expected behavior.
 
@@ -595,13 +595,25 @@ We didn't talk about List type monads (because **Monio** doesn't provide such), 
 
 By contrast, Foldable in the context of a single-value monad (like `Just`) executes a provided function with its single associated/underlying value. It can be thought of as a special case of the generalized List foldable, since it doesn't need to "accumulate" its result across multiple invocations.
 
-Similarly, *Sum Types* like `Maybe` and `Either` are also Foldable in **Monio**; this is a further specialization in that `fold(..)` here takes two functions, but will execute only one of them. If the associated value is a `Maybe:Nothing`, the first function is applied, otherwise (when the associated value is a `Maybe:Just`), the second functino is applied. The same goes for `Either:Left` invoking the first function and `Either:Right` invoking the second function.
+Similarly, *Sum Types* like `Maybe` and `Either` are also Foldable in **Monio**; this is a further specialization in that `fold(..)` here takes two functions, but will execute only one of them. If the associated value is a `Maybe:Nothing`, the first function is applied, otherwise (when the associated value is a `Maybe:Just`), the second function is applied. The same goes for `Either:Left` invoking the first function and `Either:Right` invoking the second function.
 
 But how might we use Foldable practically?
 
 As I implied earlier a few times in this guide, one such transformation is the sort-of "unwrapping" of the underlying/associated value from its monad, by passing the identity function (e.g., `v => v`) to `fold(..)`.
 
-But more commonly, we use Foldable to define a natural transformation from one kind of monad to another. To illustrate, let's revisit this example from earlier:
+```js
+Just(42).fold(identity);   // 42
+```
+
+Now, if you're looking closely, for a single value monad kind like `Just`, `fold(..)` and `chain(..)` seem to have the same behavior (and even implemented virtually identically). You may then wonder why we should provide the seemingly duplicative `fold(..)` on `Just` instead of *just* providing `chain(..)`?
+
+As [explained earlier](#monadic-chain), the implied *type* intent is that a function provided to `chain(..)` always returns the same kind of monad as the one the `chain(..)` method was invoked on. In other words, the (Haskell'ish) type signature is essentially, `chain: m a -> (a -> m b) -> m b`. The monad of type/kind `m` may under the covers be associated to a different type value (`a` vs `b`) from before to after the `chain(..)` call, but it's still supposed to be an `m` kind monad.
+
+So calling `Just(42).chain(identity)` violates this implied type signature -- though **Monio** doesn't enforce it and the operation would work just fine. `fold(..)` on the other hand does not have that sort of implied type signature, as it's intended for you to "fold down" to any arbitrary type, not just another monad instance. `fold(..)` then is a more flexible route that would allow us to "extract" the associated/underlying value.
+
+Moreover, Foldable's `fold(..)` on the *Sum Types* `Maybe` and `Either` has a very different signature from their `chain(..)` method, so they're not at all duplicative of each other.
+
+Rather than using Foldable to extract the value itself, we'll more often prefer to use `fold(..)` to define a natural transformation from one kind of monad to another. To illustrate, let's revisit this example from earlier:
 
 ```js
 // assumed:
@@ -665,7 +677,7 @@ renderIO.run();
 
 Take your time reading and analyzing that code. It's illustrating how our monad types interact in useful ways. I promise that even if at first this code seems head-spinning -- it did for me! -- eventually you will get to understanding and even preferring code like this!
 
-A key aspect of the snippet is the `Maybe`'s `fold(..)` call, which folds down to either a fallback `IO` value if the shipping address was missing, or the computed `IO` holding the valid shipping address, and then `chain(..)`s off whichever `IO` was folded to.
+A key aspect of the snippet is `Maybe`'s `fold(..)` call in the `renderShippingLabel(..)` function, which folds down to either a fallback `IO` value if the shipping address was missing, or the computed `IO` holding the valid shipping address, and then `chain(..)`s off whichever `IO` was folded to. There's a similar thing happening in `renderTextValue(..)`. Both `fold(..)` calls are expressing a natural transformation from the `Maybe` monad to the `IO` monad.
 
 Again, Foldable is distinct from monads. But I think this discussion illustrates how useful it is when paired with a monad. That's why it's an *honored friend*.
 
@@ -705,7 +717,9 @@ foldMap(
 );                                              // Just("HELLO, FRIEND!")
 ```
 
-**NOTE:** Despite the name overlap, the standalone `fold(..)` and `foldMap(..)` utilities provided by the `MonioUtil` module are *not* related to the [Foldable type](#foldable) and the `fold(..)` method that appears on **Monio** monad instances.
+As with `chain(..)`, **Monio**'s `concat(..)` is *supposed* to be used between two same-kind monads. But there's no explicit type enforcement to prevent crossing kinds (e.g. between `Maybe` and `Either`).
+
+**NOTE:** Despite the name overlap, the standalone `fold(..)` and `foldMap(..)` utilities provided by the `MonioUtil` module are *not* the same as the [Foldable type](#foldable)'s `fold(..)` method that appears on **Monio** monad instances.
 
 #### Monoid
 
@@ -809,6 +823,8 @@ Just(add)               // Just(x => y => x + y)
 ```
 
 We put `add(..)` by itself into a `Just`. The first `ap(..)` call "extracts" that function, passes the `3` into it, and makes another `Just` with the returned `y => 3 + x` function in it. The second `ap(..)` call then does the same as the previous snippet, extracting that `y => 3 + x` function and passing `4` into it. The final result of `4 => 3 + 4` is `7`, and that's put back into a `Just`.
+
+As with `chain(..)` and `concat(..)`, **Monio**'s `ap(..)` *should* be passed the same kind of monad as the method is invoked on. But there's no explicit type enforcement to prevent crossing kinds (e.g. between `Maybe` and `Either`).
 
 All of **Monio**'s non-`IO` monads are Applicatives. Again, you may not use such behavior very frequently, but hopefully you may now be able to recognize the need when it arises.
 
