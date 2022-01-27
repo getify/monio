@@ -265,12 +265,13 @@ qunit.test("distinctUntilChanged", (assert) => {
 	);
 });
 
-qunit.test("reduce", (assert) => {
+qunit.test("reduce/scan", (assert) => {
 	var vals = IOx.of.empty();
 	var res = [];
 
-	IOx((env,v) => res.push(v),[
+	IOx((env,v1,v2) => res.push(v1,v2),[
 		vals.chain(IOxHelpers.reduce((product,v) => product * v,3)),
+		vals.chain(IOxHelpers.scan((product,v) => product * v,10))
 	]).run();
 
 	assert.equal(
@@ -283,7 +284,7 @@ qunit.test("reduce", (assert) => {
 
 	assert.deepEqual(
 		res,
-		[ 6 ],
+		[ 6, 20 ],
 		"first reduction"
 	);
 
@@ -291,7 +292,7 @@ qunit.test("reduce", (assert) => {
 
 	assert.deepEqual(
 		res,
-		[ 6, 18 ],
+		[ 6, 20, 18, 20, 18, 60 ],
 		"second reduction"
 	);
 
@@ -299,10 +300,9 @@ qunit.test("reduce", (assert) => {
 
 	assert.deepEqual(
 		res,
-		[ 6, 18, 72 ],
+		[ 6, 20, 18, 20, 18, 60, 72, 60, 72, 240 ],
 		"third reduction"
 	);
-
 });
 
 qunit.test("seq", (assert) => {

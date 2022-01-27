@@ -15,6 +15,7 @@ module.exports = {
 	distinct,
 	distinctUntilChanged,
 	reduce,
+	scan: reduce,
 	seq,
 	waitFor,
 
@@ -33,6 +34,7 @@ module.exports.filterOut = filterOut;
 module.exports.distinct = distinct;
 module.exports.distinctUntilChanged = distinctUntilChanged;
 module.exports.reduce = reduce;
+module.exports.scan = reduce;
 module.exports.seq = seq;
 module.exports.waitFor = waitFor;
 
