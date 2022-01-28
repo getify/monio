@@ -167,7 +167,9 @@ function IOx(iof,deps = []) {
 	}
 
 	function chain(fn) {
-		return IOx(function IOxChain(env,publicAPIv){
+		// outer-chained IOx instance will automatically
+		// close if the parent IOx closes
+		var outerChainedIOx = IOx(function IOxChain(env,publicAPIv){
 			var res = fn(publicAPIv);
 
 			return (isPromise(res) ?
@@ -181,40 +183,106 @@ function IOx(iof,deps = []) {
 
 			// **************************************
 
-			function handle(ciox) {
-				var runCIOx = () => ciox.run(runSignal(env));
+			function handle(riox) {
+				if (
+					// returned value is an IOx that's already
+					// closed?
+					is(riox) && riox.isClosed() &&
 
-				// are we chaining with a valid IOx instance?
-				if (is(ciox)) {
-					let cont = continuation();
-
-					// first time this outer IOx has seen this chained IOx?
-					if (!chainedIOxs.has(ciox)) {
-						chainedIOxs.add(ciox);
-						cont.push(
-							// artificially register a listener for our *outer* IOx
-							() => registerListener(
-								(_,val) => {
-									// *outer* IOx has now closed, but chained IOx
-									// is still open?
-									if (val === CLOSED && ciox && !ciox.isClosed()) {
-										// close the chained IOx (for memory cleanup)
-										return ciox.close(runSignal());
-									}
-								},
-								publicAPI,
-								currentEnv !== UNSET ? currentEnv : env
-							)
-						);
-					}
-
-					cont.push(runCIOx);
-					return cont;
+					// *outer-chained* IOx still defined and not yet
+					// closed?
+					outerChainedIOx && !outerChainedIOx.isClosed()
+				) {
+					// close *outer-chained* IOx and bail
+					return outerChainedIOx.close(runSignal());
 				}
 
-				return runCIOx();
+				// runner for (assumed) *returned* IOx
+				var runRIOx = () => riox.run(runSignal(env));
+
+				if (
+					// returned value is a valid IOx instance to chain
+					// with?
+					is(riox) && registerHooks.has(riox) &&
+
+					// first time this *parent* IOx has seen this
+					// *returned* IOx?
+					!chainedIOxs.has(riox)
+				) {
+					// *parent* IOx should remember this specific
+					// *returned* IOx (to avoid unnecessary listening)
+					chainedIOxs.add(riox);
+
+					// clean-up closures here for better GC
+					let cleanup = () => {
+						if (chainedIOxs && riox) {
+							chainedIOxs.delete(riox);
+						}
+						regParentListener = regReturnedListener =
+							outerChainedIOx = riox = cleanup = null;
+					};
+
+					// internally, register a listener for *parent* IOx
+					let regParentListener = () => registerListener(
+						(_,val) => {
+							// *parent* IOx has now closed, but *returned* IOx
+							// is still open?
+							if (val === CLOSED && riox && !riox.isClosed()) {
+								try {
+									// close *returned* IOx (for memory cleanup)
+									return riox.close(runSignal());
+								}
+								finally {
+									cleanup();
+								}
+							}
+						},
+						publicAPI,
+						currentEnv !== UNSET ? currentEnv : env
+					);
+
+					// internally, register a listener for *returned* IOx
+					let regReturnedListener = () => {
+						var [ regListener, ] = registerHooks.get(riox);
+						return continuation(
+							() => regListener(
+								(_,val) => {
+									if (
+										// *returned* IOx has now closed
+										val === CLOSED &&
+
+										// *outer-chained* IOx still defined and
+										// not yet closed?
+										outerChainedIOx &&
+										!outerChainedIOx.isClosed()
+									) {
+										try {
+											// close *outer-chained* IOx (for
+											// memory cleanup)
+											return outerChainedIOx.close(runSignal());
+										}
+										finally {
+											cleanup();
+										}
+									}
+								}
+							),
+
+							runRIOx
+						);
+					};
+
+					// register listeners (and execute *returned* IOx)
+					return continuation(regParentListener,regReturnedListener);
+				}
+
+				// if we get here, just try to run the *returned* IOx
+				// directly
+				return runRIOx();
 			}
 		},[ publicAPI, ]);
+
+		return outerChainedIOx;
 	}
 
 	function concat(m) {
@@ -865,7 +933,12 @@ function is(v) {
 }
 
 function of(v) {
-	return IOx(() => v,[]);
+	if (arguments.length > 0) {
+		return IOx(() => v,[]);
+	}
+	else {
+		return ofEmpty();
+	}
 }
 
 function ofEmpty() {

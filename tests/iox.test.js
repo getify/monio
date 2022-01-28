@@ -340,6 +340,37 @@ qunit.test("#chain:return async IO", async (assert) => {
 	);
 });
 
+qunit.test("#chain:closed", (assert) => {
+	var iox1 = IOx.of();
+	iox1.close();
+	var iox2 = IOx(() => {},[]).chain(() => iox1);
+
+	var iox3 = IOx.of();
+	var iox4 = IOx(() => {},[]).chain(() => iox3);
+
+	iox2.run();
+
+	assert.ok(
+		iox2.isClosed(),
+		"chaining already closed IOx, closes outer-chained IOx"
+	);
+
+	iox4.run();
+	iox3(42);
+
+	assert.ok(
+		!iox4.isClosed(),
+		"outer-chained IOx not yet closed"
+	);
+
+	iox3.close();
+
+	assert.ok(
+		iox4.isClosed(),
+		"closing previously chained IOx, closed outer-chained IOx"
+	);
+});
+
 qunit.test("#map", (assert) => {
 	assert.equal(
 		IOx.of(1).map(inc).map(twice).run(),
@@ -742,7 +773,7 @@ qunit.test("update-through-merge-zip:very-long", (assert) => {
 });
 
 qunit.test("update:async", async (assert) => {
-	var x1 = IOx.of.empty();
+	var x1 = IOx.of();
 	var x2 = IOx((_,v) => v * 2,[ x1, ]);
 	var x3 = x2.map(v => delayPr(50).then(() => v + 3));
 	var x4 = IOx((_,v1,v2) => v1 + v2 + 5, [ x1, x3 ]);
