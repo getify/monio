@@ -69,6 +69,7 @@ function IOx(iof,deps = []) {
 	var latestIOxVals = new WeakMap();
 	var ioDepsPending = new WeakSet();
 	var depsPendingClose = new WeakSet();
+	var chainedIOxs = new WeakSet();
 	var listeners;
 	var registering = false;
 	var runningIOF = false;
@@ -128,8 +129,8 @@ function IOx(iof,deps = []) {
 					finally {
 						registerHooks.delete(publicAPI);
 						ioDepsPending = depsPendingClose = waitForDeps =
-						depsComplete = deps = iof = io = publicAPI =
-						listeners = null;
+						depsComplete = chainedIOxs = deps = iof = io =
+						publicAPI = listeners = null;
 					}
 				}
 			);
@@ -184,24 +185,31 @@ function IOx(iof,deps = []) {
 				var runCIOx = () => ciox.run(runSignal(env));
 
 				// are we chaining with a valid IOx instance?
-				if (registerHooks.has(ciox)) {
-					// artificially register a listener for our *outer* IOx
-					return continuation(
-						() => registerListener(
-							(_,val) => {
-								// *outer* IOx has now closed, but chained IOx
-								// is still open?
-								if (val === CLOSED && ciox && !ciox.isClosed()) {
-									// close the chained IOx (for memory cleanup)
-									return ciox.close(runSignal());
-								}
-							},
-							publicAPI,
-							currentEnv !== UNSET ? currentEnv : env
-						),
+				if (is(ciox)) {
+					let cont = continuation();
 
-						runCIOx
-					);
+					// first time this outer IOx has seen this chained IOx?
+					if (!chainedIOxs.has(ciox)) {
+						chainedIOxs.add(ciox);
+						cont.push(
+							// artificially register a listener for our *outer* IOx
+							() => registerListener(
+								(_,val) => {
+									// *outer* IOx has now closed, but chained IOx
+									// is still open?
+									if (val === CLOSED && ciox && !ciox.isClosed()) {
+										// close the chained IOx (for memory cleanup)
+										return ciox.close(runSignal());
+									}
+								},
+								publicAPI,
+								currentEnv !== UNSET ? currentEnv : env
+							)
+						);
+					}
+
+					cont.push(runCIOx);
+					return cont;
 				}
 
 				return runCIOx();
