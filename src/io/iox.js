@@ -31,6 +31,7 @@ var registerHooks = new WeakMap();
 module.exports = Object.assign(IOx,{
 	of, pure: of, unit: of, is, do: $do, doEither, onEvent,
 	onceEvent, onTimer, merge, zip, fromIO, fromIter, toIter,
+	fromObservable,
 });
 module.exports.of = of;
 module.exports.pure = of;
@@ -46,6 +47,7 @@ module.exports.zip = zip;
 module.exports.fromIO = fromIO;
 module.exports.fromIter = fromIter;
 module.exports.toIter = toIter;
+module.exports.fromObservable = fromObservable;
 
 
 // *****************************************
@@ -1731,6 +1733,81 @@ function toIter(iox,env) {
 
 				Promise.resolve(res)
 		);
+	}
+
+}
+
+function fromObservable(obsv) {
+	var subscription = null;
+	var iox = IOx(effect,[]);
+
+	// save original methods
+	var { run: _run, stop: _stop, close: _close, } = iox;
+
+	// overwrite methods with wrapped versions
+	Object.assign(iox,{ run, stop, close, });
+
+	return iox;
+
+	// *****************************************
+
+	function effect() {
+		subscribe();
+		return EMPTY;
+	}
+
+	function subscribe() {
+		if (!subscription && iox) {
+			// (lazily) setup observable subscription
+			subscription = obsv.subscribe({
+				next: v => iox(v),
+				error: logUnhandledError,
+				complete: close,
+			});
+		}
+	}
+
+	function unsubscribe() {
+		if (subscription) {
+			// discard observable subscription
+			subscription.unsubscribe();
+			subscription = null;
+		}
+	}
+
+	function run(env) {
+		if (_run) {
+			subscribe();
+			return _run ? _run(env) : undefined;
+		}
+	}
+
+	function stop() {
+		unsubscribe();
+		_stop();
+	}
+
+	function close(signal) {
+		if (iox) {
+			// restore original methods
+			Object.assign(iox,{
+				run: _run, stop: _stop, close: _close,
+			});
+			stop();
+
+			let cont = continuation(
+				() => {
+					try {
+						return iox.close(signal);
+					}
+					finally {
+						run = _run = _stop = stop = _close = close =
+							iox = obsv = subscription = null;
+					}
+				}
+			);
+			return (isRunSignal(signal) ? cont : trampoline(cont));
+		}
 	}
 
 }

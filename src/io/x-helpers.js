@@ -26,8 +26,13 @@ module.exports = {
 	zip: IOx.zip,
 	doIOx: IOx.do,
 	doEIOx: IOx.doEither,
+	onEvent: IOx.onEvent,
+	onceEvent: IOx.onceEvent,
+	onTimer: IOx.onTimer,
+	fromIO: IOx.fromIO,
 	fromIter: IOx.fromIter,
 	toIter: IOx.toIter,
+	fromObservable: IOx.fromObservable,
 };
 module.exports.filterIn = filterIn;
 module.exports.filterOut = filterOut;
@@ -45,8 +50,13 @@ module.exports.merge = IOx.merge;
 module.exports.zip = IOx.zip;
 module.exports.doIOx = IOx.do;
 module.exports.doEIOx = IOx.doEither;
+module.exports.onEvent = IOx.onEvent;
+module.exports.onceEvent = IOx.onceEvent;
+module.exports.onTimer = IOx.onTimer;
+module.exports.fromIO = IOx.fromIO;
 module.exports.fromIter = IOx.fromIter;
 module.exports.toIter = IOx.toIter;
+module.exports.fromObservable = IOx.fromObservable;
 
 
 // **************************

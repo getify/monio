@@ -20,6 +20,7 @@
 		"moduloze": "~0.8.0",
 		"nyc": "~15.1.0",
 		"qunit": "~2.17.2",
+		"rxjs": "~7.5.2",
 		"sinon": "~12.0.1"
 	},
 	"mz-dependencies": {
