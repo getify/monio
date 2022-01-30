@@ -119,6 +119,71 @@ qunit.test("#run:async", async (assert) => {
 	);
 });
 
+qunit.test("#run:async with dep closing", async (assert) => {
+	// NOTE: this test targets a specific
+	// guard clause in `settleUpdate(..)`
+
+	var res1 = [];
+	var res2 = [];
+	var depIOx1 = IOx.of(2);
+	var depIOx2 = IOx.of(20);
+	var iox1 = IOx(async (env,v) => {
+		res1.push(v);
+		depIOx1.close();
+		await Promise.resolve();
+		return v;
+	},[ depIOx1 ]);
+	var iox2 = IOx(async (env,v) => {
+		res2.push(v);
+		depIOx2.close();
+		// intentionally will never resolve
+		return new Promise(r => r);
+	},[ depIOx2 ]);
+
+	var res3 = iox1.run();
+	var res4 = iox2.run();
+
+	assert.ok(
+		depIOx1.isClosed() && iox1.isClosed(),
+		"(1) dep and main stream both closed immediately"
+	);
+
+	assert.ok(
+		depIOx2.isClosed() && iox2.isClosed(),
+		"(2) dep and main stream both closed immediately"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ 2 ],
+		"(1) dep value was received"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ 20 ],
+		"(2) dep value was received"
+	);
+
+	assert.ok(
+		res3 instanceof Promise,
+		"(1) iox run() returns a promise"
+	);
+
+	assert.ok(
+		res4 instanceof Promise,
+		"(2) iox run() returns a promise"
+	);
+
+	res3 = await res3;
+
+	assert.equal(
+		res3,
+		2,
+		"run() promise eventually resolves to value"
+	);
+});
+
 qunit.test("#chain", (assert) => {
 	assert.equal(
 		IOx.of({ name: "john" }).chain(ioProp('name')).run(),
@@ -337,6 +402,35 @@ qunit.test("#chain:return async IO", async (assert) => {
 		res1,
 		[ 11, "x", 3, 11, "x", 3, 21, "x", 3, 31, "x", 3 ],
 		"(3) chain and IO both re-execute"
+	);
+});
+
+qunit.test("#chain:return promised IOX + closes parent chain",async (assert) => {
+	var iox1 = IOx.of(3);
+	var iox2 = iox1.chain(async (v) => {
+		await Promise.resolve();
+		iox1.close();
+		return IOx.of(v * 2);
+	});
+
+	var res = iox2.run();
+
+	assert.ok(
+		res instanceof Promise,
+		"run() returns a promise"
+	);
+
+	res = await res;
+
+	assert.ok(
+		iox1.isClosed() && iox2.isClosed(),
+		"both IOx streams close"
+	);
+
+	assert.equal(
+		res,
+		6,
+		"promise eventually resolves to proper result"
 	);
 });
 

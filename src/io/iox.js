@@ -69,7 +69,7 @@ function IOx(iof,deps = []) {
 	var depVals = new WeakMap();
 	var latestIOxVals = new WeakMap();
 	var ioDepsPending = new WeakSet();
-	var chainedIOxs = new WeakSet();
+	var chainReturnedIOxs = new WeakSet();
 	var listeners;
 	var registering = false;
 	var runningIOF = false;
@@ -129,7 +129,7 @@ function IOx(iof,deps = []) {
 					finally {
 						registerHooks.delete(publicAPI);
 						ioDepsPending = waitForDeps = depsComplete =
-						chainedIOxs = deps = iof = io = publicAPI =
+						chainReturnedIOxs = deps = iof = io = publicAPI =
 						listeners = null;
 					}
 				}
@@ -169,120 +169,136 @@ function IOx(iof,deps = []) {
 	function chain(fn) {
 		// outer-chained IOx instance will automatically
 		// close if the parent IOx closes
-		var outerChainedIOx = IOx(function IOxChain(env,publicAPIv){
+		var outerChainedIOx = IOx((env,publicAPIv) => {
 			var res = fn(publicAPIv);
 
 			return (isPromise(res) ?
 				// trampoline() here unwraps the continuation
 				// immediately, because we're already in an
 				// async microtask from the promise
-				res.then(iox => trampoline(handle(iox))) :
+				res.then(iox => trampoline(handle(iox,env))) :
 
-				handle(res)
+				handle(res,env)
 			);
+		},[ publicAPI, ]);
 
-			// **************************************
+		return outerChainedIOx;
 
-			function handle(riox) {
-				if (
-					// returned value is an IOx that's already
-					// closed?
-					is(riox) && riox.isClosed() &&
+		// **************************************
 
-					// *outer-chained* IOx still defined but not yet
-					// closed?
-					outerChainedIOx && !outerChainedIOx.isClosed()
-				) {
-					// close *outer-chained* IOx and bail
-					return outerChainedIOx.close(runSignal());
-				}
+		function handle(returnedIOx,env) {
+			// is the *returned* IOx already closed?
+			var checkRes = checkClosedIOx(returnedIOx);
+			if (checkRes !== undefined) {
+				return checkRes;
+			}
 
-				// runner for (assumed) *returned* IOx
-				var runRIOx = () => riox.run(runSignal(env));
+			if (
+				// returned value is a valid IOx instance to chain
+				// with?
+				is(returnedIOx) && registerHooks.has(returnedIOx) &&
 
-				if (
-					// returned value is a valid IOx instance to chain
-					// with?
-					is(riox) && registerHooks.has(riox) &&
+				// first time this *parent* IOx has seen this
+				// *returned* IOx?
+				//
+				// note: also, *parent* IOx must still be open!
+				chainReturnedIOxs && !chainReturnedIOxs.has(returnedIOx)
+			) {
+				// *parent* IOx should remember this specific
+				// *returned* IOx (to avoid unnecessary listening)
+				chainReturnedIOxs.add(returnedIOx);
 
-					// first time this *parent* IOx has seen this
-					// *returned* IOx?
-					chainedIOxs && !chainedIOxs.has(riox)
-				) {
-					// *parent* IOx should remember this specific
-					// *returned* IOx (to avoid unnecessary listening)
-					chainedIOxs.add(riox);
-
-					// clean-up closures here for better GC
-					let cleanup = () => {
-						if (chainedIOxs && riox) {
-							chainedIOxs.delete(riox);
-						}
-						regParentListener = regReturnedListener =
-							outerChainedIOx = riox = cleanup = null;
-					};
-
-					// internally, register a listener for *parent* IOx
-					let regParentListener = () => registerListener(
-						(_,val) => {
+				// register listener(s) for IOx closings, then run
+				// *returned* IOx (if not closed)
+				return continuation(
+					// internally, register a close-listener for *parent* IOx
+					() => registerListener(
+						function listener(_,val){
 							// *parent* IOx has now closed, but *returned* IOx
 							// is still open?
-							if (val === CLOSED && riox && !riox.isClosed()) {
-								try {
-									// close *returned* IOx (for memory cleanup)
-									return riox.close(runSignal());
-								}
-								finally {
-									cleanup();
-								}
+							if (val === CLOSED && returnedIOx && !returnedIOx.isClosed()) {
+								unregisterListener(listener);
+
+								// close *returned* IOx (for memory cleanup)
+								return continuation(
+									() => returnedIOx.close(runSignal()),
+									cleanup
+								);
 							}
 						},
-						publicAPI,
 						currentEnv !== UNSET ? currentEnv : env
-					);
+					),
 
-					// internally, register a listener for *returned* IOx
-					let regReturnedListener = () => {
-						var [ regListener, ] = registerHooks.get(riox);
+					() => {
+						// note: *returned* IOx must still be open here
+						//
+						// register a close-listener against *returned* IOx
+						var [ regListener, unregListener, ] = registerHooks.get(returnedIOx);
 						return continuation(
 							() => regListener(
-								(_,val) => {
+								function listener(_,val){
 									if (
 										// *returned* IOx has now closed
 										val === CLOSED &&
 
 										// *outer-chained* IOx still defined and
 										// not yet closed?
-										outerChainedIOx &&
-										!outerChainedIOx.isClosed()
+										outerChainedIOx && !outerChainedIOx.isClosed()
 									) {
-										try {
-											// close *outer-chained* IOx (for
-											// memory cleanup)
-											return outerChainedIOx.close(runSignal());
-										}
-										finally {
-											cleanup();
-										}
+										unregListener(listener);
+
+										// close *outer-chained* IOx (for memory
+										// cleanup)
+										return continuation(
+											() => outerChainedIOx.close(runSignal()),
+											cleanup
+										);
 									}
-								}
+								},
+								currentEnv !== UNSET ? currentEnv : env
 							),
 
 							runRIOx
 						);
-					};
-
-					// register listeners (and execute *returned* IOx)
-					return continuation(regParentListener,regReturnedListener);
-				}
-
-				// if we get here, just try to run the *returned* IOx
-				// directly
-				return runRIOx();
+					}
+				);
 			}
-		},[ publicAPI, ]);
 
-		return outerChainedIOx;
+			// if we get here, run the *returned* IOx directly
+			// (no need for cleanup)
+			return runRIOx();
+
+			// ******************************************
+
+			// runner for *returned* (assumed) IOx
+			function runRIOx() {
+				return returnedIOx.run(runSignal(env));
+			}
+
+			function checkClosedIOx(iox) {
+				if (
+					isClosedIOx(iox) &&
+
+					// *outer-chained* IOx still defined but not yet
+					// closed?
+					outerChainedIOx && !outerChainedIOx.isClosed()
+				) {
+					// close *outer-chained* IOx and bail
+					return continuation(
+						() => outerChainedIOx.close(runSignal()),
+						cleanup
+					);
+				}
+			}
+
+			// clean-up closures for better GC
+			function cleanup() {
+				if (chainReturnedIOxs && returnedIOx) {
+					chainReturnedIOxs.delete(returnedIOx);
+				}
+				outerChainedIOx = returnedIOx = null;
+			}
+		}
 	}
 
 	function concat(m) {
@@ -304,6 +320,10 @@ function IOx(iof,deps = []) {
 		if (haveDeps()) {
 			return deps.some(is);
 		}
+	}
+
+	function isClosedIOx(v) {
+		return is(v) && v.isClosed();
 	}
 
 	function haveQueuedIOxDepVals() {
@@ -503,20 +523,21 @@ function IOx(iof,deps = []) {
 				discardCurrentDepVals();
 
 				try {
-					// check again to see if any deps are closed;
-					// if so, since the current update is asynchronous,
-					// just close right away instead of waiting for it
-					for (let dep of (deps || [])) {
-						// a closed IOx dep?
-						if (is(dep) && dep.isClosed()) {
-							return continuation(
-								// force close our IOx
-								() => close(runSignal()),
+					if (haveIOxDeps()) {
+						// check again to see if any IOx deps are closed;
+						// if so, since the current update is asynchronous,
+						// just close right away instead of waiting for it
+						for (let dep of deps) {
+							if (isClosedIOx(dep)) {
+								return continuation(
+									// force close our IOx
+									() => close(runSignal()),
 
-								// return the promise for the current
-								// update settlement
-								() => updateRes
-							);
+									// return the promise for the current
+									// update settlement
+									() => updateRes
+								);
+							}
 						}
 					}
 
@@ -610,17 +631,12 @@ function IOx(iof,deps = []) {
 			// check only for closed IOx deps
 			for (let dep of deps) {
 				if (
-					// dep is a valid IOx?
-					is(dep) &&
-
-					// dep is closed?
-					dep.isClosed() &&
-
+					isClosedIOx(dep) &&
 					(
 						// not currently in an IOx evaluation loop?
 						!runningIOF ||
 
-						// or, no more values in the queue?
+						// or, no more values in the dep's queue?
 						!hasDepVal(dep)
 					)
 				) {
@@ -796,9 +812,9 @@ function IOx(iof,deps = []) {
 		}
 	}
 
-	function registerListener(listener,dep,env) {
+	function registerListener(listener,env) {
 		if (currentVal === CLOSED) {
-			return listener(dep,CLOSED);
+			return listener(publicAPI,CLOSED);
 		}
 		else {
 			if (!Array.isArray(listeners)) {
@@ -814,7 +830,7 @@ function IOx(iof,deps = []) {
 			}
 			else if (currentVal !== UNSET) {
 				// respond with most recent value
-				return listener(dep,currentVal);
+				return listener(publicAPI,currentVal);
 			}
 		}
 	}
@@ -861,15 +877,11 @@ function IOx(iof,deps = []) {
 			) {
 				depVals.set(dep,[]);
 				let [ regListener, ] = registerHooks.get(dep);
+				return continuation(
+					() => regListener(onDepUpdate,env),
 
-				// can we register with this IOx?
-				if (isFunction(regListener)) {
-					return continuation(
-						() => regListener(onDepUpdate,dep,env),
-
-						registerNext
-					);
-				}
+					registerNext
+				);
 			}
 
 			// if we get here, dep wasn't an IOx that
@@ -901,10 +913,7 @@ function IOx(iof,deps = []) {
 						ioDepsPending.delete(dep);
 					}
 					let [ , unregListener, ] = registerHooks.get(dep);
-					// IOx instance still active/valid?
-					if (isFunction(unregListener)) {
-						unregListener(onDepUpdate);
-					}
+					unregListener(onDepUpdate);
 				}
 			}
 			depVals = new WeakMap();
@@ -1290,7 +1299,7 @@ function zip(ioxs = []) {
 				// register a listener for the stream?
 				if (registerHooks.has(nextIOx)) {
 					let [ regListener, ] = registerHooks.get(nextIOx);
-					return regListener(onUpdate,nextIOx,env);
+					return regListener(onUpdate,env);
 				}
 			},
 
@@ -1470,7 +1479,7 @@ function merge(ioxs = []) {
 				// register a listener for the stream?
 				if (registerHooks.has(nextIOx)) {
 					let [ regListener, ] = registerHooks.get(nextIOx);
-					return regListener(onUpdate,nextIOx,env);
+					return regListener(onUpdate,env);
 				}
 			},
 
@@ -1736,7 +1745,7 @@ function toIter(iox,env) {
 			subscribed = true;
 
 			let [ regListener, ] = registerHooks.get(iox);
-			trampoline(regListener(onIOxUpdate,iox,env));
+			trampoline(regListener(onIOxUpdate,env));
 		}
 	}
 
