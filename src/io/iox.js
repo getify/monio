@@ -61,6 +61,7 @@ function IOx(iof,deps = []) {
 	}
 
 	const TAG = "IOx";
+	const origBind = IOx.bind;
 	var currentEnv = UNSET;
 	var currentVal = UNSET;
 	var waitForDeps;
@@ -68,7 +69,6 @@ function IOx(iof,deps = []) {
 	var depVals = new WeakMap();
 	var latestIOxVals = new WeakMap();
 	var ioDepsPending = new WeakSet();
-	var depsPendingClose = new WeakSet();
 	var chainedIOxs = new WeakSet();
 	var listeners;
 	var registering = false;
@@ -84,7 +84,7 @@ function IOx(iof,deps = []) {
 		map, chain, flatMap: chain, bind: chain,
 		concat, run, stop, close, isClosed, freeze,
 		isFrozen, toString, _chain_with_IO, _inspect,
-		_is, [Symbol.toStringTag]: TAG,
+		_bind: origBind, _is, [Symbol.toStringTag]: TAG,
 	});
 	registerHooks.set(publicAPI,[ registerListener, unregisterListener, ]);
 	return publicAPI;
@@ -128,9 +128,9 @@ function IOx(iof,deps = []) {
 					}
 					finally {
 						registerHooks.delete(publicAPI);
-						ioDepsPending = depsPendingClose = waitForDeps =
-						depsComplete = chainedIOxs = deps = iof = io =
-						publicAPI = listeners = null;
+						ioDepsPending = waitForDeps = depsComplete =
+						chainedIOxs = deps = iof = io = publicAPI =
+						listeners = null;
 					}
 				}
 			);
@@ -189,7 +189,7 @@ function IOx(iof,deps = []) {
 					// closed?
 					is(riox) && riox.isClosed() &&
 
-					// *outer-chained* IOx still defined and not yet
+					// *outer-chained* IOx still defined but not yet
 					// closed?
 					outerChainedIOx && !outerChainedIOx.isClosed()
 				) {
@@ -207,7 +207,7 @@ function IOx(iof,deps = []) {
 
 					// first time this *parent* IOx has seen this
 					// *returned* IOx?
-					!chainedIOxs.has(riox)
+					chainedIOxs && !chainedIOxs.has(riox)
 				) {
 					// *parent* IOx should remember this specific
 					// *returned* IOx (to avoid unnecessary listening)
@@ -499,9 +499,30 @@ function IOx(iof,deps = []) {
 			// we can now immediately bail on this evaluation of
 			// the IOx
 			else {
+				// nothing else to evaluate for now
+				discardCurrentDepVals();
+
 				try {
-					// nothing else to evaluate for now
-					discardCurrentDepVals();
+					// check again to see if any deps are closed;
+					// if so, since the current update is asynchronous,
+					// just close right away instead of waiting for it
+					for (let dep of (deps || [])) {
+						// a closed IOx dep?
+						if (is(dep) && dep.isClosed()) {
+							return continuation(
+								// force close our IOx
+								() => close(runSignal()),
+
+								// return the promise for the current
+								// update settlement
+								() => updateRes
+							);
+						}
+					}
+
+					// if we get here, no IOx deps were closed, so just
+					// return the promise for the current update
+					// settlement
 					return updateRes;
 				}
 				finally {
@@ -514,7 +535,6 @@ function IOx(iof,deps = []) {
 
 	function onDepUpdate(dep,newVal) {
 		if (newVal === CLOSED) {
-			depsPendingClose.add(dep);
 			latestIOxVals.delete(dep);
 		}
 		else {
@@ -594,7 +614,7 @@ function IOx(iof,deps = []) {
 					is(dep) &&
 
 					// dep is closed?
-					(depsPendingClose.has(dep) || dep.isClosed()) &&
+					dep.isClosed() &&
 
 					(
 						// not currently in an IOx evaluation loop?
@@ -747,7 +767,6 @@ function IOx(iof,deps = []) {
 			if (drainQueueIfAsync && !runningIOF && currentEnv !== UNSET) {
 				return continuation(
 					() => safeIORun(publicAPI,runSignal(currentEnv)),
-
 					completeUpdate
 				);
 			}
