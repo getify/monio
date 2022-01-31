@@ -3,6 +3,8 @@
 [![Build Status](https://travis-ci.org/getify/monio.svg?branch=master)](https://travis-ci.org/getify/monio)
 [![npm Module](https://badge.fury.io/js/monio.svg)](https://www.npmjs.org/package/monio)
 [![Coverage Status](https://coveralls.io/repos/github/getify/monio/badge.svg?branch=master)](https://coveralls.io/github/getify/monio?branch=master)
+[![Modules](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
+[![License](https://img.shields.io/badge/license-MIT-a1356a)](LICENSE.txt)
 
 **Monio** (mō'ne-yo) provides an async-capable IO Monad (including "do" style) for JS, with several helpful companion monads (like Maybe and Either) thrown in.
 
@@ -103,6 +105,8 @@ Just("Are you ready for Monio?");
 Check out [**Monio**'s Monads](MONIO.md) for a bunch of code snippets and detailed descriptions of all the monads (and helpers) provided in this library.
 
 ## Using Monio
+
+[![npm Module](https://badge.fury.io/js/monio.svg)](https://www.npmjs.org/package/monio) [![Module Format](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
 
 To use monads/helpers from Monio, `require(..)` or `import ..` them [by name](#importrequire-paths-for-monio-entities):
 
@@ -213,6 +217,8 @@ main.run();
 ```
 
 ### Import/Require Paths For Monio Entities
+
+[![Module Format](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
 
 **Note:** For ESM-format usage in the browser, URL paths (with filename extensions!) or Import-Maps are required. To use the friendlier ESM-Node/CJS names while in the browser, an Import-Map is required. [See above](#user-content-esm-in-browser) for explanation.
 
@@ -373,5 +379,7 @@ Then open up `coverage/lcov-report/index.html` in a browser to view the report.
 **Note:** The npm script `coverage:report` is only intended for use by project maintainers. It sends coverage reports to [Coveralls](https://coveralls.io/).
 
 ## License
+
+[![License](https://img.shields.io/badge/license-MIT-a1356a)](LICENSE.txt)
 
 All code and documentation are (c) 2022 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
