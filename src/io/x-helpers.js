@@ -62,9 +62,6 @@ module.exports.fromObservable = IOx.fromObservable;
 // **************************
 
 function filterIn(predicate) {
-	const NeverIOx = IOx.of.empty();
-	NeverIOx.freeze();
-	NeverIOx.close = EMPTY_FUNC;
 	var iox = IOx.of.empty();
 
 	return function filter(v){
@@ -73,7 +70,7 @@ function filterIn(predicate) {
 			return iox;
 		}
 		else {
-			return NeverIOx;
+			return IOx.Never;
 		}
 	};
 }

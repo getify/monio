@@ -55,6 +55,11 @@ function IO(effect) {
 			res => {
 				var res2 = (isPromise(res) ? res.then(fn) : fn(res));
 				return (isPromise(res2) ?
+					// note: if you don't return an IO/IOx to the
+					// `chain(fn)` function, as required by the
+					// implied type signature of `chain(..)`, one
+					// of these two lines will throw as we try to
+					// `run(..)` the expected IO/IOx
 					res2.then(io2 => io2.run(env)) :
 					res2.run(runSignal(env))
 				);
@@ -66,6 +71,11 @@ function IO(effect) {
 		return IO(env => continuation(
 			() => effect(env),
 			res1 => continuation(
+				// note: if you don't provide an IO/IOx
+				// monad to `concat(m)`, as the implied
+				// type signature requires, this line will
+				// throw as we try to `run(..)` the expected
+				// IO/IOx
 				() => m.run(runSignal(env)),
 				res2 => (
 					(isPromise(res1) || isPromise(res2)) ?
@@ -170,11 +180,12 @@ function processNext(next,respVal,outerEnv,throwEither) {
 				nextRespVal &&
 				isFunction(nextRespVal) &&
 				isFunction(nextRespVal._chain_with_IO) &&
-				isFunction(nextRespVal._inspect) &&
-				/^IOx\b/.test(nextRespVal._inspect())
-			) ?
+				isFunction(nextRespVal.toString) &&
+				/^\[function (Never)?IOx\]$/.test(nextRespVal.toString())
+			) ? (
 				// chain IOx via a regular IO to reduce overhead
-				nextRespVal._chain_with_IO(ioWrap) :
+				nextRespVal._chain_with_IO(ioWrap)
+			) :
 
 			// need to wrap value in an IO?
 			wrapInIO ? ioWrap(nextRespVal) :

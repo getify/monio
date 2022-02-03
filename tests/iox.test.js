@@ -12,7 +12,7 @@ process.on("rejectionHandled",()=>{});
 
 const EventEmitter = require("events");
 const qunit = require("qunit");
-const { identity, } = MonioUtil;
+const { EMPTY_FUNC, identity, } = MonioUtil;
 const {
 	INJECT_MONIO,
 	inc,
@@ -437,10 +437,10 @@ qunit.test("#chain:return promised IOX + closes parent chain",async (assert) => 
 qunit.test("#chain:closed", (assert) => {
 	var iox1 = IOx.of();
 	iox1.close();
-	var iox2 = IOx(() => {},[]).chain(() => iox1);
+	var iox2 = IOx(EMPTY_FUNC,[]).chain(() => iox1);
 
 	var iox3 = IOx.of();
-	var iox4 = IOx(() => {},[]).chain(() => iox3);
+	var iox4 = IOx(EMPTY_FUNC,[]).chain(() => iox3);
 
 	iox2.run();
 
@@ -1022,7 +1022,7 @@ qunit.test("update:async-concurrent", async (assert) => {
 	);
 });
 
-qunit.test("close", (assert) => {
+qunit.test("#close", (assert) => {
 	var vals1 = IOx.of(2);
 	var vals3 = [];
 	var vals2 = vals1.chain(v => {
@@ -1032,6 +1032,7 @@ qunit.test("close", (assert) => {
 	});
 	var res = [];
 	var vals4 = IOx(()=>{ res.push("oops"); },[ vals2 ]);
+
 	vals2.run();
 
 	assert.ok(
@@ -1090,6 +1091,247 @@ qunit.test("close", (assert) => {
 	);
 });
 
+qunit.test("NeverIOx", (assert) => {
+	var neviox = IOx.Never;
+	var iox = IOx((env,v1,v2) => [v1,v2],[ IOx.of(2), neviox ]);
+
+	assert.ok(
+		neviox.isNever(),
+		"NeverIOx is initially marked as 'never'"
+	);
+
+	neviox.close();
+
+	assert.ok(
+		!neviox.isClosed() && neviox.isNever(),
+		"NeverIOx never closes and is always marked as 'never'"
+	);
+
+	assert.equal(
+		neviox.run(),
+		undefined,
+		"run() does nothing"
+	);
+
+	assert.equal(
+		neviox(42),
+		neviox,
+		"assignment does nothing"
+	);
+
+	assert.equal(
+		neviox.map(v => v + 1),
+		neviox,
+		"map() does nothing, returns NeverIOx"
+	);
+
+	assert.equal(
+		neviox.chain(v => IOx.of(v + 1)),
+		neviox,
+		"chain() does nothing, returns NeverIOx"
+	);
+
+	assert.equal(
+		neviox.concat(IOx.of([100])),
+		neviox,
+		"concat() does nothing, returns NeverIOx"
+	);
+
+	assert.equal(
+		neviox._inspect(),
+		"NeverIOx()",
+		"_inspect() shows proper output"
+	);
+
+	assert.equal(
+		neviox.toString(),
+		"[function NeverIOx]",
+		"toString() shows proper output"
+	);
+
+	var res1 = neviox._chain_with_IO(v => IO.of(v + 1));
+
+	assert.ok(
+		IO.is(res1) && !IOx.is(res1) && res1.run() === undefined,
+		"_chain_with_IO returns an empty IO"
+	);
+
+	neviox.never();
+
+	assert.ok(
+		neviox._inspect(),
+		"NeverIOx()",
+		"never() does nothing"
+	);
+
+	var res2 = iox.run();
+
+	assert.equal(
+		res2,
+		undefined,
+		"NeverIOx as dependency prevents any output from run()"
+	);
+
+	assert.ok(
+		iox.isNever(),
+		"NeverIOx as dependency marks dependent stream as 'never' at run()"
+	);
+});
+
+qunit.test("#never", async (assert) => {
+	var res2 = [];
+	var res4 = [];
+	var res6 = [];
+	var res8 = [];
+
+	var iox1 = IOx.of.empty();
+	var iox2 = iox1.chain(v => res2.push(v));
+	var iox3 = IOx.of.empty();
+	var iox4 = IOx((env,v) => res4.push(v),[ iox3 ]);
+	var iox5 = IOx(env => iox5.never(),[]);
+	var iox6 = IOx((env,v) => res6.push(v),[ iox5 ]);
+	var iox7 = IOx(async (env) => { await Promise.resolve(); iox7.never(); },[]);
+	var iox8 = IOx((env,v) => res8.push(v),[ iox7 ]);
+
+	iox1.never();
+	var res9 = iox2.run();
+
+	assert.ok(
+		res9 instanceof Promise,
+		"(1) run() returned promise"
+	);
+
+	assert.ok(
+		iox1.isNever() && iox2.isNever(),
+		"never() before run() marks both source and dependent stream as 'never'"
+	);
+
+	// should be a never-resolving promise
+	res9.then(() => res2.push("oops"));
+
+	await delayPr(10);
+
+	iox1(42);
+
+	assert.deepEqual(
+		res2,
+		[],
+		"(1) promise never resolves, and no values get pushed through 'never' stream"
+	);
+
+	var res10 = iox4.run();
+
+	assert.ok(
+		res10 instanceof Promise,
+		"(2) run() returned promise"
+	);
+
+	// should be a never-resolving promise
+	res10.then(() => res4.push("oops"));
+
+	iox3.never();
+
+	assert.ok(
+		iox3.isNever() && iox4.isNever(),
+		"never() after run() marks both source and chained stream as 'never'"
+	);
+
+	await delayPr(10);
+
+	assert.deepEqual(
+		res4,
+		[],
+		"(2) promise never resolves, and no values get pushed through 'never' stream"
+	);
+
+	var res11 = iox6.run();
+
+	assert.ok(
+		res11 instanceof Promise,
+		"(3) run() returned promise"
+	);
+
+	// should be a never-resolving promise
+	res11.then(() => res6.push("oops"));
+
+	assert.ok(
+		iox5.isNever() && iox6.isNever(),
+		"never() synchronously during run() marks both source and chained stream as 'never'"
+	);
+
+	await delayPr(10);
+
+	assert.deepEqual(
+		res6,
+		[],
+		"(3) promise never resolves, and no values get pushed through 'never' stream"
+	);
+
+	var res12 = iox8.run();
+
+	assert.ok(
+		res12 instanceof Promise,
+		"(4) run() returned promise"
+	);
+
+	// should be a never-resolving promise
+	res12.then(() => res6.push("oops"));
+
+	await delayPr(10);
+
+	assert.ok(
+		iox7.isNever() && iox8.isNever(),
+		"never() asynchronously during run() marks both source and chained stream as 'never'"
+	);
+
+	assert.ok(
+		iox8.toString() == IOx.Never.toString() && iox8._inspect() == IOx.Never._inspect(),
+		"IOx marked as 'never' has same toString() and _inspect() outputs as NeverIOx"
+	);
+
+	assert.deepEqual(
+		res8,
+		[],
+		"(4) promise never resolves, and no values get pushed through 'never' stream"
+	);
+
+	assert.equal(
+		iox8.run(),
+		undefined,
+		"run() on a 'never' marked stream does nothing"
+	);
+
+	assert.equal(
+		iox8.stop(),
+		undefined,
+		"stop() on a 'never' marked stream does nothing"
+	);
+
+	assert.equal(
+		iox8.map(v => v + 1),
+		IOx.Never,
+		"map() on a 'never' marked stream returns NeverIOx"
+	);
+
+	assert.equal(
+		iox8.chain(v => IOx.of(v + 1)),
+		IOx.Never,
+		"chain() on a 'never' marked stream returns NeverIOx"
+	);
+
+	assert.equal(
+		iox8.concat(IOx.of([ 12 ])),
+		IOx.Never,
+		"concat() on a 'never' marked stream returns NeverIOx"
+	);
+
+	assert.equal(
+		iox8._chain_with_IO(v => IOx.of(v + 1)).run(),
+		undefined,
+		"_chain_with_IO on a 'never' marked stream returns IO()"
+	);
+});
+
 qunit.test("#stop:very-long", (assert) => {
 	var first;
 	var iox = first = IOx(start => start,[]);
@@ -1113,7 +1355,7 @@ qunit.test("#stop:very-long", (assert) => {
 	);
 });
 
-qunit.test("stop", (assert) => {
+qunit.test("#stop", (assert) => {
 	var vals = IOx.of(2);
 	var res = [];
 
@@ -1166,65 +1408,6 @@ qunit.test("stop", (assert) => {
 		res,
 		[ 2, 3, 4, 4, 7, 8 ],
 		"stopped stream restarts when assigning a new value"
-	);
-});
-
-qunit.test("freeze", (assert) => {
-	var vals = IOx.of(2);
-	var res = [];
-
-	var pushed = vals.chain(v => IO.of(res.push(v)));
-
-	pushed.run();
-
-	assert.deepEqual(
-		res,
-		[ 2 ],
-		"stream collects initial value at open"
-	);
-
-	vals(3);
-	vals(4);
-
-	assert.deepEqual(
-		res,
-		[ 2, 3, 4 ],
-		"stream keeps collecting values while open"
-	);
-
-	vals.freeze();
-
-	assert.ok(
-		vals.isFrozen(),
-		"stream is frozen"
-	);
-
-	assert.ok(
-		!vals.isClosed(),
-		"frozen stream not automatically closed"
-	);
-
-	vals(5);
-	vals(6);
-	vals(7);
-
-	assert.equal(
-		vals.run(),
-		4,
-		"frozen stream hasn't updated its value"
-	);
-
-	assert.deepEqual(
-		res,
-		[ 2, 3, 4 ],
-		"frozen stream doesn't emit new values"
-	);
-
-	vals.close();
-
-	assert.ok(
-		vals.isClosed(),
-		"frozen stream can still be closed"
 	);
 });
 
