@@ -367,6 +367,266 @@ qunit.test("seq", (assert) => {
 	);
 });
 
+qunit.test("take", async (assert) => {
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+
+	var iox1 = IOx.of.empty();
+	var iox2 = IOxHelpers.fromIter([ 10, 20, 30, 40, 50 ],true);
+	var iox3 = IOx.of(100);
+
+	var pushed1 = IOx((env,v) => res1.push(v),[ iox1.chain(IOxHelpers.take(4)) ]);
+	var pushed2 = IOx((env,v) => res2.push(v),[ iox2.chain(IOxHelpers.take(4)) ]);
+	var pushed3 = IOx((env,v) => res3.push(v),[ iox3.chain(IOxHelpers.take(4,/*closeOnComplete=*/false)) ]);
+
+	pushed1.run();
+
+	iox1(1);
+
+	assert.deepEqual(
+		res1,
+		[ 1 ],
+		"first value through first take(4)"
+	);
+
+	iox1(3);
+	iox1(5);
+	iox1(7);
+	iox1(9);
+
+	assert.deepEqual(
+		res1,
+		[ 1, 3, 5, 7 ],
+		"only next three values through first take(4)"
+	);
+
+	assert.ok(
+		pushed1.isClosed(),
+		"after taking 4, first closes (as default)"
+	);
+
+	pushed2.run();
+
+	assert.deepEqual(
+		res2,
+		[ 10, 20, 30, 40 ],
+		"all four values from iterable through second take(4)"
+	);
+
+	assert.ok(
+		iox2.isClosed(),
+		"after taking 4, second closes (as default)"
+	);
+
+	pushed3.run();
+
+	assert.deepEqual(
+		res3,
+		[ 100 ],
+		"first value through third take(4)"
+	);
+
+	assert.ok(
+		!pushed3.isClosed(),
+		"third still open after sending its first value"
+	);
+
+	iox3(200);
+	iox3(300);
+	iox3(400);
+	iox3(500);
+
+	assert.deepEqual(
+		res3,
+		[ 100, 200, 300, 400 ],
+		"third only took four"
+	);
+
+	assert.ok(
+		!pushed3.isClosed(),
+		"third still open even after taking all four"
+	);
+});
+
+qunit.test("debounce", async (assert) => {
+	var res1 = [];
+	var res2 = [];
+	var res3 = [];
+	var vals1 = IOx.of.empty();
+	var vals2 = IOx.of.empty();
+	var vals3 = IOx.of.empty();
+	var iox1 = vals1.chain( IOxHelpers.debounce(/*wait=*/30) );
+	var iox2 = vals2.chain( IOxHelpers.debounce(/*wait=*/30,/*maxTime=*/70) );
+	var chainFn3 = IOxHelpers.debounce(/*wait=*/30);
+	var debounceIOxs3 = [];
+	var iox3 = vals3.chain(v => {
+		debounceIOxs3.push(chainFn3(v));
+		return debounceIOxs3[debounceIOxs3.length - 1];
+	});
+
+	var pushed1 = IOx((env,v) => res1.push(v),[ iox1 ]);
+	var pushed2 = IOx((env,v) => res2.push(v),[ iox2 ]);
+	var pushed3 = IOx((env,v) => res3.push(v),[ iox3 ]);
+
+	pushed1.run();
+
+	vals1(10);
+	vals1(20);
+	await delayPr(5);
+	vals1(30);
+	await delayPr(40);
+	vals1(50);
+	await delayPr(0);
+	vals1(60);
+	await delayPr(40);
+
+	assert.deepEqual(
+		res1,
+		[ 30, 60 ],
+		"debouncing throws away previously received messages if event is triggered again too soon"
+	);
+
+	vals1(70);
+	vals1(80);
+	vals1.close();
+
+	assert.ok(
+		vals1.isClosed() && pushed1.isClosed(),
+		"closing source stream closes debounced stream"
+	);
+
+	assert.deepEqual(
+		res1,
+		[ 30, 60 ],
+		"closing debounced stream doesn't flush any queued values immediately"
+	);
+
+	await delayPr(35);
+
+	assert.deepEqual(
+		res1,
+		[ 30, 60 ],
+		"no straggling values come through closed stream after a delay"
+	);
+
+	pushed2.run();
+	await delayPr(10);
+	vals2(200);
+	vals2(201);
+	vals2(202);
+	await delayPr(5);
+	vals2(203);
+	vals2(204);
+	await delayPr(20);
+	vals2(205);
+	vals2(206);
+	await delayPr(10);
+	vals2(207);
+	await delayPr(15);
+	vals2(208);
+	await delayPr(20);
+	vals2(209);
+	await delayPr(25);
+	vals2(210);
+	vals2(211);
+	await delayPr(10);
+	vals2(212);
+	await delayPr(15);
+	vals2(213);
+	vals2(214);
+	await delayPr(20);
+	vals2(215);
+	await delayPr(20);
+	vals2(216);
+	vals2(217);
+	await delayPr(15);
+	vals2(218);
+	await delayPr(35);
+
+	assert.deepEqual(
+		res2,
+		[ 208, 214, 218 ],
+		"debouncing maxTime window forces latest value through"
+	);
+
+	vals2.never();
+
+	assert.ok(
+		vals2.isNever() && iox2.isNever() && pushed2.isNever(),
+		"marking source stream as 'never' marks subsequent streams as 'never'"
+	);
+
+	pushed3.run();
+	vals3(500);
+	vals3(501);
+	vals3(502);
+	await delayPr(15);
+	vals3(503);
+	await delayPr(20);
+	vals3(504);
+	vals3(505);
+	await delayPr(35);
+	debounceIOxs3[debounceIOxs3.length - 1].never();
+	vals3(506);
+	vals3(507);
+	await delayPr(10);
+	vals3(508);
+	vals3(509);
+	debounceIOxs3[debounceIOxs3.length - 1].never();
+
+	assert.deepEqual(
+		res3,
+		[ 505 ],
+		"marking debounced stream as 'never' doesn't flush any queued values immediately"
+	);
+
+	assert.ok(
+		!iox3.isNever() && !pushed3.isNever(),
+		"marking debounce stream as 'never' doesn't affect subsequent streams"
+	);
+
+	await delayPr(35);
+
+	assert.deepEqual(
+		res3,
+		[ 505 ],
+		"marking last debounce stream as 'never' prevents its queued value from ever coming through"
+	);
+
+	assert.ok(
+		debounceIOxs3.every(iox => iox.isNever()),
+		"all debounced streams marked as 'never' (for memory cleanup purposes)"
+	);
+});
+
+qunit.test("throttle", async (assert) => {
+	var res1 = [];
+
+	var iox1 = IOx.of.empty();
+	var iox2 = iox1.chain( IOxHelpers.throttle(30) );
+	var iox3 = IOx((env,v) => res1.push(v),[ iox2 ]);
+	iox3.run();
+
+	for (let i = 0; i < 14; i++) {
+		iox1(i);
+		if (i % 2 == 1) await delayPr(20);
+	}
+
+	assert.deepEqual(
+		res1,
+		[ 0, 4, 8, 12 ],
+		"only throttled values come through"
+	);
+
+	iox1.close();
+
+	assert.ok(
+		iox1.isClosed() && iox2.isClosed() && iox3.isClosed(),
+		"closing source stream propagates through throttle"
+	);
+});
+
 qunit.test("waitFor", async (assert) => {
 	var evt = new EventEmitter();
 	var vals = IOx.onEvent(evt,"tick");
