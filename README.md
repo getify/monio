@@ -10,7 +10,7 @@
 
 > Monio's IO/IOx is the most powerful IO monad implementation in JS, possibly in any language!
 
-**Note:** This is obviously a marketing claim, not a provable mathematical/scientific assertion. Nevertheless, it's true!
+**Note:** This is obviously a marketing claim, not a provable mathematical/scientific assertion. Nevertheless, I believe it's true!
 
 ```js
 Just("Welcome, Monads")
@@ -78,11 +78,11 @@ The driving inspiration behind Monio is the `IO` monad -- useful for managing si
 
 Monio's `IO` is a transformer over promises, which means that when promises are produced in an IO, they are automatically unwrapped; of course, that means subsequent IO operations are deferred. If any IO in a chain produces a promise, `run(..)`'s result will be "lifted" to a promise that resolves when the entire IO chain is complete. Otherwise, the IO instance and its `run(..)` call will operate synchronously and immediately produce the result.
 
-Monio intentionally chooses to model asynchrony over promises instead of Task monads, because of its goal of balancing FP with pragmatic and idomatic non-FP JS. However, there's nothing that should prevent you from using a Task monad with Monio if you prefer.
+Monio intentionally chooses to model asynchrony over promises instead of Future monads, because of its goal of balancing FP with pragmatic and idomatic non-FP JS. However, there's nothing that should prevent you from using a Future monad with Monio if you prefer.
 
 `IO`'s "do-style" syntax is specified with the `do(..)` method (automatically lifts the IO to promise-producing asynchrony), which accepts JS generators (including "async generators": `async function *whatever(){ .. }`). `yield` is used for chaining IOs (which can produce promises to defer), whereas `await` is for explicitly deferring on a promise that's not already wrapped in an IO. The resulting style of code should be more broadly approachable for JS developers, while still benefitting from monads.
 
-`IO`'s `do(..)` is JS-ergonomic for exception handling. Uncaught JS exceptions become promise rejections, and IO-produced promise rejections are `try..catch`'able. `IO` also supports modeling exception handling through Either monads: `doEither(..)` transforms uncaught exceptions into *Either:Left* values, and recognizes IO-produced *Either:Left* values as `try..catch`'able exceptions.
+`IO`'s `do(..)` is JS-ergonomic for exception handling: uncaught JS exceptions become promise rejections, and IO-produced promise rejections are `try..catch`'able. `IO` also supports modeling exception handling through Either monads: `doEither(..)` transforms uncaught exceptions into *Either:Left* values, and recognizes IO-produced *Either:Left* values as `try..catch`'able exceptions.
 
 Monio's `IO` is also a Reader monad, which carries side-effect read environments alongside IO operations.
 
@@ -94,7 +94,7 @@ Typically `IO` does not take an argument, but given one, it acts like an effectf
 
 In that way, you can think of it as `ReaderT (IOT (Promise|Identity a b))` where `Promise` gets swapped for `Identity` if you're not doing async.
 
-Monio's IO is like a JS-style ZIO/RIO where we have all the functionality we need wrapped up in a single monad type.
+Monio's IO is like Scala's [ZIO / RIO](https://zio.dev/), where we have all the functionality we need wrapped up in a single monad kind.
 
 ### Monio's Monads
 
