@@ -18,6 +18,7 @@ module.exports = {
 	scan: reduce,
 	seq,
 	take,
+	takeWhile,
 	debounce,
 	throttle,
 	waitFor,
@@ -45,6 +46,7 @@ module.exports.reduce = reduce;
 module.exports.scan = reduce;
 module.exports.seq = seq;
 module.exports.take = take;
+module.exports.takeWhile = takeWhile;
 module.exports.debounce = debounce;
 module.exports.throttle = throttle;
 module.exports.waitFor = waitFor;
@@ -153,12 +155,14 @@ function seq(start = 0,step = 1) {
 
 function take(count,closeOnComplete = true) {
 	count = Math.max(Number(count) || 0,0);
+	return takeWhile(() => (count-- > 0),closeOnComplete);
+}
 
+function takeWhile(whilePredicate,closeOnComplete = true) {
 	var iox = IOx.of.empty();
 
-	return function take(v){
-		if (count > 0) {
-			count--;
+	return function takeWhile(v){
+		if (whilePredicate(v)) {
 			iox(v);
 			return iox;
 		}

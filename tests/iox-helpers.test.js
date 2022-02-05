@@ -449,6 +449,91 @@ qunit.test("take", async (assert) => {
 	);
 });
 
+qunit.test("takeWhile", async (assert) => {
+	var res1 = [];
+	var res1Count = 0;
+	var res2 = [];
+	var res2Count = 0;
+	var res3 = [];
+	var res3Count = 0;
+
+	var iox1 = IOx.of.empty();
+	var iox2 = IOxHelpers.fromIter([ 10, 20, 30, 40, 50 ],true);
+	var iox3 = IOx.of(100);
+
+	var pushed1 = IOx((env,v) => res1.push(v),[ iox1.chain(IOxHelpers.takeWhile(() => res1Count++ < 4)) ]);
+	var pushed2 = IOx((env,v) => res2.push(v),[ iox2.chain(IOxHelpers.takeWhile(() => res2Count++ < 4)) ]);
+	var pushed3 = IOx((env,v) => res3.push(v),[ iox3.chain(IOxHelpers.takeWhile(() => res3Count++ < 4,/*closeOnComplete=*/false)) ]);
+
+	pushed1.run();
+
+	iox1(1);
+
+	assert.deepEqual(
+		res1,
+		[ 1 ],
+		"first value through first takeWhile(..)"
+	);
+
+	iox1(3);
+	iox1(5);
+	iox1(7);
+	iox1(9);
+
+	assert.deepEqual(
+		res1,
+		[ 1, 3, 5, 7 ],
+		"only next three values through first takeWhile(..)"
+	);
+
+	assert.ok(
+		pushed1.isClosed(),
+		"after taking all, first closes (as default)"
+	);
+
+	pushed2.run();
+
+	assert.deepEqual(
+		res2,
+		[ 10, 20, 30, 40 ],
+		"all four values from iterable through second takeWhile(..)"
+	);
+
+	assert.ok(
+		iox2.isClosed(),
+		"after taking 4, second closes (as default)"
+	);
+
+	pushed3.run();
+
+	assert.deepEqual(
+		res3,
+		[ 100 ],
+		"first value through third takeWhile(..)"
+	);
+
+	assert.ok(
+		!pushed3.isClosed(),
+		"third still open after sending its first value"
+	);
+
+	iox3(200);
+	iox3(300);
+	iox3(400);
+	iox3(500);
+
+	assert.deepEqual(
+		res3,
+		[ 100, 200, 300, 400 ],
+		"third only took four"
+	);
+
+	assert.ok(
+		!pushed3.isClosed(),
+		"third still open even after taking all four"
+	);
+});
+
 qunit.test("debounce", async (assert) => {
 	var res1 = [];
 	var res2 = [];
