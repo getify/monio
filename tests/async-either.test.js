@@ -2,7 +2,7 @@
 
 const qunit = require("qunit");
 const sinon = require("sinon");
-const { identity, } = MonioUtil;
+const { EMPTY_FUNC, identity, } = MonioUtil;
 const {
 	INJECT_MONIO,
 	inc,
@@ -54,24 +54,24 @@ qunit.test("AsyncEither:Left construction/creation", (assert) => {
 	);
 });
 
-qunit.test("#map", (assert) => {
+qunit.test("#map", async (assert) => {
 	const operation = sinon.fake();
 
 	assert.equal(
-		AsyncEither(1).map(identity)._inspect(),
-		AsyncEither(1)._inspect(),
+		await AsyncEither(1).map(identity).fold(EMPTY_FUNC,identity),
+		1,
 		"should follow the identity law given an AsyncEither:Right monad"
 	);
 
 	assert.equal(
-		AsyncEither(1).map(x => twice(inc(x)))._inspect(),
-		AsyncEither(1).map(inc).map(twice)._inspect(),
+		await AsyncEither(1).map(x => twice(inc(x))).fold(EMPTY_FUNC,identity),
+		await AsyncEither(1).map(inc).map(twice).fold(EMPTY_FUNC,identity),
 		"should follow the composition law given an AsyncEither:Right monad"
 	);
 
 	assert.equal(
-		AsyncEither.Left(1).map(operation)._inspect(),
-		AsyncEither.Left(1)._inspect(),
+		await safeAwait(AsyncEither.Left(1).map(operation).fold(identity,EMPTY_FUNC)),
+		await safeAwait(AsyncEither.Left(1).fold(identity,EMPTY_FUNC)),
 		"should return an AsyncEither:Left monad given an AsyncEither:Left monad"
 	);
 
@@ -82,42 +82,42 @@ qunit.test("#map", (assert) => {
 	);
 });
 
-qunit.test("#chain", (assert) => {
+qunit.test("#chain", async (assert) => {
 	const operation = sinon.fake();
 
 	assert.equal(
-		AsyncEither({ name: "john" }).chain(eitherProp("name"))._inspect(),
-		AsyncEither("john")._inspect(),
+		await AsyncEither({ name: "john" }).chain(eitherProp("name")).fold(EMPTY_FUNC,identity),
+		"john",
 		"should return an AsyncEither:Right('john') monad"
 	);
 
-	assert.equal(
-		AsyncEither.Left({ name: "john" }).chain(operation)._inspect(),
-		AsyncEither.Left({ name: "john" })._inspect(),
+	assert.deepEqual(
+		await safeAwait(AsyncEither.Left({ name: "john" }).chain(operation).fold(identity,EMPTY_FUNC)),
+		{ name: "john" },
 		"should return an AsyncEither:Left monad given an AsyncEither:Left monad"
 	);
 
 	assert.equal(
-		AsyncEither({ name: "john" }).flatMap(eitherProp("name"))._inspect(),
-		AsyncEither("john")._inspect(),
+		await AsyncEither({ name: "john" }).flatMap(eitherProp("name")).fold(EMPTY_FUNC,identity),
+		"john",
 		"should return an AsyncEither:Right('john') monad"
 	);
 
-	assert.equal(
-		AsyncEither.Left({ name: "john" }).flatMap(operation)._inspect(),
-		AsyncEither.Left({ name: "john" })._inspect(),
+	assert.deepEqual(
+		await safeAwait(AsyncEither.Left({ name: "john" }).flatMap(operation).fold(identity,EMPTY_FUNC)),
+		{ name: "john" },
 		"should return an AsyncEither:Left monad given an AsyncEither:Left monad"
 	);
 
 	assert.equal(
-		AsyncEither({ name: "john" }).bind(eitherProp('name'))._inspect(),
-		AsyncEither("john")._inspect(),
+		await AsyncEither({ name: "john" }).bind(eitherProp("name")).fold(EMPTY_FUNC,identity),
+		"john",
 		"should return an AsyncEither:Right('john') monad"
 	);
 
-	assert.equal(
-		AsyncEither.Left({ name: "john" }).bind(operation)._inspect(),
-		AsyncEither.Left({ name: "john" })._inspect(),
+	assert.deepEqual(
+		await safeAwait(AsyncEither.Left({ name: "john" }).bind(operation).fold(identity,EMPTY_FUNC)),
+		{ name: "john" },
 		"should return an AsyncEither:Left monad given an AsyncEither:Left monad"
 	);
 
@@ -128,19 +128,19 @@ qunit.test("#chain", (assert) => {
 	);
 });
 
-qunit.test("#ap", (assert) => {
+qunit.test("#ap", async (assert) => {
 	const op1 = sinon.fake();
 	const op2 = sinon.fake();
 
 	assert.equal(
-		AsyncEither(inc).ap(AsyncEither(2))._inspect(),
-		AsyncEither(3)._inspect(),
+		await AsyncEither(inc).ap(AsyncEither(2)).fold(EMPTY_FUNC,identity),
+		3,
 		"should return an AsyncEither:Right(3) monad"
 	);
 
 	assert.equal(
-		AsyncEither(op1).ap(AsyncEither.Left(2))._inspect(),
-		AsyncEither.Left(2)._inspect(),
+		await safeAwait(AsyncEither(op1).ap(AsyncEither.Left(2)).fold(identity,EMPTY_FUNC)),
+		2,
 		"should return an AsyncEither:Left(2) monad"
 	);
 
@@ -151,8 +151,8 @@ qunit.test("#ap", (assert) => {
 	);
 
 	assert.equal(
-		AsyncEither.Left(op2).ap(AsyncEither(2))._inspect(),
-		AsyncEither.Left(op2)._inspect(),
+		await safeAwait(AsyncEither.Left(op2).ap(AsyncEither(2)).fold(identity,EMPTY_FUNC)),
+		op2,
 		"should return an AsyncEither:Left(op) monad"
 	);
 
@@ -163,16 +163,16 @@ qunit.test("#ap", (assert) => {
 	);
 });
 
-qunit.test("#concat", (assert) => {
-	assert.equal(
-		AsyncEither([1, 2]).concat(AsyncEither([3]))._inspect(),
-		AsyncEither([1, 2, 3])._inspect(),
+qunit.test("#concat", async (assert) => {
+	assert.deepEqual(
+		await AsyncEither([1,2]).concat(AsyncEither([3])).fold(EMPTY_FUNC,identity),
+		[1,2,3],
 		"should return an array given an AsyncEither:Right monad and [3]"
 	);
 
-	assert.equal(
-		AsyncEither.Left([1, 2]).concat(AsyncEither.Left([3]))._inspect(),
-		AsyncEither.Left([1, 2])._inspect(),
+	assert.deepEqual(
+		await safeAwait(AsyncEither.Left([1,2]).concat(AsyncEither.Left([3])).fold(identity,EMPTY_FUNC)),
+		[1,2],
 		"should not perform a concat operation given an AsyncEither:Left monad"
 	);
 });
@@ -208,18 +208,14 @@ qunit.test("#fold", async (assert) => {
 
 qunit.test("#fromFoldable", async (assert) => {
 	assert.equal(
-		(await safeAwait(
-			AsyncEither.fromFoldable(AsyncEither(1))
-		))._inspect(),
-		AsyncEither(1)._inspect(),
+		await AsyncEither.fromFoldable(Either(1)).fold(EMPTY_FUNC,identity),
+		1,
 		"should return an AsyncEither:Right monad given an AsyncEither:Right monad"
 	);
 
 	assert.equal(
-		(await safeAwait(
-			AsyncEither.fromFoldable(AsyncEither.Left(1))
-		))._inspect(),
-		(await AsyncEither.Left(1))._inspect(),
+		await safeAwait(AsyncEither.fromFoldable(Either.Left(1)).fold(identity,EMPTY_FUNC)),
+		1,
 		"should return an AsyncEither:Left monad from an AsyncEither:Left monad"
 	);
 });

@@ -1,6 +1,11 @@
 "use strict";
 
-var { EMPTY_FUNC, isFunction, isPromise, } = require("./lib/util.js");
+var {
+	EMPTY_FUNC,
+	isFunction,
+	isPromise,
+	identity,
+} = require("./lib/util.js");
 var Either = require("./either.js");
 
 const BRAND = {};
@@ -41,71 +46,110 @@ function fromPromise(pr) {
 
 	// *********************
 
-	function map(v) {
-		var handle = m => {
-			// note: m is a regular Either (Left or Right)
-			var _doMap = fn => m.fold(
-				Either.Left,
-				rightV => {
-					try {
-						return fn(rightV);
-					}
-					catch (err) {
-						return Either.Left(err);
-					}
+	function map(fn) {
+		// note: m is a regular Either (Left or Right)
+		var handle = m => m.fold(
+			leftV => { throw Either.Left(leftV); },
+			rightV => {
+				try {
+					return fn(rightV);
 				}
-			);
+				catch (err) {
+					throw Either.Left(err);
+				}
+			}
+		);
+		return AsyncEither(pr.then(handle,handle));
+	}
 
-			// note: ap(..) passes in a promise for a held function
-			return (isPromise(v) ? v.then(_doMap) : _doMap(v));
-		};
+	function chain(fn) {
+		// note: m is a regular Either (Left or Right)
+		var handle = m => m.fold(
+			leftV => { throw Either.Left(leftV); },
+			rightV => {
+				try {
+					let res = fn(rightV);
+					return (
+						// extract value from AsyncEither
+						// or Either?
+						(is(res) || Either.is(res)) ?
+							res.fold(
+								lv => { throw lv; },
+								identity
+							) :
+
+						// otherwise, just pass the value
+						// through as-is
+						res
+					);
+				}
+				catch (err) {
+					throw Either.Left(err);
+				}
+			}
+		);
 
 		return AsyncEither(pr.then(handle,handle));
 	}
 
-	function chain(v) {
-		var handle = m => {
-			// note: m is a regular Either (Left or Right)
-			var _doChain = fn => m.fold(
-				Either.Left,
-				rightV => {
-					try {
-						let res = fn(rightV);
-						return (
-							// extract value from AsyncEither
-							// or Either?
-							(is(res) || Either.is(res)) ?
-								res.fold(
-									Either.Left,
-									identity
-								) :
+	function ap(m2) {
+		// m1 is a regular Either (Left or Right)
+		var handle = m1 => m1.fold(
+			leftV => { throw Either.Left(leftV); },
+			fn => {
+				try {
+					let res = m2.map(fn);
+					return (
+						// extract value from AsyncEither
+						// or Either?
+						(is(res) || Either.is(res)) ?
+							res.fold(
+								lv => { throw lv; },
+								identity
+							) :
 
-							// otherwise, just pass the value
-							// through as-is
-							res
-						);
-
-					}
-					catch (err) {
-						return Either.Left(err);
-					}
+						// otherwise, just pass the value
+						// through as-is
+						res
+					);
 				}
-			);
-
-			// note: promise check unnecessary, but put here
-			// for consistency with map(..)
-			return (isPromise(v) ? v.then(_doChain) : _doChain(v));
-		};
+				catch (err) {
+					throw Either.Left(err);
+				}
+			}
+		);
 
 		return AsyncEither(pr.then(handle,handle));
 	}
 
-	function ap(m) {
-		return m.map(pr);
-	}
+	function concat(m2) {
+		// m1 is a regular Either (Left or Right)
+		var handle = m1 => m1.fold(
+			leftV => { throw Either.Left(leftV); },
+			rightV => {
+				try {
+					let res = m2.map(v => rightV.concat(v));
+					return (
+						// extract value from AsyncEither
+						// or Either?
+						(is(res) || Either.is(res)) ?
+							res.fold(
+								lv => { throw lv; },
+								identity
+							) :
 
-	function concat(m) {
-		return m.map(v => pr.then(val => val.concat(v)));
+						// otherwise, just pass the value
+						// through as-is
+						res
+					);
+				}
+				catch (err) {
+					throw Either.Left(err);
+				}
+			}
+		);
+
+		return AsyncEither(pr.then(handle,handle));
 	}
 
 	function fold(asLeft,asRight) {
