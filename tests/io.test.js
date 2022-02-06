@@ -11,7 +11,7 @@ process.on("rejectionHandled",()=>{});
 
 
 const qunit = require("qunit");
-const { identity, } = MonioUtil;
+const { EMPTY_FUNC, identity, } = MonioUtil;
 const {
 	INJECT_MONIO,
 	inc,
@@ -19,6 +19,7 @@ const {
 	ioProp,
 	delayPr,
 	delayIO,
+	sumArithSeries,
 } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
@@ -615,7 +616,7 @@ qunit.test("IO.do:very-long", async (assert) => {
 
 	assert.equal(
 		res1,
-		stackDepth*(stackDepth - 1)/2,
+		sumArithSeries(stackDepth),
 		"IO.do() call stack ran very long without RangeError"
 	);
 
@@ -624,7 +625,7 @@ qunit.test("IO.do:very-long", async (assert) => {
 
 	assert.equal(
 		res2,
-		stackDepth*(stackDepth - 1)/2,
+		sumArithSeries(stackDepth),
 		"IO.do():map call stack ran very long without RangeError"
 	);
 
@@ -633,7 +634,7 @@ qunit.test("IO.do:very-long", async (assert) => {
 
 	assert.equal(
 		res3,
-		stackDepth*(stackDepth - 1)/2,
+		sumArithSeries(stackDepth),
 		"IO.do():concat call stack ran very long without RangeError"
 	);
 });
@@ -723,7 +724,7 @@ qunit.test("IO.doEither", async (assert) => {
 	r3 = await r3;
 
 	assert.ok(
-		Either.Right.is(r3) && r3._inspect() == "Either:Right(12)",
+		Either.Right.is(r3) && r3.fold(EMPTY_FUNC,identity) === 12,
 		"do-either routine returns an Either:Right on success"
 	);
 
@@ -742,7 +743,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		Either.Left.is(r4) && r4._inspect() == "Either:Left(\"two 5\")",
+		Either.Left.is(r4) && r4.fold(identity,EMPTY_FUNC) === "two 5",
 		"do-either routine treats returned Either:Left as promise rejection"
 	);
 
@@ -761,7 +762,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		Either.Left.is(r5) && r5._inspect() == "Either:Left(\"three 1\")",
+		Either.Left.is(r5) && r5.fold(identity,EMPTY_FUNC) === "three 1",
 		"do-either routine lifts uncaught exception into Either:Left as promise rejection"
 	);
 
@@ -774,7 +775,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		Either.Left.is(r6) && r6._inspect() == "Either:Left(\"four 1\")",
+		Either.Left.is(r6) && r6.fold(identity,EMPTY_FUNC) === "four 1",
 		"do-either routine lifts and throws Promise<Either:Left> as promise rejection"
 	);
 	try {
@@ -785,7 +786,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		Either.Left.is(r7) && r7._inspect() == "Either:Left(\"five 1\")",
+		Either.Left.is(r7) && r7.fold(identity,EMPTY_FUNC) === "five 1",
 		"do-either routine returns promise rejection from returned IO that throws"
 	);
 
@@ -797,7 +798,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		Either.Left.is(r8) && r8._inspect() == "Either:Left(\"six 1\")",
+		Either.Left.is(r8) && r8.fold(identity,EMPTY_FUNC) === "six 1",
 		"do-either routine returns promise rejection from return IO that throws"
 	);
 
@@ -809,7 +810,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	assert.ok(
-		Either.Left.is(r9) && r9._inspect() == "Either:Left(\"seven 1\")",
+		Either.Left.is(r9) && r9.fold(identity,EMPTY_FUNC) === "seven 1",
 		"do-either routine returns promise rejection from yielded IO holding rejected promise"
 	);
 });
@@ -834,8 +835,8 @@ qunit.test("IO.doEither:very-long", async (assert) => {
 	);
 
 	assert.equal(
-		res._inspect(),
-		`Either:Right(${stackDepth*(stackDepth - 1)/2})`,
+		res.fold(EMPTY_FUNC,identity),
+		sumArithSeries(stackDepth),
 		"IO.doEither() call stack ran very long without RangeError"
 	);
 });

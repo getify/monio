@@ -21,6 +21,7 @@ const {
 	delayPr,
 	delayIO,
 	delayIOx,
+	sumArithSeries,
 } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
@@ -855,7 +856,7 @@ qunit.test("update-through-merge-zip:very-long", (assert) => {
 	assert.deepEqual(
 		res1,
 		[ stackDepth + 1, stackDepth + 10 ],
-		"IOx update propagatess all the way down"
+		"IOx update propagates all the way down"
 	);
 
 	first.close();
@@ -1589,7 +1590,7 @@ qunit.test("IOx.do:very-long", async (assert) => {
 
 	assert.equal(
 		res1,
-		stackDepth*(stackDepth - 1)/2,
+		sumArithSeries(stackDepth),
 		"IOx.do() call stack ran very long without RangeError"
 	);
 
@@ -1598,7 +1599,7 @@ qunit.test("IOx.do:very-long", async (assert) => {
 
 	assert.equal(
 		res2,
-		stackDepth*(stackDepth - 1)/2,
+		sumArithSeries(stackDepth),
 		"IOx.do():map call stack ran very long without RangeError"
 	);
 
@@ -1607,7 +1608,7 @@ qunit.test("IOx.do:very-long", async (assert) => {
 
 	assert.equal(
 		res3,
-		stackDepth*(stackDepth - 1)/2,
+		sumArithSeries(stackDepth),
 		"IOx.do():concat call stack ran very long without RangeError"
 	);
 });
@@ -1632,8 +1633,8 @@ qunit.test("IOx.doEither:very-long", async (assert) => {
 	);
 
 	assert.equal(
-		res._inspect(),
-		`Either:Right(${stackDepth*(stackDepth - 1)/2})`,
+		res.fold(EMPTY_FUNC,identity),
+		sumArithSeries(stackDepth),
 		"IOx.doEither() call stack ran very long without RangeError"
 	);
 });

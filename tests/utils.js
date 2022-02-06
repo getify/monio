@@ -41,6 +41,10 @@ function INJECT_MONIO(monio) {
 	} = monio);
 }
 
+function sumArithSeries(n,a1 = 0,a2 = n - 1) {
+	return n * (a1 + a2) / 2;
+}
+
 module.exports = {
 	INJECT_MONIO,
 	inc,
@@ -53,4 +57,5 @@ module.exports = {
 	delayIO,
 	delayIOx,
 	safeAwait,
+	sumArithSeries,
 };
