@@ -6,6 +6,8 @@ var {
 	isPromise,
 	isMonad,
 	getMonadFlatMap,
+	definePipeWithMethodChaining,
+	definePipeWithAsyncFunctionComposition,
 	continuation,
 	runSignal,
 	isRunSignal,
@@ -38,6 +40,10 @@ function IO(effect) {
 		concat, run, _inspect, _is,
 		[Symbol.toStringTag]: TAG,
 	};
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithAsyncFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
 	// *****************************************

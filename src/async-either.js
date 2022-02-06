@@ -5,6 +5,8 @@ var {
 	isFunction,
 	isPromise,
 	identity,
+	definePipeWithMethodChaining,
+	definePipeWithAsyncFunctionComposition,
 } = require("./lib/util.js");
 var Either = require("./either.js");
 
@@ -46,6 +48,11 @@ function fromPromise(pr) {
 		ap, concat, fold, _inspect, _is,
 		[Symbol.toStringTag]: "AsyncEither",
 	};
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithAsyncFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
+	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
 	// *********************

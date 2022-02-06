@@ -18,6 +18,8 @@ function Nothing() {
 		fold, ap: noop, concat: noop, _inspect, _is,
 		[Symbol.toStringTag]: "Nothing",
 	};
+	// decorate API methods with `.pipe(..)` helper
+	noop.pipe = noop;
 	return publicAPI;
 
 	// *********************

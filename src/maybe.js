@@ -1,6 +1,11 @@
 "use strict";
 
-var { identity, isFunction, } = require("./lib/util.js");
+var {
+	identity,
+	isFunction,
+	definePipeWithMethodChaining,
+	definePipeWithFunctionComposition,
+} = require("./lib/util.js");
 var Just = require("./just.js");
 var Nothing = require("./nothing.js");
 
@@ -49,7 +54,11 @@ function Maybe(val) {
 			return `Maybe:${mn[Symbol.toStringTag]}`;
 		},
 	};
-
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
+	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
 	// *********************

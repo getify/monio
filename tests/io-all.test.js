@@ -12,8 +12,48 @@ process.on("rejectionHandled",()=>{});
 
 const qunit = require("qunit");
 const { identity, foldMap, } = MonioUtil;
+const {
+	INJECT_MONIO,
+	inc,
+	twice,
+} = require("./utils");
+INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("io-all");
+
+qunit.test("#unit", (assert) => {
+	assert.equal(
+		AllIO.of(1)._inspect(),
+		"AllIO(anonymous function)",
+		"should create an AllIO instance via #of"
+	);
+});
+
+qunit.test("#is", (assert) => {
+	assert.equal(
+		AllIO.is(AllIO.of(1)),
+		true,
+		"should return true if the object passed is an AllIO monad"
+	);
+
+	assert.equal(
+		IO.is(AllIO.of(1)),
+		true,
+		"AllIO is an IO monad"
+	);
+
+	assert.equal(
+		AllIO.is(IO.of(1)),
+		false,
+		"IO is not an AllIO monad"
+	);
+
+	assert.equal(
+		AllIO.is({}),
+		false,
+		"should return false if the object is not an AllIO monad"
+	);
+});
 
 qunit.test("foldMap:very-long", (assert) => {
 	var io = AllIO(initV => initV === true);
@@ -28,7 +68,8 @@ qunit.test("foldMap:very-long", (assert) => {
 
 	var res1 = foldMap(
 		identity,
-		ioList.concat(finalTrue)
+		ioList.concat(finalTrue),
+		AllIO.empty()
 	)
 	.run(/*initV=*/true);
 
@@ -57,5 +98,77 @@ qunit.test("foldMap:very-long", (assert) => {
 	assert.ok(
 		res3 === false,
 		"foldMap with only last false"
+	);
+});
+
+qunit.test("*.pipe", async (assert) => {
+	const incPr = v => Promise.resolve(inc(v));
+	const twicePr = v => Promise.resolve(twice(v));
+
+	assert.equal(
+		AllIO.of(2).map.pipe(inc,twice).run(),
+		6,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		AllIO.of(2).chain.pipe(
+			v => AllIO.of(inc(v)),
+			v => AllIO.of(twice(v))
+		).run(),
+		6,
+		"chain.pipe()"
+	);
+
+	assert.deepEqual(
+		AllIO.of(true).concat.pipe(
+			AllIO.of(true),
+			AllIO.of(true)
+		).run(),
+		true,
+		"concat.pipe()"
+	);
+
+	assert.equal(
+		await AllIO.of(Promise.resolve(2)).map.pipe(inc,twicePr,inc).run(),
+		7,
+		"async: map.pipe()"
+	);
+
+	assert.equal(
+		await AllIO.of(Promise.resolve(2)).chain.pipe(
+			v => AllIO.of(incPr(v)),
+			v => AllIO.of(twicePr(v))
+		).run(),
+		6,
+		"async: chain.pipe()"
+	);
+
+	assert.deepEqual(
+		await AllIO.of(Promise.resolve(true)).concat.pipe(
+			AllIO.of(Promise.resolve(true)),
+			AllIO.of(Promise.resolve(true))
+		).run(),
+		true,
+		"async: concat.pipe()"
+	);
+});
+
+qunit.test("*.pipe:very-long", async (assert) => {
+	var stackDepth = 10000;
+
+	var incFns = Array(stackDepth).fill(inc);
+	var incIOFns = Array(stackDepth).fill(v => AllIO.of(inc(v)));
+
+	assert.equal(
+		AllIO.of(0).map.pipe(...incFns).run(),
+		stackDepth,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		AllIO.of(0).chain.pipe(...incIOFns).run(),
+		stackDepth,
+		"chain.pipe()"
 	);
 });

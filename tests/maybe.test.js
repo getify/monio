@@ -3,7 +3,7 @@
 const qunit = require("qunit");
 const sinon = require("sinon");
 const { identity, } = MonioUtil;
-const { INJECT_MONIO, inc, twice, maybeProp } = require("./utils");
+const { INJECT_MONIO, inc, twice, maybeProp, } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("maybe");
@@ -245,5 +245,40 @@ qunit.test("#from", (assert) => {
 		Maybe.from(null)._inspect(),
 		Maybe.Nothing()._inspect(),
 		"should create a Maybe:Nothing monad from an empty value"
+	);
+});
+
+qunit.test("*.pipe", (assert) => {
+	assert.equal(
+		Maybe.of(2).map.pipe(inc,twice).fold(identity,identity),
+		6,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		Maybe.of(2).chain.pipe(
+			v => Maybe.of(inc(v)),
+			v => Maybe.of(twice(v))
+		).fold(identity,identity),
+		6,
+		"chain.pipe()"
+	);
+
+	assert.equal(
+		Maybe.of(x => y => x + y).ap.pipe(
+			Maybe.of(2),
+			Maybe.of(3)
+		).fold(identity,identity),
+		5,
+		"ap.pipe()"
+	);
+
+	assert.deepEqual(
+		Maybe.of([1,2]).concat.pipe(
+			Maybe.of([3,4]),
+			Maybe.of([5,6])
+		).fold(identity,identity),
+		[1,2,3,4,5,6],
+		"concat.pipe()"
 	);
 });

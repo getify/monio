@@ -3,7 +3,7 @@
 const qunit = require("qunit");
 const sinon = require("sinon");
 const { identity, } = MonioUtil;
-const { INJECT_MONIO, inc, justProp } = require("./utils");
+const { INJECT_MONIO, inc, twice, justProp, } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("nothing");
@@ -99,5 +99,40 @@ qunit.test("#concat", (assert) => {
 		Nothing.of([1, 2]).concat(Nothing.of([3]))._inspect(),
 		Nothing()._inspect(),
 		"should perform no operation"
+	);
+});
+
+qunit.test("*.pipe", (assert) => {
+	assert.equal(
+		Nothing.of(2).map.pipe(inc,twice)._inspect(),
+		Nothing()._inspect(),
+		"map.pipe()"
+	);
+
+	assert.equal(
+		Nothing.of(2).chain.pipe(
+			v => Nothing.of(inc(v)),
+			v => Nothing.of(twice(v))
+		)._inspect(),
+		Nothing()._inspect(),
+		"chain.pipe()"
+	);
+
+	assert.equal(
+		Nothing.of(x => y => x + y).ap.pipe(
+			Nothing.of(2),
+			Nothing.of(3)
+		)._inspect(),
+		Nothing()._inspect(),
+		"ap.pipe()"
+	);
+
+	assert.equal(
+		Nothing.of([1,2]).concat.pipe(
+			Nothing.of([3,4]),
+			Nothing.of([5,6])
+		)._inspect(),
+		Nothing()._inspect(),
+		"concat.pipe()"
 	);
 });

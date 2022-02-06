@@ -1094,7 +1094,7 @@ qunit.test("onEvent", async (assert) => {
 
 qunit.test("onceEvent", async (assert) => {
 	var evt = new EventEmitter();
-	var vals = IOx.onceEvent(evt,"tick");
+	var vals = IOx.onceEvent(evt)("tick");
 
 	var res = [];
 	var pushed = vals.chain(v => IO.of(res.push(v)));

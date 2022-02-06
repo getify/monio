@@ -1,6 +1,10 @@
 "use strict";
 
-var { isFunction, } = require("./lib/util.js");
+var {
+	isFunction,
+	definePipeWithMethodChaining,
+	definePipeWithFunctionComposition,
+} = require("./lib/util.js");
 var Just = require("./just.js");
 
 const BRAND = {};
@@ -36,7 +40,7 @@ function Either(val) {
 	return LeftOrRight(val,/*isRight=*/true);
 }
 
-function LeftOrRight(val,isRight = true) {
+function LeftOrRight(val,isRight) {
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
 		ap, concat, fold, _inspect, _is, _is_right,
@@ -44,6 +48,11 @@ function LeftOrRight(val,isRight = true) {
 			return `Either:${isRight ? "Right" : "Left"}`;
 		},
 	};
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
+	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
 	// *********************

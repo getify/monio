@@ -8,6 +8,8 @@ var {
 	isMonad,
 	curry,
 	getDeferred,
+	definePipeWithMethodChaining,
+	definePipeWithAsyncFunctionComposition,
 	continuation,
 	runSignal,
 	isRunSignal,
@@ -90,6 +92,11 @@ function IOx(iof,deps = []) {
 		isNever, toString, _chain_with_IO, _inspect,
 		_bind: origBind, _is, [Symbol.toStringTag]: TAG,
 	});
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithAsyncFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"concat");
+	// register listener hooks
 	registerHooks.set(publicAPI,[ registerListener, unregisterListener, ]);
 	return publicAPI;
 

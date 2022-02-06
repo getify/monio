@@ -219,3 +219,76 @@ qunit.test("#fromFoldable", async (assert) => {
 		"should return an AsyncEither:Left monad from an AsyncEither:Left monad"
 	);
 });
+
+qunit.test("*.pipe", async (assert) => {
+	const incPr = v => Promise.resolve(inc(v));
+	const twicePr = v => Promise.resolve(twice(v));
+
+	assert.equal(
+		await AsyncEither(2).map.pipe(inc,twice).fold(EMPTY_FUNC,identity),
+		6,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		await AsyncEither(2).chain.pipe(
+			v => AsyncEither(inc(v)),
+			v => AsyncEither(twice(v))
+		).fold(EMPTY_FUNC,identity),
+		6,
+		"chain.pipe()"
+	);
+
+	assert.equal(
+		await AsyncEither(x => y => x + y).ap.pipe(
+			AsyncEither(2),
+			AsyncEither(3)
+		).fold(EMPTY_FUNC,identity),
+		5,
+		"ap.pipe()"
+	);
+
+	assert.deepEqual(
+		await AsyncEither([1,2]).concat.pipe(
+			AsyncEither([3,4]),
+			AsyncEither([5,6])
+		).fold(EMPTY_FUNC,identity),
+		[1,2,3,4,5,6],
+		"concat.pipe()"
+	);
+
+	assert.equal(
+		await AsyncEither(Promise.resolve(2))
+			.map.pipe(inc,twicePr)
+			.fold(EMPTY_FUNC,identity),
+		6,
+		"async: map.pipe()"
+	);
+
+	assert.equal(
+		await AsyncEither(Promise.resolve(2)).chain.pipe(
+			v => AsyncEither(incPr(v)),
+			v => AsyncEither(twicePr(v))
+		).fold(EMPTY_FUNC,identity),
+		6,
+		"async: chain.pipe()"
+	);
+
+	assert.equal(
+		await AsyncEither(x => y => x + y).ap.pipe(
+			AsyncEither(Promise.resolve(2)),
+			AsyncEither(Promise.resolve(3))
+		).fold(EMPTY_FUNC,identity),
+		5,
+		"async: ap.pipe()"
+	);
+
+	assert.deepEqual(
+		await AsyncEither(Promise.resolve([1,2])).concat.pipe(
+			AsyncEither(Promise.resolve([3,4])),
+			AsyncEither(Promise.resolve([5,6]))
+		).fold(EMPTY_FUNC,identity),
+		[1,2,3,4,5,6],
+		"async: concat.pipe()"
+	);
+});

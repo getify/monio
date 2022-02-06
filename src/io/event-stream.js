@@ -1,5 +1,7 @@
 "use strict";
 
+/* istanbul ignore file */
+
 var { isFunction, curry, getDeferred, } = require("../lib/util.js");
 var IO = require("./io.js");
 

@@ -45,6 +45,9 @@ module.exports = {
 	__EMPTY_CONTINUATION_POOL,
 
 	// internal use only
+	definePipeWithMethodChaining,
+	definePipeWithFunctionComposition,
+	definePipeWithAsyncFunctionComposition,
 	continuation,
 	runSignal,
 	isRunSignal,
@@ -67,6 +70,9 @@ module.exports.__GROW_CONTINUATION_POOL = __GROW_CONTINUATION_POOL;
 module.exports.__EMPTY_CONTINUATION_POOL = __EMPTY_CONTINUATION_POOL;
 
 // internal use only
+module.exports.definePipeWithMethodChaining = definePipeWithMethodChaining;
+module.exports.definePipeWithFunctionComposition = definePipeWithFunctionComposition;
+module.exports.definePipeWithAsyncFunctionComposition = definePipeWithAsyncFunctionComposition;
 module.exports.continuation = continuation;
 module.exports.runSignal = runSignal;
 module.exports.isRunSignal = isRunSignal;
@@ -163,6 +169,60 @@ function getDeferred() {
 
 // ***************************************************************
 // ***************************************************************
+
+function definePipeWithMethodChaining(context,methodName) {
+	context[methodName].pipe = function pipe(...vs){
+		for (let v of vs) {
+			context = context[methodName](v);
+		}
+		return context;
+	};
+}
+
+function definePipeWithFunctionComposition(context,methodName) {
+	context[methodName].pipe = function pipe(...fns){
+		return context[methodName](function composed(v){
+			for (let fn of fns) {
+				v = fn(v);
+			}
+			return v;
+		});
+	};
+}
+
+function definePipeWithAsyncFunctionComposition(context,methodName) {
+	context[methodName].pipe = function pipe(...fns){
+		return context[methodName](function composed(v){
+			return (fns.length > 0 ?
+				trampoline(possiblyAsyncPipe(v,fns)) :
+				v
+			);
+		});
+	};
+}
+
+function possiblyAsyncPipe(v,[ nextFn, ...nextFns ]) {
+	return (
+		// at the end of the (potentially async) composition?
+		nextFns.length == 0 ?
+			nextFn(v) :
+
+			// otherwise, continue the composition
+			continuation(
+				() => nextFn(v),
+
+				nextV => (
+					isPromise(nextV) ?
+						// trampoline() here unwraps the continuation
+						// immediately, because we're already in an
+						// async microtask from the promise
+						nextV.then(v2 => trampoline(possiblyAsyncPipe(v2,nextFns))) :
+
+						possiblyAsyncPipe(nextV,nextFns)
+				)
+			)
+	);
+}
 
 // used internally by IO/IOx, marks a tuple
 // as a continuation that trampoline(..)
@@ -293,6 +353,7 @@ function __GROW_CONTINUATION_POOL(growByCount) {
 	}
 }
 
+/* istanbul ignore next */
 function __EMPTY_CONTINUATION_POOL() {
 	continuationPool.length = nextFreeSlot = 0;
 }

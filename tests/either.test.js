@@ -2,8 +2,8 @@
 
 const qunit = require("qunit");
 const sinon = require("sinon");
-const { identity, } = MonioUtil;
-const { INJECT_MONIO, inc, twice, eitherProp } = require("./utils");
+const { EMPTY_FUNC, identity, } = MonioUtil;
+const { INJECT_MONIO, inc, twice, eitherProp, } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("either");
@@ -239,5 +239,40 @@ qunit.test("#fromFoldable", (assert) => {
 		Either.fromFoldable(Either.Left(1))._inspect(),
 		Either.Left(1)._inspect(),
 		"should return an Either:Left monad from an Either:Left monad"
+	);
+});
+
+qunit.test("*.pipe", (assert) => {
+	assert.equal(
+		Either.of(2).map.pipe(inc,twice).fold(EMPTY_FUNC,identity),
+		6,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		Either.of(2).chain.pipe(
+			v => Either.of(inc(v)),
+			v => Either.of(twice(v))
+		).fold(EMPTY_FUNC,identity),
+		6,
+		"chain.pipe()"
+	);
+
+	assert.equal(
+		Either.of(x => y => x + y).ap.pipe(
+			Either.of(2),
+			Either.of(3)
+		).fold(EMPTY_FUNC,identity),
+		5,
+		"ap.pipe()"
+	);
+
+	assert.deepEqual(
+		Either.of([1,2]).concat.pipe(
+			Either.of([3,4]),
+			Either.of([5,6])
+		).fold(EMPTY_FUNC,identity),
+		[1,2,3,4,5,6],
+		"concat.pipe()"
 	);
 });

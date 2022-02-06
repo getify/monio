@@ -1,6 +1,10 @@
 "use strict";
 
-var { isFunction, } = require("./lib/util.js");
+var {
+	isFunction,
+	definePipeWithMethodChaining,
+	definePipeWithFunctionComposition,
+} = require("./lib/util.js");
 
 const BRAND = {};
 
@@ -17,6 +21,11 @@ function Just(val) {
 		fold, ap, concat, _inspect, _is,
 		[Symbol.toStringTag]: "Just",
 	};
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
+	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
 	// *********************

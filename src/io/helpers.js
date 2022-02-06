@@ -371,10 +371,12 @@ function liftIO(env,v) {
 				// intentional "type violation" since we have
 				// an unusual/unrecognized monad that's not
 				// "foldable" to extract its value legally
+				/* istanbul ignore next */
 				getMonadFlatMap(v).call(v,IO.of)
 			);
 
 			// did "converting" to an IO work?
+			/* istanbul ignore else */
 			if (IO.is(res)) {
 				return res;
 			}

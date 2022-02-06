@@ -3,10 +3,9 @@
 var {
 	isFunction,
 	isPromise,
-	continuation,
+	definePipeWithMethodChaining,
+	definePipeWithAsyncFunctionComposition,
 	runSignal,
-	isRunSignal,
-	trampoline,
 } = require("../lib/util.js");
 var IO = require("./io.js");
 
@@ -24,6 +23,10 @@ function AnyIO(effect) {
 		concat, run, _inspect, _is,
 		[Symbol.toStringTag]: "AnyIO",
 	};
+	// decorate API methods with `.pipe(..)` helper
+	definePipeWithAsyncFunctionComposition(publicAPI,"map");
+	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
 	// *********************

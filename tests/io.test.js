@@ -840,3 +840,81 @@ qunit.test("IO.doEither:very-long", async (assert) => {
 		"IO.doEither() call stack ran very long without RangeError"
 	);
 });
+
+qunit.test("*.pipe", async (assert) => {
+	const incPr = v => Promise.resolve(inc(v));
+	const twicePr = v => Promise.resolve(twice(v));
+
+	assert.equal(
+		IO.of(2).map.pipe().run(),
+		2,
+		"map.pipe() -- empty"
+	);
+
+	assert.equal(
+		IO.of(2).map.pipe(inc,twice).run(),
+		6,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		IO.of(2).chain.pipe(
+			v => IO.of(inc(v)),
+			v => IO.of(twice(v))
+		).run(),
+		6,
+		"chain.pipe()"
+	);
+
+	assert.deepEqual(
+		IO.of([1,2]).concat.pipe(
+			IO.of([3,4]),
+			IO.of([5,6])
+		).run(),
+		[1,2,3,4,5,6],
+		"concat.pipe()"
+	);
+
+	assert.equal(
+		await IO.of(Promise.resolve(2)).map.pipe(inc,twicePr,inc).run(),
+		7,
+		"async: map.pipe()"
+	);
+
+	assert.equal(
+		await IO.of(Promise.resolve(2)).chain.pipe(
+			v => IO.of(incPr(v)),
+			v => IO.of(twicePr(v))
+		).run(),
+		6,
+		"async: chain.pipe()"
+	);
+
+	assert.deepEqual(
+		await IO.of(Promise.resolve([1,2])).concat.pipe(
+			IO.of(Promise.resolve([3,4])),
+			IO.of(Promise.resolve([5,6]))
+		).run(),
+		[1,2,3,4,5,6],
+		"async: concat.pipe()"
+	);
+});
+
+qunit.test("*.pipe:very-long", async (assert) => {
+	var stackDepth = 10000;
+
+	var incFns = Array(stackDepth).fill(inc);
+	var incIOFns = Array(stackDepth).fill(v => IO.of(inc(v)));
+
+	assert.equal(
+		IO.of(0).map.pipe(...incFns).run(),
+		stackDepth,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		IO.of(0).chain.pipe(...incIOFns).run(),
+		stackDepth,
+		"chain.pipe()"
+	);
+});

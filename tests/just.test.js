@@ -2,7 +2,7 @@
 
 const qunit = require("qunit");
 const { identity, } = MonioUtil;
-const { INJECT_MONIO, inc, twice, justProp } = require("./utils");
+const { INJECT_MONIO, inc, twice, justProp, } = require("./utils");
 INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
 
 qunit.module("just");
@@ -24,6 +24,18 @@ qunit.test("#unit", (assert) => {
 		Just.unit(1)._inspect(),
 		"Just(1)",
 		"should create a Just functor via #unit"
+	);
+
+	assert.equal(
+		Just(() => {})._inspect(),
+		"Just(anonymous function)",
+		"should create a Just holding an anonymous function"
+	);
+
+	assert.equal(
+		Just([ null, undefined, false, 42 ])._inspect(),
+		"Just([null,undefined,false,42])",
+		"should create a Just holding an array of values"
 	);
 });
 
@@ -96,5 +108,40 @@ qunit.test("#concat", (assert) => {
 		Just.of([1, 2]).concat(Just.of([3]))._inspect(),
 		Just.of([1, 2, 3])._inspect(),
 		"should concat two arrays in just monads together into a new monad"
+	);
+});
+
+qunit.test("*.pipe", (assert) => {
+	assert.equal(
+		Just.of(2).map.pipe(inc,twice).fold(identity),
+		6,
+		"map.pipe()"
+	);
+
+	assert.equal(
+		Just.of(2).chain.pipe(
+			v => Just.of(inc(v)),
+			v => Just.of(twice(v))
+		).fold(identity),
+		6,
+		"chain.pipe()"
+	);
+
+	assert.equal(
+		Just.of(x => y => x + y).ap.pipe(
+			Just.of(2),
+			Just.of(3)
+		).fold(identity),
+		5,
+		"ap.pipe()"
+	);
+
+	assert.deepEqual(
+		Just.of([1,2]).concat.pipe(
+			Just.of([3,4]),
+			Just.of([5,6])
+		).fold(identity),
+		[1,2,3,4,5,6],
+		"concat.pipe()"
 	);
 });
