@@ -20,18 +20,22 @@ module.exports = Object.assign(AsyncEither,{
 // **************************
 
 function AsyncLeft(v) {
-	return AsyncEither(Either.Left(v));
+	return fromPromise(
+		isPromise(v) ? v : Promise.reject(v)
+	);
 }
 
 function AsyncRight(v) {
-	return AsyncEither(Either.Right(v));
+	return fromPromise(
+		isPromise(v) ? v : Promise.resolve(v)
+	);
 }
 
 function AsyncEither(v) {
-	return fromPromise(
-		isPromise(v) ? v :
-		Either.Left.is(v) ? Promise.reject(v) :
-		Promise.resolve(v)
+	return (
+		isPromise(v) ? fromPromise(v) :
+		Either.Left.is(v) ? AsyncLeft(v) :
+		AsyncRight(v)
 	);
 }
 
