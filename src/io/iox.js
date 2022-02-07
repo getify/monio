@@ -2136,6 +2136,7 @@ function defineNeverIOx() {
 		_is: IOx.is, [Symbol.toStringTag]: TAG,
 	});
 	registerHooks.set(publicAPI,[ EMPTY_FUNC, EMPTY_FUNC ]);
+	NeverIOx$.pipe = NeverIOx$;
 	return publicAPI;
 
 	// *****************************************
