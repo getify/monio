@@ -48,7 +48,13 @@ Make sure you take your time reading through that guide; it's pretty long and de
 
 ## See Monio In Action
 
-To see how writing **Monio**-based code looks and feels, especially the use of IO/IOx monads (and all its variations), check out these live demos. There's a variety of different approaches/styles demonstrated, which illustrate the flexibility **Monio**'s monads offer.
+To see how writing **Monio**-based code looks and feels, especially the use of IO/IOx monads (and all its variations), check out these demos. There's a variety of different approaches/styles demonstrated, which illustrate the flexibility **Monio**'s monads offer.
+
+Here's a full demo app (client and server) featuring **Monio**:
+
+**[Monio Demo App](https://github.com/DrBoolean/monio-demo-app)**
+
+In addition, here's some live codepen demos:
 
 * [Cancelable Countdown (demo)](https://codepen.io/getify/pen/abvjRRK?editors=0011)
 
@@ -308,7 +314,7 @@ Here are the individual `import` / `require` named-entity paths:
 
     ESM (Browser): `import AllIO from "/path/to/monio/dist/esm/io/all.mjs"`
 
-    CJS: `const AllIO = require("monio/io/ll")`
+    CJS: `const AllIO = require("monio/io/all")`
 
 * `IOHelpers` (named helpers for `IO`): `"monio/io/helpers"`
 

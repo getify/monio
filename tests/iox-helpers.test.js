@@ -1038,7 +1038,7 @@ qunit.test("merge", (assert) => {
 
 qunit.test("onEvent", async (assert) => {
 	var evt = new EventEmitter();
-	var vals = IOx.onEvent(evt,"tick");
+	var vals = IOx.onEvent(evt)("tick");
 
 	var res = [];
 	var pushed = vals.chain(v => IO.of(res.push(v)));
@@ -1094,10 +1094,16 @@ qunit.test("onEvent", async (assert) => {
 
 qunit.test("onceEvent", async (assert) => {
 	var evt = new EventEmitter();
-	var vals = IOx.onceEvent(evt)("tick");
+	// intentionally using `onEvent(..)` with `once: true`
+	// instead of `onceEvent(..)` directly, to make sure
+	// that path is tested
+	var vals = IOx.onEvent(evt,"tick",{ evtOpts: { once: true, }, });
+	var vals2 = IOx.onceEvent(evt,"tick");
 
 	var res = [];
+	var res2 = [];
 	var pushed = vals.chain(v => IO.of(res.push(v)));
+	var pushed2 = vals2.chain(v => IO.of(res2.push(v)));
 
 	evt.emit("tick",1);
 
@@ -1109,11 +1115,12 @@ qunit.test("onceEvent", async (assert) => {
 
 	pushed.run();
 	vals.run();
+	pushed2.run();
 
 	assert.equal(
 		evt.listenerCount("tick"),
-		1,
-		"event listener only subscribed once"
+		2,
+		"event listener only subscribed once for each stream"
 	);
 
 	evt.emit("tick",2);
@@ -1125,8 +1132,14 @@ qunit.test("onceEvent", async (assert) => {
 		"stream should only get values while running (not stopped)"
 	);
 
+	assert.deepEqual(
+		res,
+		res2,
+		"both streams should have the same result"
+	);
+
 	assert.ok(
-		vals.isClosed(),
+		vals.isClosed() && vals2.isClosed(),
 		"once-stream closed automatically after first event"
 	);
 
@@ -1819,4 +1832,268 @@ qunit.test("fromObservable", async (assert) => {
 		pusher2.isClosed(),
 		"completed observable closed iox"
 	);
+});
+
+qunit.module("iox-helpers",() => {
+	qunit.module("eventPullStream");
+
+	qunit.test("#next", async (assert) => {
+		var evt = new EventEmitter();
+		var ait = IOxHelpers.eventPullStream(evt,"tick");
+
+		var res = ait.next();
+
+		assert.ok(
+			res instanceof Promise,
+			"next() gives a promise"
+		);
+
+		setTimeout(function emit(){
+			evt.emit("tick",5);
+		},5);
+
+		res = await res;
+
+		assert.deepEqual(
+			res,
+			{ value: 5, done: false },
+			"next() promise resolves to an iterator result"
+		);
+
+		evt.emit("tick",6);
+
+		res = await ait.nextIO().run();
+
+		assert.deepEqual(
+			res,
+			{ value: 6, done: false },
+			"nextIO gives a next-promise that resolves to an iterator result"
+		);
+
+		ait.return();
+
+		res = await ait.nextIO().run();
+
+		assert.deepEqual(
+			res,
+			{ value: undefined, done: true },
+			"nextIO after iterator close gives a next-promise taht resolves to an empty iterator result"
+		);
+	});
+
+	qunit.test("#return", async (assert) => {
+		var evt = new EventEmitter();
+		var ait = IOxHelpers.eventPullStream(evt,"tick");
+		var res1 = ait.next();
+		var res2 = ait.return(2);
+		var res3 = ait.return();
+
+		assert.ok(
+			res2 instanceof Promise,
+			"return() gives a promise"
+		);
+
+		assert.ok(
+			res3 instanceof Promise,
+			"return() again gives a promise"
+		);
+
+		assert.ok(
+			ait.isClosed(),
+			"iterator shows as closed immediately after return()"
+		);
+
+		res2 = await res2;
+
+		assert.deepEqual(
+			res2,
+			{ value: 2, done: true },
+			"iterator-result value is forced by return()"
+		);
+
+		res1 = await res1;
+
+		assert.deepEqual(
+			res1,
+			{ value: undefined, done: true },
+			"next() after closed iterator gives empty result"
+		);
+
+		res3 = await res3;
+
+		assert.deepEqual(
+			res3,
+			{ value: undefined, done: true },
+			"return() after closed iterator gives empty result"
+		);
+	});
+
+	qunit.test("async emit/consume", async (assert) => {
+		var res = [];
+		var evt = new EventEmitter();
+		var ait = IOxHelpers.eventPullStream(evt,"tick");
+
+		var counter = 0;
+
+		var intv = setInterval(function ticker(){
+			evt.emit("tick",++counter);
+			if (counter == 6) {
+				ait.return();
+			}
+		},10);
+
+		for await (let tick of ait) {
+			res.push(tick);
+		}
+
+		assert.deepEqual(
+			res,
+			[ 1, 2, 3, 4, 5, 6 ],
+			"emitted events come through the event-stream"
+		);
+	});
+
+	qunit.test("start(), sync queued values", async (assert) => {
+		var res = [];
+		var evt = new EventEmitter();
+		var ait = IOxHelpers.eventPullStream(evt,"tick");
+
+		var counter = 0;
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		ait.start();
+		ait.start();
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		var intv = setInterval(function ticker(){
+			evt.emit("tick",++counter);
+			if (counter == 6) {
+				ait.return();
+			}
+		},10);
+
+		for await (let tick of ait) {
+			res.push(tick);
+			ait.start();
+		}
+
+		assert.deepEqual(
+			res,
+			[ 3, 4, 5, 6 ],
+			"only events emitted while subscribed come through the event-stream"
+		);
+	});
+
+	qunit.test("debounced", async (assert) => {
+		var res1 = [];
+		var evt = new EventEmitter();
+		var ait1 = IOxHelpers.eventPullStream(evt,"tick",{ debounce: 30 });
+
+		var counter = 0;
+
+		ait1.start();
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		await delayPr(10);
+
+		evt.emit("tick",++counter);		// 4 should come through
+
+		await delayPr(35);
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		await delayPr(10);
+
+		evt.emit("tick",++counter);
+
+		await delayPr(10);
+
+		evt.emit("tick",++counter);		// 8 should come through
+
+		await delayPr(35);
+
+		setTimeout(function closeait1(){
+			ait1.return();
+		},20);
+
+		for await (let tick of ait1) {
+			res1.push(tick);
+		}
+
+		assert.deepEqual(
+			res1,
+			[ 4, 8 ],
+			"debounced events (with no max) finally came through"
+		);
+
+		var res2 = [];
+
+		// intentionally not using `eventPullStream(..)` helper
+		// here, to (1) ensure that you can do the same thing
+		// without the helper; (2) be able to test calling
+		// `stop(..)` directly on the debounced event IOx
+		var evtIOx = IOx.onEvent(evt,"tick",{ debounce: 30, maxDebounceDelay: 50 });
+		var ait2 = IOxHelpers.toIter(evtIOx);
+
+		counter = 0;
+
+		ait2.start();
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		await delayPr(10);
+
+		evt.emit("tick",++counter);
+
+		await delayPr(25);
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);		// 6 should come through
+
+		await delayPr(25);
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		await delayPr(25);
+
+		evt.emit("tick",++counter);
+		evt.emit("tick",++counter);
+
+		await delayPr(10);
+
+		evt.emit("tick",++counter);		// 12 should come through
+
+		await delayPr(25);
+
+		evt.emit("tick",++counter);
+
+		await delayPr(35);				// 13 should come through
+
+		setTimeout(function closeait1(){
+			evtIOx.stop();
+			ait2.return();
+		},20);
+
+		for await (let tick of ait2) {
+			res2.push(tick);
+		}
+
+		assert.deepEqual(
+			res2,
+			[ 6, 12, 13 ],
+			"debounced events (with a max) came through"
+		);
+	});
 });

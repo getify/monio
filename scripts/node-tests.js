@@ -16,7 +16,6 @@ if (process.env.TEST_PACKAGE) {
 		IOx: global.IOx,
 		AnyIO: global.AnyIO,
 		AllIO: global.AllIO,
-		IOEventStream: global.IOEventStream,
 		IOHelpers: global.IOHelpers,
 		IOxHelpers: global.IOxHelpers,
 		MonioUtil: global.MonioUtil,
@@ -35,7 +34,6 @@ else if (process.env.TEST_UMD) {
 		IOx: global.IOx,
 		AnyIO: global.AnyIO,
 		AllIO: global.AllIO,
-		IOEventStream: global.IOEventStream,
 		IOHelpers: global.IOHelpers,
 		IOxHelpers: global.IOxHelpers,
 		MonioUtil: global.MonioUtil,
@@ -62,7 +60,6 @@ else {
 	global.IOx = require("../src/io/iox.js");
 	global.AnyIO = require("../src/io/any.js");
 	global.AllIO = require("../src/io/all.js");
-	global.IOEventStream = require("../src/io/event-stream.js");
 	global.IOHelpers = require("../src/io/helpers.js");
 	global.IOxHelpers = require("../src/io/x-helpers.js");
 	global.MonioUtil = require("../src/lib/util.js");

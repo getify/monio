@@ -531,9 +531,9 @@ IO.do(function *main({ btn, input }){
 
 IOx reactive instances can temporarily be paused (using `stop()`), or permanently closed and cleaned up (using `close()`). They can also be "frozen" (still open, but no more values allowed) with `freeze()`. `isClosed()` and `isFrozen()` indicate the current status of the IOx stream.
 
-## Other Helpful IO-Variants
+## Other Helpful IO/IOx Variants
 
-Monio includes several other supporting monads/helpers in addition to `IO`:
+Monio also includes some other variants and helpers of `IO` / `IOx`:
 
 * `AllIO` and `AnyIO` are IO monad variants that are suitable -- as monoids, both have an "empty" boolean-holding IO value (`AllIO.empty()` and `AnyIO.empty()`) and a `concat(..)` method -- to perform short-circuited `&&` and `||` operations, respectively, over the eventually-resolved values in the IO instances. For additional convenience, common FP utilities like `fold(..)` and `foldMap(..)` (included in Monio's `Util` module) abstract the `concat(..)` calls across such concatable moniod instances.
 
@@ -558,21 +558,12 @@ Monio includes several other supporting monads/helpers in addition to `IO`:
     d.concat(e).concat(f).run();          // true
     ```
 
-* `IOEventStream(..)`: creates an IO instance that produces an "event stream" -- an async-iterable that's consumable with a `for await..of` loop -- from an event emitter (ie, a DOM element, or a Node EventEmitter instance)
+* `IOxHelpers.eventPullStream(..)` produces a pull-stream (via `toIter(..)`) -- aka, ES2018 async iterator, consumable with a `for await..of` loop -- subscribed to an event emitter (via `onEvent(..)`). This simple helper is equivalent to manually calling `IOxHelpers.toIter( IOxHelpers.onEvent(..) )`.
 
     For example:
 
     ```js
-    var clicksIO = IOEventStream(btn,"click");
-
-    clicksIO.chain(clicks => IO.do(async function *main(){
-        // `clicks` is a lazily-subscribed ES2018
-        // async-iterator that will produce event
-        // objects for each DOM click event on the
-        // the button
-        for await (let evt of clicks) {
-            // ..
-        }
-    }))
-    .run();
+    for await (let click of IOxHelpers.eventPullStream(btn,"click")) {
+        // ..
+    }
     ```

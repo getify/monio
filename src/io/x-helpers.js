@@ -8,6 +8,7 @@ var IOx = require("./iox.js");
 
 // curry some public methods
 reduce = curry(reduce,2);
+eventPullStream = curry(eventPullStream,2);
 
 module.exports = {
 	filterIn,
@@ -22,6 +23,7 @@ module.exports = {
 	debounce,
 	throttle,
 	waitFor,
+	eventPullStream,
 
 	// even though these are actually defined in
 	// IOx, they're re-exported on this namespace
@@ -50,6 +52,7 @@ module.exports.takeWhile = takeWhile;
 module.exports.debounce = debounce;
 module.exports.throttle = throttle;
 module.exports.waitFor = waitFor;
+module.exports.eventPullStream = eventPullStream;
 
 // even though these are actually defined in
 // IOx, they're re-exported on this namespace
@@ -269,4 +272,8 @@ function throttle(time) {
 
 function waitFor(iox) {
 	return IOx((env,v) => v,[ iox, ]);
+}
+
+function eventPullStream(el,evtName,opts) {
+	return IOx.toIter(IOx.onEvent(el,evtName,opts));
 }

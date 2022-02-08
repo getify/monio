@@ -686,7 +686,7 @@ function IOx(iof,deps = []) {
 	}
 
 	function getDepVal(dep) {
-		return hasDepVal(dep) ? depVals.get(dep)[0] : undefined;
+		return depVals.get(dep)[0];
 	}
 
 	function hasDepVal(dep) {
@@ -982,6 +982,7 @@ function IOx(iof,deps = []) {
 		function registerDep([ dep, ...remainingDeps ]) {
 			// is the current IOx already marked
 			// as a never?
+			/* istanbul ignore next */
 			if (currentVal === NEVER) {
 				return registrationComplete();
 			}
@@ -1117,9 +1118,35 @@ function doEither(gen,deps,...args) {
 	),deps);
 }
 
-function onEvent(el,evtName,evtOpts = false) {
+function onEvent(el,evtName,opts) {
+	// called from the `onceEvent(..)` helper?
+	if (opts && opts.fromOnceEvent) {
+		opts = opts.fromOnceEvent;
+	}
+	// do we actually want a "once" event?
+	else if (opts && opts.evtOpts && opts.evtOpts.once) {
+		return onceEvent(el,evtName,opts);
+	}
+
+	var {
+		debounce: debounceWindow = 0,
+		maxDebounceDelay = 0,
+		evtOpts,
+	} = opts || {};
+
+	debounceWindow = Number(debounceWindow) || 0;
+	maxDebounceDelay = Math.max(
+		debounceWindow,
+		Number(maxDebounceDelay) || 0
+	);
+
 	var subscribed = false;
-	var iox = IOx(effect,[]);
+	var evtIOx = IOx(effect,[]);
+	var iox = (
+		debounceWindow > 0 ?
+			evtIOx.chain( IOxHelpers.debounce(debounceWindow,maxDebounceDelay) ) :
+			evtIOx
+	);
 
 	// save original methods
 	var { run: _run, stop: _stop, close: _close, } = iox;
@@ -1137,37 +1164,37 @@ function onEvent(el,evtName,evtOpts = false) {
 	}
 
 	function subscribe() {
-		if (!subscribed && iox) {
+		if (!subscribed && evtIOx) {
 			subscribed = true;
 
 			// (lazily) setup event listener
 			/* istanbul ignore next */
 			if (isFunction(el.addEventListener)) {
-				el.addEventListener(evtName,iox,evtOpts);
+				el.addEventListener(evtName,evtIOx,evtOpts);
 			}
 			else if (isFunction(el.addListener)) {
-				el.addListener(evtName,iox);
+				el.addListener(evtName,evtIOx);
 			}
 			else if (isFunction(el.on)) {
-				el.on(evtName,iox);
+				el.on(evtName,evtIOx);
 			}
 		}
 	}
 
 	function unsubscribe() {
-		if (subscribed && iox) {
+		if (subscribed && evtIOx) {
 			subscribed = false;
 
 			// remove event listener
 			/* istanbul ignore next */
 			if (isFunction(el.removeEventListener)) {
-				el.removeEventListener(evtName,iox,evtOpts);
+				el.removeEventListener(evtName,evtIOx,evtOpts);
 			}
 			else if (isFunction(el.removeListener)) {
-				el.removeListener(evtName,iox);
+				el.removeListener(evtName,evtIOx);
 			}
 			else if (isFunction(el.off)) {
-				el.off(evtName,iox);
+				el.off(evtName,evtIOx);
 			}
 		}
 	}
@@ -1182,12 +1209,17 @@ function onEvent(el,evtName,evtOpts = false) {
 
 	function stop() {
 		unsubscribe();
-		_stop();
+		if (iox !== evtIOx) {
+			evtIOx.stop();
+		}
+		else {
+			_stop();
+		}
 	}
 
 	function close(signal) {
 		/* istanbul ignore else */
-		if (iox) {
+		if (evtIOx) {
 			// restore original methods
 			Object.assign(iox,{
 				run: _run, stop: _stop, close: _close,
@@ -1197,11 +1229,11 @@ function onEvent(el,evtName,evtOpts = false) {
 			let cont = continuation(
 				() => {
 					try {
-						return iox.close(signal);
+						return evtIOx.close(signal);
 					}
 					finally {
 						run = _run = _stop = stop = _close = close =
-							iox = el = evtOpts = null;
+							iox = evtIOx = el = opts = evtOpts = null;
 					}
 				}
 			);
@@ -1211,11 +1243,17 @@ function onEvent(el,evtName,evtOpts = false) {
 
 }
 
-function onceEvent(el,evtName,evtOpts = false) {
+function onceEvent(el,evtName,opts) {
+	var { evtOpts, } = opts || {};
+	if (!evtOpts) {
+		evtOpts = {};
+	}
+	evtOpts.once = true;
+
 	var listener;
 	var subscribed = false;
 	var fired = false;
-	var iox = onEvent(el,evtName,evtOpts);
+	var iox = onEvent(el,evtName,{ fromOnceEvent: opts });
 
 	// save original methods
 	var { run: _run, stop: _stop, close: _close, } = iox;
@@ -1287,7 +1325,7 @@ function onceEvent(el,evtName,evtOpts = false) {
 					}
 					finally {
 						run = _run = _stop = stop = _close = close =
-							iox = listener = null;
+							iox = listener = opts = evtOpts = null;
 					}
 				}
 			);
@@ -1786,6 +1824,9 @@ function fromIter($V,closeOnComplete = true) {
 					}
 					else if (isPromise(res.value)) {
 						res = await Promise.race([ hasPaused, res.value, ]);
+						// safety check to prevent infinite looping,
+						// but should never happen
+						/* istanbul ignore next */
 						if (res === CLOSED || !stillListening) {
 							break;
 						}
@@ -1840,10 +1881,8 @@ function fromIter($V,closeOnComplete = true) {
 	function unsubscribe() {
 		/* istanbul ignore else */
 		if (subscribed && iox) {
-			if (signalPaused) {
-				signalPaused(CLOSED);
-				hasPaused = signalPaused = null;
-			}
+			signalPaused(CLOSED);
+			hasPaused = signalPaused = null;
 			subscribed = false;
 		}
 	}
@@ -1895,13 +1934,16 @@ function toIter(iox,env) {
 	var nextQueue = [];
 	var closed = false;
 	var subscribed = false;
-	var it = {
+	var ait = {
 		[Symbol.asyncIterator]() { return this; },
 		next: doNext,
 		return: doReturn,
+		start: subscribe,
+		nextIO,
+		isClosed,
 	};
 
-	return it;
+	return ait;
 
 	// *****************************************
 
@@ -2003,8 +2045,7 @@ function toIter(iox,env) {
 					next(emptyResult());
 				}
 			}
-			nextQueue = prQueue = env = iox = onIOxUpdate =
-				primeQueues = doNext = doReturn = it = null;
+			nextQueue = prQueue = env = iox = ait = null;
 		}
 
 		return (
@@ -2023,6 +2064,14 @@ function toIter(iox,env) {
 
 				Promise.resolve(res)
 		);
+	}
+
+	function nextIO() {
+		return IO(() => doNext());
+	}
+
+	function isClosed() {
+		return closed;
 	}
 
 }

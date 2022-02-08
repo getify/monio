@@ -13,7 +13,6 @@ import {
 	IOx,
 	AnyIO,
 	AllIO,
-	IOEventStream,
 	IOHelpers,
 	IOxHelpers,
 	MonioUtil
@@ -27,7 +26,6 @@ global.IO = IO;
 global.IOx = IOx;
 global.AnyIO = AnyIO;
 global.AllIO = AllIO;
-global.IOEventStream = IOEventStream;
 global.IOHelpers = IOHelpers;
 global.IOxHelpers = IOxHelpers;
 global.MonioUtil = MonioUtil;
