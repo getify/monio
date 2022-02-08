@@ -1,5 +1,7 @@
 # Monio's Monads
 
+## Base Monads
+
 **[More background information on the `Just` monad](MONADS.md#building-up-monads)**
 
 Using an identity (`Just`) monad:
@@ -54,6 +56,58 @@ msg.fold(
 ```
 
 In addition to `Either`, **Monio** provides `AsyncEither`, which is basically, a `Future` monad, with the same opaque promise-transforming behavior as [IO](#io-monad-one-monad-to-rule-them-all).
+
+### `pipe(..)`
+
+All monads in **Monio** have a `.pipe(..)` method exposed as a sub-property method on some of their API methods; these `.pipe(..)` helpers provide convenience (and optimization) over making equivalent multiple subsequent top-level method calls.
+
+Here's an illustration of `map.pipe(..)`:
+
+```js
+const inc = v => v + 1;
+const multBy2 = v => v * 2;
+const multBy3 = v => v * 3;
+
+// instead of:
+var answer =
+    Just(6)
+    .map(inc)
+    .map(multBy2)
+    .map(multBy3);      // Just(42)
+
+// you can do:
+var answer =
+    Just(6)
+    .map.pipe(
+        inc,
+        multBy2,
+        multBy3
+    );                  // Just(42)
+```
+
+And here's `chain.pipe(..)` in action:
+
+```js
+const safeProp = propName => obj => Maybe.from(obj[propName]);
+
+// instead of:
+var cityM =
+    Maybe.from(someData)
+    .chain( safeProp("shipping") )
+    .chain( safeProp("address") )
+    .chain( safeProp("city") );
+
+// you can do:
+var cityM =
+    Maybe.from(someData)
+    .chain.pipe(
+        safeProp("shipping"),
+        safeProp("address"),
+        safeProp("city")
+    );
+```
+
+In addition to all of **Monio**'s monads providing `map.pipe(..)` and `chain.pipe(..)`, the monads that support `ap(..)` provide `ap.pipe(..)`, and those with `concat(..)` provide `concat.pipe(..)`.
 
 ## IO Monad ("one monad to rule them all")
 
