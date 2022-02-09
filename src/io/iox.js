@@ -1,5 +1,17 @@
 "use strict";
 
+// needed for attempting to access global `reportError(..)`,
+// if defined in the JS environment
+//
+/* istanbul ignore next */
+const GLOBAL = (
+	typeof globalThis != "undefined" ? globalThis :
+	typeof global != "undefined" ? global :
+	typeof window != "undefined" ? window :
+	typeof self != "undefined" ? self :
+	(new Function("return this"))()
+);
+
 var {
 	EMPTY_FUNC,
 	identity,
@@ -645,6 +657,7 @@ function IOx(iof,deps = []) {
 		// ignore a straggling dep update after IOx
 		// is already marked as a "never"? (should not
 		// happen)
+		//
 		/* istanbul ignore next */
 		if (currentVal === NEVER) {
 			return;
@@ -982,6 +995,7 @@ function IOx(iof,deps = []) {
 		function registerDep([ dep, ...remainingDeps ]) {
 			// is the current IOx already marked
 			// as a never?
+			//
 			/* istanbul ignore next */
 			if (currentVal === NEVER) {
 				return registrationComplete();
@@ -1168,6 +1182,7 @@ function onEvent(el,evtName,opts) {
 			subscribed = true;
 
 			// (lazily) setup event listener
+			//
 			/* istanbul ignore next */
 			if (isFunction(el.addEventListener)) {
 				el.addEventListener(evtName,evtIOx,evtOpts);
@@ -1186,6 +1201,7 @@ function onEvent(el,evtName,opts) {
 			subscribed = false;
 
 			// remove event listener
+			//
 			/* istanbul ignore next */
 			if (isFunction(el.removeEventListener)) {
 				el.removeEventListener(evtName,evtIOx,evtOpts);
@@ -1484,6 +1500,7 @@ function zip(ioxs = []) {
 				}
 
 				// register a listener for the stream?
+				//
 				/* istanbul ignore else */
 				if (registerHooks.has(nextIOx)) {
 					let [ regListener, ] = registerHooks.get(nextIOx);
@@ -1565,6 +1582,7 @@ function zip(ioxs = []) {
 				// otherwise, done for now
 				else {
 					// but, also need to close the zip stream?
+					//
 					/* istanbul ignore else */
 					if (allStreamsClosed) {
 						return close(runSignal());
@@ -1572,6 +1590,7 @@ function zip(ioxs = []) {
 
 					// note: shouldn't get here, but safety net
 					// to prevent any sort of infinite loop
+					//
 					/* istanbul ignore next */
 					return;
 				}
@@ -1826,6 +1845,7 @@ function fromIter($V,closeOnComplete = true) {
 						res = await Promise.race([ hasPaused, res.value, ]);
 						// safety check to prevent infinite looping,
 						// but should never happen
+						//
 						/* istanbul ignore next */
 						if (res === CLOSED || !stillListening) {
 							break;
@@ -1838,6 +1858,7 @@ function fromIter($V,closeOnComplete = true) {
 				}
 				else {
 					// note: should never get here
+					//
 					/* istanbul ignore next */
 					break;
 				}
@@ -1959,6 +1980,7 @@ function toIter(iox,env) {
 
 	function subscribe() {
 		// can we register a listener for the IOx?
+		//
 		/* istanbul ignore else */
 		if (!subscribed && registerHooks.has(iox)) {
 			subscribed = true;
@@ -1970,6 +1992,7 @@ function toIter(iox,env) {
 
 	function unsubscribe() {
 		// can we unregister our listener from the IOx?
+		//
 		/* istanbul ignore else */
 		if (registerHooks.has(iox)) {
 			let [ , unregListener, ] = registerHooks.get(iox);
@@ -2155,22 +2178,36 @@ function fromObservable(obsv) {
 
 }
 
+// attempts to use `global.reportError(..)`; falls back to
+// `console.error(..)` or `console.log(..)`
+//
+// see: https://developer.mozilla.org/en-US/docs/Web/API/reportError
+//
 /* istanbul ignore next */
 function logUnhandledError(err) {
-	if (Either.Left.is(err)) {
-		console.log(
-			err.fold(identity,EMPTY_FUNC)
-		);
-	}
-	else if (isMonad(err)) {
-		console.log(err._inspect());
-	}
-	else if (isFunction(err.toString)) {
-		console.log(err.toString());
-	}
-	else {
-		console.log(err);
-	}
+	var reportErrorFn = (
+		isFunction(GLOBAL.reportError) ? msg => GLOBAL.reportError(
+			msg instanceof Error ? msg :
+			new Error(msg)
+		) :
+		msg => (
+			isFunction(console.error) ? console.error(
+				msg instanceof Error ? msg :
+				msg
+			) :
+			console.log(
+				msg instanceof Error ? msg :
+				isFunction(msg.toString) ? msg.toString() :
+				String(msg)
+			)
+		)
+	);
+
+	reportErrorFn(
+		Either.Left.is(err) ? err.fold(identity,EMPTY_FUNC) :
+		isMonad(err) && isFunction(err._inspect) ? err._inspect() :
+		err
+	);
 }
 
 function defineNeverIOx() {
