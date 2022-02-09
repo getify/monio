@@ -464,6 +464,21 @@ That's much nicer than before. And there's no `!= null` checks cluttering up our
 
 Our `shippingLabel` monad is now ready to interact with other monads/monad behaviors, and will do so safely and predictably, regardless of whether it's `Maybe:Just` or `Maybe:Nothing`.
 
+One further improvement to the code can be made using a convenience that **Monio** provides: a helper sub-method on its monads' `map(..)` / `chain(..)` / etc methods, called `.pipe(..)`, as shown here:
+
+```js
+const shippingLabel = (
+    Maybe.from(record)
+    .chain.pipe(
+        getPropSafe("address"),
+        getPropSafe("shipping"),
+        formatLabelSafe
+    )
+);
+```
+
+As you can see, `chain.pipe(..)` allows you to compose multiple subsequent `.chain(..)` calls into a single call with each subsequent argument listed in order. You can do the same with `.map.pipe(..)`, `.ap.pipe(..)`, and `.concat.pipe(..)`, on any **Monio** monads. In addition to the added convenience, in some cases (e.g., `.map.pipe(..)`), it's also slightly more efficient/performant!
+
 By the way, `Maybe` is also [Foldable](#foldable), so to "exit" from it (as we saw earlier with `Just`), you can use the `fold(..)` function; but since `Maybe` is a *Sum Type*, `fold(..)` here expects two functions, the first invoked for `Maybe:Nothing` and the second invoked for `Maybe:Just`. Again, more on [using Foldable and other adjacent behaviors later](#-and-friends).
 
 You're hopefully starting to see a *little bit* more benefit to representing our values/expressions with monads rather than *just* using bare values.
@@ -625,9 +640,11 @@ const formatLabelSafe = v => Maybe.from(formatLabel(v));
 
 const shippingLabel = (
     Maybe.from(record)
-    .chain( getPropSafe("address") )
-    .chain( getPropSafe("shipping") )
-    .chain( formatLabelSafe )
+    .chain.pipe(
+        getPropSafe("address"),
+        getPropSafe("shipping"),
+        formatLabelSafe
+    )
 );
 ```
 
@@ -667,9 +684,11 @@ const renderShippingLabel = v => (
 
 const renderIO = renderShippingLabel(
     Maybe.from(record)
-    .chain( getPropSafe("address") )
-    .chain( getPropSafe("shipping") )
-    .chain( formatLabelSafe )
+    .chain.pipe(
+        getPropSafe("address"),
+        getPropSafe("shipping"),
+        formatLabelSafe
+    )
 );
 
 renderIO.run();
