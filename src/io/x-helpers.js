@@ -20,7 +20,6 @@ module.exports = {
 	seq,
 	take,
 	takeWhile,
-	debounce,
 	throttle,
 	waitFor,
 	eventPullStream,
@@ -32,6 +31,7 @@ module.exports = {
 	zip: IOx.zip,
 	doIOx: IOx.do,
 	doEIOx: IOx.doEither,
+	debounce: IOx.debounce,
 	onEvent: IOx.onEvent,
 	onceEvent: IOx.onceEvent,
 	onTimer: IOx.onTimer,
@@ -49,7 +49,6 @@ module.exports.scan = reduce;
 module.exports.seq = seq;
 module.exports.take = take;
 module.exports.takeWhile = takeWhile;
-module.exports.debounce = debounce;
 module.exports.throttle = throttle;
 module.exports.waitFor = waitFor;
 module.exports.eventPullStream = eventPullStream;
@@ -61,6 +60,7 @@ module.exports.merge = IOx.merge;
 module.exports.zip = IOx.zip;
 module.exports.doIOx = IOx.do;
 module.exports.doEIOx = IOx.doEither;
+module.exports.debounce = IOx.debounce;
 module.exports.onEvent = IOx.onEvent;
 module.exports.onceEvent = IOx.onceEvent;
 module.exports.onTimer = IOx.onTimer;
@@ -173,67 +173,6 @@ function takeWhile(whilePredicate,closeOnComplete = true) {
 			iox.close();
 		}
 		return IOx.Never;
-	};
-}
-
-function debounce(time,maxTime = 0) {
-	time = Math.max(Number(time) || 0,0);
-	maxTime = Math.max(Number(maxTime) || 0,0);
-	if (maxTime > 0 && maxTime <= time) {
-		maxTime = time + 1;
-	}
-	if (maxTime == 0) {
-		maxTime = null;
-	}
-
-	var startTime;
-	var timer;
-	var ioxs = [];
-
-	return function debounce(v) {
-		ioxs.push(IOx.of.empty());
-		var lastIOx = ioxs[ioxs.length - 1];
-
-		// need to init a debouncing cycle?
-		if (startTime == null) {
-			startTime = Date.now();
-		}
-
-		// (re)compute debounce window
-		var now = Date.now();
-		var timeToWait = (
-			maxTime == null ? time : Math.min(time,maxTime - (now - startTime))
-		);
-
-		// current debounce window timer needs to
-		// be cleared?
-		if (timer != null) {
-			clearTimeout(timer);
-			timer = null;
-		}
-
-		// set debounce window timer
-		timer = setTimeout(() => {
-			var prevIOxs = ioxs.slice(0,-1);
-			lastIOx = ioxs[ioxs.length - 1];
-			ioxs.length = 0;
-
-			// clean up previous IOxs that won't ever
-			// get a value
-			for (let prevIOx of prevIOxs) {
-				prevIOx.never();
-			}
-			if (!lastIOx.isClosed()) {
-				// timer completed, so emit value
-				lastIOx(v);
-			}
-
-			// reset for the next event
-			startTime = timer = null;
-		},timeToWait);
-
-		// return only the most recently created IOx
-		return lastIOx;
 	};
 }
 

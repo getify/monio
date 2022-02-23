@@ -48,9 +48,9 @@ const IO_is = EMPTY_IO._is;
 const NeverIOx = defineNeverIOx();
 
 module.exports = Object.assign(IOx,{
-	of, pure: of, unit: of, is, do: $do, doEither, onEvent,
-	onceEvent, onTimer, merge, zip, fromIO, fromIter, toIter,
-	fromObservable, Never: NeverIOx,
+	of, pure: of, unit: of, is, do: $do, doEither, debounce,
+	onEvent, onceEvent, onTimer, merge, zip, fromIO, fromIter,
+	toIter, fromObservable, Never: NeverIOx,
 });
 module.exports.of = of;
 module.exports.pure = of;
@@ -58,6 +58,7 @@ module.exports.unit = of;
 module.exports.is = is;
 module.exports.do = $do;
 module.exports.doEither = doEither;
+module.exports.debounce = debounce;
 module.exports.onEvent = onEvent;
 module.exports.onceEvent = onceEvent;
 module.exports.onTimer = onTimer;
@@ -1132,6 +1133,67 @@ function doEither(gen,deps,...args) {
 	),deps);
 }
 
+function debounce(time,maxTime = 0) {
+	time = Math.max(Number(time) || 0,0);
+	maxTime = Math.max(Number(maxTime) || 0,0);
+	if (maxTime > 0 && maxTime <= time) {
+		maxTime = time + 1;
+	}
+	if (maxTime == 0) {
+		maxTime = null;
+	}
+
+	var startTime;
+	var timer;
+	var ioxs = [];
+
+	return function debounce(v) {
+		ioxs.push(IOx.of.empty());
+		var lastIOx = ioxs[ioxs.length - 1];
+
+		// need to init a debouncing cycle?
+		if (startTime == null) {
+			startTime = Date.now();
+		}
+
+		// (re)compute debounce window
+		var now = Date.now();
+		var timeToWait = (
+			maxTime == null ? time : Math.min(time,maxTime - (now - startTime))
+		);
+
+		// current debounce window timer needs to
+		// be cleared?
+		if (timer != null) {
+			clearTimeout(timer);
+			timer = null;
+		}
+
+		// set debounce window timer
+		timer = setTimeout(() => {
+			var prevIOxs = ioxs.slice(0,-1);
+			lastIOx = ioxs[ioxs.length - 1];
+			ioxs.length = 0;
+
+			// clean up previous IOxs that won't ever
+			// get a value
+			for (let prevIOx of prevIOxs) {
+				prevIOx.never();
+			}
+			if (!lastIOx.isClosed()) {
+				// timer completed, so emit value
+				lastIOx(v);
+			}
+
+			// reset for the next event
+			startTime = timer = null;
+		},timeToWait);
+
+		// return only the most recently created IOx
+		return lastIOx;
+	};
+}
+
 function onEvent(el,evtName,opts) {
 	// called from the `onceEvent(..)` helper?
 	if (opts && opts.fromOnceEvent) {
@@ -1158,7 +1220,7 @@ function onEvent(el,evtName,opts) {
 	var evtIOx = IOx(effect,[]);
 	var iox = (
 		debounceWindow > 0 ?
-			evtIOx.chain( IOxHelpers.debounce(debounceWindow,maxDebounceDelay) ) :
+			evtIOx.chain( debounce(debounceWindow,maxDebounceDelay) ) :
 			evtIOx
 	);
 
