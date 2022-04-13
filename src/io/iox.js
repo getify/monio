@@ -863,12 +863,15 @@ function IOx(iof,deps = []) {
 		// still waiting on the resolved value
 		// to update with?
 		if (isPromise(v)) {
-			return v.then(v2 => (
+			let pr = v.then(v2 => (
 				// trampoline() here unwraps the continuation
 				// immediately, because we're already in an
 				// async microtask from the promise
 				trampoline(handleValue(v2))
 			));
+			// silence unhandled rejection warnings
+			pr.catch(EMPTY_FUNC);
+			return pr;
 		}
 		else {
 			// since this update isn't async, no
