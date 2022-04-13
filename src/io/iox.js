@@ -192,9 +192,15 @@ function IOx(iof,deps = []) {
 		if (!closing && currentVal !== NEVER) {
 			unregisterWithDeps();
 			deps = currentEnv = iof = null;
-			trampoline(
+			if (isPromise(v)) {
 				updateCurrentVal(v,/*drainQueueIfAsync=*/false)
-			);
+				.catch(logUnhandledError);
+			}
+			else {
+				trampoline(
+					updateCurrentVal(v,/*drainQueueIfAsync=*/false)
+				);
+			}
 		}
 	}
 
@@ -862,8 +868,7 @@ function IOx(iof,deps = []) {
 				// immediately, because we're already in an
 				// async microtask from the promise
 				trampoline(handleValue(v2))
-			))
-			.catch(logUnhandledError);
+			));
 		}
 		else {
 			// since this update isn't async, no
