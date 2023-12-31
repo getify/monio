@@ -5,7 +5,7 @@ var {
 	isPromise,
 	definePipeWithMethodChaining,
 	definePipeWithAsyncFunctionComposition,
-	runSignal,
+	returnSignal,
 } = require("../lib/util.js");
 var IO = require("./io.js");
 
@@ -32,20 +32,20 @@ function AllIO(effect) {
 	// *********************
 
 	function chain(fn) {
-		return AllIO(env => io.chain(fn).run(runSignal(env)));
+		return AllIO(env => io.chain(fn).run(returnSignal(env)));
 	}
 
 	function map(fn) {
-		return AllIO(env => io.map(fn).run(runSignal(env)));
+		return AllIO(env => io.map(fn).run(returnSignal(env)));
 	}
 
 	function concat(aio) {
 		return AllIO(env => (
-			IO(env => io.run(runSignal(env)))
+			IO(env => io.run(returnSignal(env)))
 			.map(v => (
-				v && aio.run(runSignal(env))
+				v && aio.run(returnSignal(env))
 			))
-			.run(runSignal(env))
+			.run(returnSignal(env))
 		));
 	}
 
@@ -73,7 +73,7 @@ function is(v) {
 }
 
 function fromIO(io) {
-	return AllIO(env => io.run(runSignal(env)));
+	return AllIO(env => io.run(returnSignal(env)));
 }
 
 function empty() {

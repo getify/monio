@@ -9,8 +9,8 @@ var {
 	definePipeWithMethodChaining,
 	definePipeWithAsyncFunctionComposition,
 	continuation,
-	runSignal,
-	isRunSignal,
+	returnSignal,
+	isReturnSignal,
 	trampoline,
 } = require("../lib/util.js");
 var Nothing = require("../nothing.js");
@@ -67,7 +67,7 @@ function IO(effect) {
 					// of these two lines will throw as we try to
 					// `run(..)` the expected IO/IOx
 					res2.then(io2 => io2.run(env)) :
-					res2.run(runSignal(env))
+					res2.run(returnSignal(env))
 				);
 			}
 		));
@@ -82,7 +82,7 @@ function IO(effect) {
 				// type signature requires, this line will
 				// throw as we try to `run(..)` the expected
 				// IO/IOx
-				() => m.run(runSignal(env)),
+				() => m.run(returnSignal(env)),
 				res2 => (
 					(isPromise(res1) || isPromise(res2)) ?
 						(
@@ -96,7 +96,7 @@ function IO(effect) {
 	}
 
 	function run(env) {
-		if (isRunSignal(env)) {
+		if (isReturnSignal(env)) {
 			return effect(env.env);
 		}
 		else {
@@ -203,7 +203,7 @@ function processNext(next,respVal,outerEnv,throwEither) {
 			monadFlatMap(nextRespVal,ioWrap)
 		);
 
-		return nextIO.run(runSignal(outerEnv));
+		return nextIO.run(returnSignal(outerEnv));
 	}
 }
 
@@ -248,7 +248,7 @@ function $do($V,...args) {
 							// as if it was yielded before returning
 							return (
 								IO.is(resp.value) ?
-									resp.value.run(runSignal(outerEnv)) :
+									resp.value.run(returnSignal(outerEnv)) :
 									resp.value
 							);
 						}
@@ -331,7 +331,7 @@ function doEither($V,...args) {
 										// if an IO was returned, automatically run it
 										// as if it was yielded before returning
 										IO.is(resp.value) ?
-											resp.value.run(runSignal(outerEnv)) :
+											resp.value.run(returnSignal(outerEnv)) :
 											resp.value
 									);
 								}
@@ -389,7 +389,7 @@ function liftDoEitherError(err) {
 }
 
 function fromIOx(iox) {
-	return IO(env => iox.run(runSignal(env)));
+	return IO(env => iox.run(returnSignal(env)));
 }
 
 function getIterator(v,env,outerThis,args) {

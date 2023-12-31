@@ -23,8 +23,8 @@ var {
 	definePipeWithMethodChaining,
 	definePipeWithAsyncFunctionComposition,
 	continuation,
-	runSignal,
-	isRunSignal,
+	returnSignal,
+	isReturnSignal,
 	trampoline,
 } = require("../lib/util.js");
 var Either = require("../either.js");
@@ -156,11 +156,11 @@ function IOx(iof,deps = []) {
 		else if (!closing) {
 			try {
 				return checkRunRes(
-					isRunSignal(env) ?
+					isReturnSignal(env) ?
 
 						continuation(() => io.run(env),checkRunRes) :
 
-						trampoline(io.run(runSignal(env)))
+						trampoline(io.run(returnSignal(env)))
 				);
 			}
 			catch (err) {
@@ -208,7 +208,7 @@ function IOx(iof,deps = []) {
 				}
 			);
 
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -342,7 +342,7 @@ function IOx(iof,deps = []) {
 
 								// close *returned* IOx (for memory cleanup)
 								return continuation(
-									() => returnedIOx.close(runSignal()),
+									() => returnedIOx.close(returnSignal()),
 									cleanup
 								);
 							}
@@ -375,7 +375,7 @@ function IOx(iof,deps = []) {
 										// close *outer-chained* IOx (for memory
 										// cleanup)
 										return continuation(
-											() => outerChainedIOx.close(runSignal()),
+											() => outerChainedIOx.close(returnSignal()),
 											cleanup
 										);
 									}
@@ -402,7 +402,7 @@ function IOx(iof,deps = []) {
 				// implied type signature of `chain(..)`, this
 				// line will throw as we try to `run(..)` the
 				// expected IO/IOx
-				return returnedIOx.run(runSignal(env));
+				return returnedIOx.run(returnSignal(env));
 			}
 
 			function checkClosedIOx(iox) {
@@ -415,7 +415,7 @@ function IOx(iof,deps = []) {
 				) {
 					// close *outer-chained* IOx and bail
 					return continuation(
-						() => outerChainedIOx.close(runSignal()),
+						() => outerChainedIOx.close(returnSignal()),
 						cleanup
 					);
 				}
@@ -445,7 +445,7 @@ function IOx(iof,deps = []) {
 					// type signature requires, this line will
 					// throw as we try to `run(..)` the expected
 					// IO/IOx
-					() => m.run(runSignal(env)),
+					() => m.run(returnSignal(env)),
 
 					res2 => (isPromise(res2) ?
 						res2.then(v2 => res1.concat(v2)) :
@@ -680,7 +680,7 @@ function IOx(iof,deps = []) {
 							if (isClosedIOx(dep)) {
 								return continuation(
 									// force close our IOx
-									() => close(runSignal()),
+									() => close(returnSignal()),
 
 									// return the promise for the current
 									// update settlement
@@ -725,12 +725,12 @@ function IOx(iof,deps = []) {
 
 		if (!registering && !runningIOF) {
 			if (currentEnv !== UNSET && newVal !== CLOSED) {
-				return publicAPI.run(runSignal(currentEnv));
+				return publicAPI.run(returnSignal(currentEnv));
 			}
 			else {
 				let dv = collectDepVals(undefined,/*allowIOxCache=*/false);
 				if (dv === CLOSED) {
-					return close(runSignal());
+					return close(returnSignal());
 				}
 			}
 		}
@@ -842,7 +842,7 @@ function IOx(iof,deps = []) {
 						else {
 							// (re)run the IO to get its results
 							let depRes = trampoline(dep.run(
-								runSignal(env || (currentEnv !== UNSET ? currentEnv : undefined))
+								returnSignal(env || (currentEnv !== UNSET ? currentEnv : undefined))
 							));
 
 							// IO result not yet ready?
@@ -964,7 +964,7 @@ function IOx(iof,deps = []) {
 				!runningIOF && currentEnv !== UNSET
 			) {
 				return continuation(
-					() => publicAPI.run(runSignal(currentEnv)),
+					() => publicAPI.run(returnSignal(currentEnv)),
 					completeUpdate
 				);
 			}
@@ -1021,7 +1021,7 @@ function IOx(iof,deps = []) {
 
 			// haven't run yet?
 			if (currentEnv === UNSET) {
-				return publicAPI.run(runSignal(env));
+				return publicAPI.run(returnSignal(env));
 			}
 			else if (currentVal !== UNSET) {
 				// respond with most recent value
@@ -1379,7 +1379,7 @@ function onEvent(el,evtName,opts) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1471,7 +1471,7 @@ function onceEvent(el,evtName,opts) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1573,7 +1573,7 @@ function onTimer(updateInterval,countLimit) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1713,7 +1713,7 @@ function zip(ioxs = []) {
 					//
 					/* istanbul ignore else */
 					if (allStreamsClosed) {
-						return close(runSignal());
+						return close(returnSignal());
 					}
 
 					// note: shouldn't get here, but safety net
@@ -1750,7 +1750,7 @@ function zip(ioxs = []) {
 				() => subscribe(env),
 				() => _run(env)
 			);
-			return (isRunSignal(env) ? cont : trampoline(cont));
+			return (isReturnSignal(env) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1779,7 +1779,7 @@ function zip(ioxs = []) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1861,7 +1861,7 @@ function merge(ioxs = []) {
 			Array.isArray(ioxs) && ioxs.length > 0 &&
 			ioxs.every(x => x ? x.isClosed() : true)
 		) {
-			return close(runSignal());
+			return close(returnSignal());
 		}
 	}
 
@@ -1888,7 +1888,7 @@ function merge(ioxs = []) {
 				() => subscribe(env),
 				() => _run(env)
 			);
-			return (isRunSignal(env) ? cont : trampoline(cont));
+			return (isReturnSignal(env) ? cont : trampoline(cont));
 		}
 	}
 
@@ -1917,7 +1917,7 @@ function merge(ioxs = []) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -2072,7 +2072,7 @@ function fromIter($V,closeOnComplete = true) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 
@@ -2305,7 +2305,7 @@ function fromObservable(obsv) {
 					}
 				}
 			);
-			return (isRunSignal(signal) ? cont : trampoline(cont));
+			return (isReturnSignal(signal) ? cont : trampoline(cont));
 		}
 	}
 

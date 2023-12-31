@@ -1,7 +1,7 @@
 "use strict";
 
 const IS_CONT = Symbol("is-continuation");
-const RUN_CONT = Symbol("return-continuation");
+const RET_CONT = Symbol("return-continuation");
 const CONT_VAL = Symbol("continuation-value");
 const EMPTY_FUNC = () => {};
 const EMPTY_SLOT = Object.freeze(Object.create(null));
@@ -49,8 +49,8 @@ module.exports = {
 	definePipeWithFunctionComposition,
 	definePipeWithAsyncFunctionComposition,
 	continuation,
-	runSignal,
-	isRunSignal,
+	returnSignal,
+	isReturnSignal,
 	trampoline,
 };
 module.exports.EMPTY_FUNC = EMPTY_FUNC;
@@ -74,8 +74,8 @@ module.exports.definePipeWithMethodChaining = definePipeWithMethodChaining;
 module.exports.definePipeWithFunctionComposition = definePipeWithFunctionComposition;
 module.exports.definePipeWithAsyncFunctionComposition = definePipeWithAsyncFunctionComposition;
 module.exports.continuation = continuation;
-module.exports.runSignal = runSignal;
-module.exports.isRunSignal = isRunSignal;
+module.exports.returnSignal = returnSignal;
+module.exports.isReturnSignal = isReturnSignal;
 module.exports.trampoline = trampoline;
 
 
@@ -227,12 +227,15 @@ function possiblyAsyncPipe(v,[ nextFn, ...nextFns ]) {
 // used internally by IO/IOx, marks a tuple
 // as a continuation that trampoline(..)
 // should process
-function continuation(left,right) {
+function continuation(left,right,onException) {
 	var cont = getContinuation();
 
 	if (arguments.length > 1) {
 		cont[0] = left;
 		cont[1] = right;
+		if (arguments.length > 2) {
+			cont[2] = onException;
+		}
 	}
 	else if (arguments.length == 1) {
 		cont[0] = left;
@@ -244,15 +247,15 @@ function continuation(left,right) {
 // used internally by IO/IOx, signals to
 // `run(..)` call that it should return any
 // continuation rather than processing it
-function runSignal(env) {
+function returnSignal(env) {
 	// signal already marked?
-	if (isRunSignal(env)) {
+	if (isReturnSignal(env)) {
 		/* istanbul ignore next */
 		return env;
 	}
 	else {
 		return {
-			[RUN_CONT]: true,
+			[RET_CONT]: true,
 			env,
 		};
 	}
@@ -262,8 +265,8 @@ function runSignal(env) {
 // if the reader-env passed into `run(..)`
 // was a signal to return any continuation
 // rather than processing it
-function isRunSignal(v) {
-	return (v && v[RUN_CONT] === true);
+function isReturnSignal(v) {
+	return (v && v[RET_CONT] === true);
 }
 
 // used internally by IO/IOx, prevents
@@ -271,13 +274,20 @@ function isRunSignal(v) {
 // composing many IO/IOx's together
 function trampoline(res) {
 	var stack = [];
+	var onExceptionStack = [];
 
 	processContinuation: while (Array.isArray(res) && res[IS_CONT] === true) {
 		let left = res[0];
 
+		// is there an exception handler defined for
+		// this left-hand continuation?
+		if (isFunction(res[2])) {
+			onExceptionStack.push(res[2]);
+		}
+
 		// compute the left-half of the continuation
 		// tuple
-		let leftRes = left();
+		let leftRes = execContinuation(left);
 
 		// store left-half result directly in the
 		// continuation tuple (for later recall
@@ -309,7 +319,7 @@ function trampoline(res) {
 				recycleContinuation(cont);
 
 				if (isFunction(right)) {
-					res = right(res);
+					res = execContinuation(right,res);
 
 					// right half of continuation tuple returned
 					// another continuation?
@@ -322,6 +332,31 @@ function trampoline(res) {
 		}
 	}
 	return res;
+
+	// **************************************
+
+	function execContinuation(contFn,...args) {
+		if (onExceptionStack.length > 0) {
+			try {
+				return contFn(...args);
+			}
+			catch (err) {
+				while (onExceptionStack.length > 0) {
+					let onException = onExceptionStack.pop();
+					try {
+						return void(onException(err));
+					}
+					catch (e2) {
+						err = e2;
+					}
+				}
+				throw err;
+			}
+		}
+		else {
+			return contFn(...args);
+		}
+	}
 }
 
 // pooling continuation tuples to reduce GC
