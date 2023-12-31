@@ -227,15 +227,12 @@ function possiblyAsyncPipe(v,[ nextFn, ...nextFns ]) {
 // used internally by IO/IOx, marks a tuple
 // as a continuation that trampoline(..)
 // should process
-function continuation(left,right,onException) {
+function continuation(left,right) {
 	var cont = getContinuation();
 
 	if (arguments.length > 1) {
 		cont[0] = left;
 		cont[1] = right;
-		if (arguments.length > 2) {
-			cont[2] = onException;
-		}
 	}
 	else if (arguments.length == 1) {
 		cont[0] = left;
@@ -274,20 +271,13 @@ function isReturnSignal(v) {
 // composing many IO/IOx's together
 function trampoline(res) {
 	var stack = [];
-	var onExceptionStack = [];
 
 	processContinuation: while (Array.isArray(res) && res[IS_CONT] === true) {
 		let left = res[0];
 
-		// is there an exception handler defined for
-		// this left-hand continuation?
-		if (isFunction(res[2])) {
-			onExceptionStack.push(res[2]);
-		}
-
 		// compute the left-half of the continuation
 		// tuple
-		let leftRes = execContinuation(left);
+		let leftRes = left();
 
 		// store left-half result directly in the
 		// continuation tuple (for later recall
@@ -319,7 +309,7 @@ function trampoline(res) {
 				recycleContinuation(cont);
 
 				if (isFunction(right)) {
-					res = execContinuation(right,res);
+					res = right(res);
 
 					// right half of continuation tuple returned
 					// another continuation?
@@ -332,31 +322,6 @@ function trampoline(res) {
 		}
 	}
 	return res;
-
-	// **************************************
-
-	function execContinuation(contFn,...args) {
-		if (onExceptionStack.length > 0) {
-			try {
-				return contFn(...args);
-			}
-			catch (err) {
-				while (onExceptionStack.length > 0) {
-					let onException = onExceptionStack.pop();
-					try {
-						return void(onException(err));
-					}
-					catch (e2) {
-						err = e2;
-					}
-				}
-				throw err;
-			}
-		}
-		else {
-			return contFn(...args);
-		}
-	}
 }
 
 // pooling continuation tuples to reduce GC
