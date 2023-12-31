@@ -97,7 +97,7 @@ function IO(effect) {
 
 	function run(env) {
 		if (isReturnSignal(env)) {
-			return effect(env.env);
+			return effect(env.val);
 		}
 		else {
 			return trampoline(effect(env));

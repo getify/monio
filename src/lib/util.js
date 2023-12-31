@@ -247,16 +247,16 @@ function continuation(left,right,onException) {
 // used internally by IO/IOx, signals to
 // `run(..)` call that it should return any
 // continuation rather than processing it
-function returnSignal(env) {
+function returnSignal(val) {
 	// signal already marked?
-	if (isReturnSignal(env)) {
+	if (isReturnSignal(val)) {
 		/* istanbul ignore next */
-		return env;
+		return val;
 	}
 	else {
 		return {
 			[RET_CONT]: true,
-			env,
+			val,
 		};
 	}
 }
