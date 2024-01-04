@@ -6,6 +6,7 @@
 var just;
 var maybe;
 var either;
+var state;
 var IO;
 var IOx;
 
@@ -17,6 +18,9 @@ const twice = x => x * 2;
 const justProp = (key) => (obj) => just(obj[key]);
 const maybeProp = (key) => (obj) => maybe.Just(obj[key]);
 const eitherProp = (key) => (obj) => either(obj[key]);
+const stateProp = (key) => (obj) => state.of(obj[key]);
+const asyncStateProp = (key) => (obj) => asyncStateVal(obj[key]);
+const asyncStateVal = v => state(async st => ({ value: v, state: st }));
 const ioProp = (key) => (obj) => IO.of(obj[key]);
 const delayPr = (ms) => new Promise(r => setTimeout(r,ms));
 const delayIO = (v,ms) => IO(() => delayPr(ms).then(() => v));
@@ -33,11 +37,12 @@ async function safeAwait(pr) {
 
 function INJECT_MONIO(monio) {
 	({
-		Just: just,
-		Maybe: maybe,
-		Either: either,
-		IO,
-		IOx,
+		Just: just = just,
+		Maybe: maybe = maybe,
+		Either: either = either,
+		State: state = state,
+		IO = IO,
+		IOx = IOx,
 	} = monio);
 }
 
@@ -52,6 +57,9 @@ module.exports = {
 	justProp,
 	maybeProp,
 	eitherProp,
+	stateProp,
+	asyncStateProp,
+	asyncStateVal,
 	ioProp,
 	delayPr,
 	delayIO,

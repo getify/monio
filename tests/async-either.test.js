@@ -10,7 +10,7 @@ const {
 	eitherProp,
 	safeAwait,
 } = require("./utils");
-INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
+INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("async-either");
 

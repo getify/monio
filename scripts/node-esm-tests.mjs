@@ -9,6 +9,7 @@ import {
 	Maybe,
 	Either,
 	AsyncEither,
+	State,
 	IO,
 	IOx,
 	AnyIO,
@@ -22,6 +23,7 @@ global.Nothing = Nothing;
 global.Maybe = Maybe;
 global.Either = Either;
 global.AsyncEither = AsyncEither;
+global.State = State;
 global.IO = IO;
 global.IOx = IOx;
 global.AnyIO = AnyIO;

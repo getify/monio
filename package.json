@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "The most powerful IO monad implementation in JS",
-	"version": "0.51.4",
+	"version": "0.52.0",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "npm run build-all",
@@ -30,6 +30,7 @@
 		"maybe.js": "Maybe",
 		"either.js": "Either",
 		"async-either.js": "AsyncEither",
+		"state.js": "State",
 		"io/io.js": "IO",
 		"io/iox.js": "IOx",
 		"io/any.js": "AnyIO",
@@ -62,6 +63,10 @@
 		"./async-either": {
 			"import": "./dist/esm/async-either.mjs",
 			"default": "./src/async-either.js"
+		},
+		"./state": {
+			"import": "./dist/esm/state.mjs",
+			"default": "./src/state.js"
 		},
 		"./io": {
 			"import": "./dist/esm/io/io.mjs",

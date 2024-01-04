@@ -12,7 +12,7 @@ process.on("rejectionHandled",()=>{});
 
 const qunit = require("qunit");
 const { INJECT_MONIO, inc, } = require("./utils");
-INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
+INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("io-helpers");
 

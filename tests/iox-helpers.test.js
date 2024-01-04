@@ -14,7 +14,7 @@ const rxjs = require("rxjs");
 const EventEmitter = require("events");
 const qunit = require("qunit");
 const { INJECT_MONIO, delayPr, } = require("./utils");
-INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
+INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("iox-helpers");
 

@@ -23,33 +23,21 @@ const {
 	delayIOx,
 	sumArithSeries,
 } = require("./utils");
-INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
+INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("iox");
 
-qunit.test("#unit", (assert) => {
+qunit.test("#_inspect", (assert) => {
 	assert.equal(
-		IOx.of(1).toString(),
-		"[function IOx]",
-		"toString value is as expected"
+		IOx(() => {})._inspect(),
+		"IOx(anonymous function)",
+		"should create an IOx with anonymous function"
 	);
 
 	assert.equal(
-		IOx.of(1)._inspect(),
-		"IOx(anonymous function)",
-		"should create an IOx functor via #of"
-	);
-
-	assert.equal(
-		IOx.pure(1)._inspect(),
-		"IOx(anonymous function)",
-		"should create an IOx functor via #pure"
-	);
-
-	assert.equal(
-		IOx.unit(1)._inspect(),
-		"IOx(anonymous function)",
-		"should create an IOx functor via #unit"
+		IOx(EMPTY_FUNC)._inspect(),
+		"IOx(EMPTY_FUNC)",
+		"should create an IOx with named function"
 	);
 
 	var v = IOx.of(1);
@@ -68,6 +56,32 @@ qunit.test("#unit", (assert) => {
 		v._inspect(),
 		"IOx(Just(1))",
 		"inspect should handle a monad held in the IOx"
+	);
+});
+
+qunit.test("#unit", (assert) => {
+	assert.equal(
+		IOx.of(1).toString(),
+		"[function IOx]",
+		"toString value is as expected"
+	);
+
+	assert.equal(
+		IOx.of(1).run(),
+		1,
+		"should create an IOx functor via #of"
+	);
+
+	assert.equal(
+		IOx.pure(1).run(),
+		1,
+		"should create an IOx functor via #pure"
+	);
+
+	assert.equal(
+		IOx.unit(1).run(),
+		1,
+		"should create an IOx functor via #unit"
 	);
 });
 
@@ -90,12 +104,6 @@ qunit.test("#run", (assert) => {
 		IOx(() => 1).run(),  // note: intentionally leaving off the [] empty dependencies list
 		1,
 		"should evaluate the function in the IOx monad and return its value"
-	);
-
-	assert.equal(
-		IOx.of(1).run(),
-		1,
-		"should return the value held (by function) in the IOx monad"
 	);
 
 	assert.equal(

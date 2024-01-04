@@ -21,26 +21,46 @@ const {
 	delayIO,
 	sumArithSeries,
 } = require("./utils");
-INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
+INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("io");
 
+qunit.test("#_inspect", (assert) => {
+	assert.equal(
+		IO(() => {})._inspect(),
+		"IO(anonymous function)",
+		"should create an IO with anonymous function"
+	);
+
+	assert.equal(
+		IO(EMPTY_FUNC)._inspect(),
+		"IO(EMPTY_FUNC)",
+		"should create an IO with named function"
+	);
+
+	assert.equal(
+		IO(null)._inspect(),
+		"IO(null)",
+		"should create an IO with (invalid!) null value instead of function"
+	);
+});
+
 qunit.test("#unit", (assert) => {
 	assert.equal(
-		IO.of(1)._inspect(),
-		"IO(anonymous function)",
+		IO.of(1).run(),
+		1,
 		"should create an IO functor via #of"
 	);
 
 	assert.equal(
-		IO.pure(1)._inspect(),
-		"IO(anonymous function)",
+		IO.pure(1).run(),
+		1,
 		"should create an IO functor via #pure"
 	);
 
 	assert.equal(
-		IO.unit(1)._inspect(),
-		"IO(anonymous function)",
+		IO.unit(1).run(),
+		1,
 		"should create an IO functor via #unit"
 	);
 });
@@ -60,18 +80,6 @@ qunit.test("#is", (assert) => {
 });
 
 qunit.test("#run", (assert) => {
-	assert.equal(
-		IO(() => 1).run(),
-		1,
-		"should evaluate the function in the IO monad and return its value"
-	);
-
-	assert.equal(
-		IO.of(1).run(),
-		1,
-		"should return the value held (by function) in the IO monad"
-	);
-
 	assert.equal(
 		IO(v => v).run(1),
 		1,

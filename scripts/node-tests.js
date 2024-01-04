@@ -12,6 +12,7 @@ if (process.env.TEST_PACKAGE) {
 		Maybe: global.Maybe,
 		Either: global.Either,
 		AsyncEither: global.AsyncEither,
+		State: global.State,
 		IO: global.IO,
 		IOx: global.IOx,
 		AnyIO: global.AnyIO,
@@ -30,6 +31,7 @@ else if (process.env.TEST_UMD) {
 		Maybe: global.Maybe,
 		Either: global.Either,
 		AsyncEither: global.AsyncEither,
+		State: global.State,
 		IO: global.IO,
 		IOx: global.IOx,
 		AnyIO: global.AnyIO,
@@ -55,7 +57,8 @@ else {
 	global.Nothing = require("../src/nothing.js");
 	global.Maybe = require("../src/maybe.js");
 	global.Either = require("../src/either.js");
-	global.AsyncEither = require("../src/async-either");
+	global.AsyncEither = require("../src/async-either.js");
+	global.State = require("../src/state.js");
 	global.IO = require("../src/io/io.js");
 	global.IOx = require("../src/io/iox.js");
 	global.AnyIO = require("../src/io/any.js");

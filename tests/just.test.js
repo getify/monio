@@ -3,7 +3,7 @@
 const qunit = require("qunit");
 const { identity, } = MonioUtil;
 const { INJECT_MONIO, inc, twice, justProp, } = require("./utils");
-INJECT_MONIO({ Just, Maybe, Either, IO, IOx });
+INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("just");
 

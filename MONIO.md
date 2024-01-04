@@ -109,16 +109,225 @@ var cityM =
 
 In addition to all of **Monio**'s monads providing `map.pipe(..)` and `chain.pipe(..)`, the monads that support `ap(..)` provide `ap.pipe(..)`, and those with `concat(..)` provide `concat.pipe(..)`.
 
+## State Monad
+
+**[More background information on the `State` monad](MONADS.md#statefully-monadic)**
+
+State represents operations that each take a starting state, and compute a new state as well as (optionally) an output value. The `State(..)` constructor takes a function that, when executed, returns an object (pair) with `value` (if any) and `state` (if any). For example:
+
+```js
+var info = State(st => ({
+    value: "author",
+    state: { ...st, lastName: "Simpson" }
+}));
+```
+
+The state carried in a single State instance is (treated as) *immutable*. But a chain of two or more State instances represents step-by-step transformation of state in your program.
+
+A State monadic value is *lazy*, meaning it's not computed until its `evaluate(..)` function is invoked, with its only (optional) argument being the initial state for the evaluation:
+
+```js
+info.evaluate({ firstName: "Kyle" });
+// {
+//   value: "author",
+//   state: {
+//     firstName: "Kyle",
+//     lastName: "Simpson"
+//   }
+// }
+```
+
+Notice that State can be used in a very limited sense somewhat like the `Just` identity monad, by ignoring the implicitly carried state (via the `State.of(..)` convenience unit constructor):
+
+```js
+State.of(21)
+.map(v => v * 2)
+.evaluate()
+// {
+//   value: 42,
+//   state: undefined
+// }
+```
+
+However, the implicitly carried state is the main *point* of State, so you'll usually want to use it! In fact, the carried state is often *all* you need, and the value slot might be ignored.
+
+**Note:** Implicitly carrying *state* is essentially the [Reader monad](MONADS.md#reader-monad) behavior of implicitly carrying its *environment* value. Though **Monio** does NOT provide an explicit `Reader` monad, `State` and `IO` include its behavior.
+
+The following example shows using both the *state* and the *output value* of State, by tracking the score of two teams (*home* and *away*) as they score points in a *game*. The carried state object holds the individual team scores, while the output value from each operation (`scoreLog` below) is concatenated to hold a running log (list) of the scoring history of the game:
+
+```js
+const homeScore = pointsScored => scoreLog => State(st => {
+    return {
+        value: [ ...scoreLog, `home: ${pointsScored}` ],
+        state: {
+            ...st,
+            homeTeam: st.homeTeam + pointsScored
+        }
+    };
+});
+const awayScore = pointsScored => scoreLog => State(st => {
+    return {
+        value: [ ...scoreLog, `away: ${pointsScored}` ],
+        state: {
+            ...st,
+            awayTeam: st.awayTeam + pointsScored
+        }
+    };
+});
+
+var game = (
+    // initial empty-list for scoring history (`scoreLog`)
+    State.of([])
+    .chain(homeScore(2))
+    .chain(awayScore(3))
+    .chain(homeScore(2))
+    .chain(homeScore(3))
+    .chain(awayScore(3))
+);
+
+game.evaluate({
+    homeTeam: 0,
+    awayTeam: 0,
+});
+// {
+//   value: [ "home: 2", "away: 3", "home: 2", "home: 3", "away: 3" ],
+//   state: {
+//     homeTeam: 7,
+//     awayTeam: 6
+//   }
+// }
+```
+
+**Note:** The `scoreLog` tracking could have been stored in the carried state; it was an arbitrary choice (for illustration purposes) to use the *output value* position.
+
+With `chain(..)` (and `map(..)`), only the output *value* produced by the State instance (`scoreLog` in the above snippet) is directly provided to each step, whereas the state is *carried* through implicitly. And with `chain(..)`, the State instance you return is evaluated in this same *state* (i.e., the `...st` copying in the above snippet).
+
+As shown above, `State.of(..)` is a static (non-instance) utility, a unit constructor that initializes an instance with an *output value*. It's a convenience utiltity instead of an explicit `State(..)` constructor passed a function that returns that value (and carries its implied state).
+
+```js
+var two = State.of(2);
+two.evaluate("hello");
+// {
+//   value: 2,
+//   state: "hello"
+// }
+
+// vs
+
+var three = State(st => ({ value: 3, state: st }));
+three.evaluate("world");
+// {
+//   value: 3,
+//   state: "world"
+// }
+```
+
+By contrast, `State.put(..)` is a unit constructor that initializes an instance with a *state*, somewhat as if the `evaluate(..)` had been partially-applied ahead of time, to ensure that state. This means the instance will evaluate to the *put* state regardless of what is or is not passed to the `evaluate(..)` invocation later:
+
+```js
+var initial = State.put({ counter: 10 });
+
+initial.evaluate();
+// {
+//   value: undefined,
+//   state: { counter: 10 }
+// }
+
+initial.evaluate({ counter: 3 });
+// {
+//   value: undefined,
+//   state: { counter: 10 }
+// }
+```
+
+Finally, `State.get(..)` produces a state instance that marshals (copies) the carried *state* value over into the *value* slot of that same instance; this is useful in times when you need to access the carried *state* directly without explicitly chaining an explicit `State(..)` constructor.
+
+```js
+var info = State.get();
+
+// state (`st`) has been marshalled into the value slot here
+info
+.map(st => ({ counter: st.counter + 1 }))
+.evaluate({ counter: 2 });
+// {
+//   value: { counter: 3 },
+//   state: { counter: 2 }
+// }
+```
+
+Notice that the `map(..)` step computed an output *value* slot that *happens* to be derived from the then-current *state* of the instance, but does not affect/update the state itself; `state` has `counter: 2` whereas the output value is has `counter: 3`.
+
+This could then be paired with `State.put(..)` (and `chain(..)`) to push the updated state back into the carried context:
+
+```js
+var info = State.get();
+
+info
+.chain(st => State.put({ counter: st.counter + 1 }))
+.evaluate({ counter: 2 });
+// {
+//   value: undefined,
+//   state: { counter: 3 }
+// }
+```
+
+Now the state has been updated to have `counter: 3`, and the value slot has been emptied (by `State.put(..)`).
+
+----
+
+`State` is also a [Concatable/Semigroup](MONADS.md#concatable-semigroup):
+
+```js
+State.of([ "a", "b" ])
+.concat(State.of([ "c", "d" ]))
+.evaluate(42);
+// {
+//   value: [ "a, "b", "c", "d" ],
+//   state: 42
+// }
+```
+
+The `concat(..)` method on `State` expects another `State` instance, both of which should themselves be holding Concatable/Semigroup values (e.g., strings, arrays, or even other semigroup-conforming monads, like `Just` or `State`).
+
+----
+
+**Monio**'s `State` is technically a monadic transformer over the standard State monad type; it automatically and opaquely unwraps/transforms JS promises.
+
+That means if any state computation step is asynchronous (via JS promise), the State evaluation will be lifted to an asynchronously completing promise:
+
+```js
+// normal synchronous adder
+const add = x => y => x + y;
+// silly asynchronous multiplication (with State)
+const asyncMultS = x => async y => State.of(x * y);
+// silly asynchronous decrement (with State)
+const asyncDecS = v => State(async st => ({
+    value: v - 1,
+    state: st
+}));
+
+State.of(1)
+.map(add(2))
+.chain(asyncMultS(5))
+.chain(asyncDecS)
+.evaluate();
+// Promise<{ value: 14, state: undefined }>
+```
+
+In this snippet, the first `map(..)` step completes synchronously, but then the next `chain(..)` step completes asynchronously (with a promise). Thus, the rest of the state evaluation is lifted to operate asynchronously, and returns a promise for the final result.
+
 ## IO Monad ("one monad to rule them all")
 
 **[More background information on the `IO` monad](MONADS.md#i-know-io)**
 
-IO represents monadic side effects wrapped in/as functions. The `IO(..)` constructor takes a single function (aka "effect"), which it will apply when the IO is evaluated. This effect function can optionally be passed an argument (see discussion of "reader environment" below).
+IO represents monadic side effects wrapped in/as functions.
+
+Similar to the [the State monad](#state-monad), the `IO(..)` constructor takes a single function (aka "effect"), which it will apply when the IO is evaluated. This effect function can optionally be passed an argument (see discussion of "reader environment" below).
 
 ```js
-var log = msg => IO(() => console.log(msg));
-var uppercase = str => str.toUpperCase();
-var greeting = msg => IO.of(msg);
+const log = msg => IO(() => console.log(msg));
+const uppercase = str => str.toUpperCase();
+const greeting = msg => IO.of(msg);
 
 // setup:
 var HELLO = greeting("Hello!").map(uppercase);
@@ -134,8 +343,8 @@ HELLO
 Instead of manually `chain`ing IOs together, you can opt for a friendlier, more familiar, more imperative "do-style" -- which resembles what JS developers will recognize as `async..await` style code -- by using `IO.do(..)` and a generator:
 
 ```js
-var getData = url => IO(() => fetch(url).then(r => r.json()));
-var renderMessage = msg => IO(() => (
+const getData = url => IO(() => fetch(url).then(r => r.json()));
+const renderMessage = msg => IO(() => (
     document.body.innerText = msg
 ));
 
@@ -152,24 +361,31 @@ IO.do(function *main(){
     // ..
 })
 .run();
+// Promise<..>
 ```
 
-IO automatically and opaquely unwraps/transforms JS promises. That means the `yield getData(..)` expression above acts like a familiar `await promiseVal` expression, in that it locally pauses to resolve the eventual value (from the `fetch(..)` call in this case).
+Like `State`, `IO` is technically a monadic transformer over the IO type; it automatically and opaquely unwraps/transforms JS promises, encountered via `chain(..)` or `do(..)` operations. The result of `do(..)` is automatically lifted to this asynchronous (promise) type, similar to how `async function` functions are always promise-returning.
+
+That also means the `yield getData(..)` expression above acts like a familiar `await promiseVal` expression, in that it locally pauses to resolve the eventual value (from the `fetch(..)` call in this case).
 
 The same promise-transforming behavior shown above in the do-routine (via `yield`) also applies in regular IO `chain(..)` calls. The outcome is that any IO chain which encounters a promise ends up lifting the return value from the `run(..)` call to a promise for the eventual resolution of the IO evaluation.
 
 Asynchrony is the ultimate (most complex) side effect in any program. As such, all asynchrony in your programs -- Ajax calls, timers, animations, etc -- can and should be modeled as IO expressions, so that asynchrony as a side effect is managed along with any other side effects.
 
-IO also has `Reader` monad capability rolles in, meaning it supports carrying a reader environment through all IO chains (or do-blocks) by passing an argument to `run(..)`. This value is passed as the first argument to the effect function, as well as the do-routine generator.
+----
+
+Similar to how [State](#state-monad) is evaluated with an initial-state passed to its `evaluate(..)` method that's then carried through its computation(s), IO also has `Reader` monad capability rolled in, meaning it supports carrying a reader environment through all IO chains (or do-blocks) by passing an (optional) argument to `run(..)`. This value is passed as the first argument to the effect function, as well as the do-routine generator.
 
 Passing a reader-env into an IO chain via the `run(..)` argument is key to how IO is lazy, and runs in an isolated "universe" rather than relying on implicit side effects such as accessing the DOM in a browser application. Think of the reader-env value (whatever it is) you pass in as the "global" object that an IO will run in the context of.
+
+**Note:** Unlike State, which returns the computed state from the `evaluate(..)` method, IO impliictly carries its reader-env but never explicitly returns it from the `run(..)` call.
 
 For example:
 
 ```js
 // NOTE: the `readerEnv` here is automatically carried
 // through to this IO
-var renderMessage = msg => IO(readerEnv => (
+const renderMessage = msg => IO(readerEnv => (
     readerEnv.messageEl.innerText = msg
 ));
 
@@ -195,8 +411,8 @@ For example:
 ```js
 const applyIO = IOHelpers.applyIO;
 
-var getElementById = id => IO(doc => doc.getElementById(id));
-var renderMessage = msg => IO(({ messageEl }) => (
+const getElementById = id => IO(doc => doc.getElementById(id));
+const renderMessage = msg => IO(({ messageEl }) => (
     messageEl.innerText = msg
 ));
 
@@ -242,11 +458,11 @@ var tripled = number.map(v => v * 3);
 // `IOx(..)` constructor; it receives both the
 // reader-env argument and the `v`, which will be the
 // subscribed-to value of the IOx instance's dependency
-var print = (readerEnv,v) => console.log(`v: ${v}`);
+const print = (readerEnv,v) => console.log(`v: ${v}`);
 
 // the `IO(..)` constructor here also takes an effect
 // function, which receives only the reader-env argument
-var printIO = v => IO(readerEnv => print(readerEnv,v));
+const printIO = v => IO(readerEnv => print(readerEnv,v));
 
 // subscribe to the `doubled` IOx
 var printDoubled = IOx(print,[ doubled ]);
@@ -279,7 +495,7 @@ Generally, IO and IOx instances are interchangeable in that most places which ex
 For example, you *can* `chain(..)` an IOx instance from an IO (since IOx is a valid IO), but even though this is possible, it probably won't have the desired outcome; the outer resulting chain will still be a single-value IO instance (i.e., whatever the first value eventually is from the IOx). To explicitly convert an IO to an IOx, use `IOx.fromIO(..)`:
 
 ```js
-var getElementById = id => IO(() => document.getElementById(id));
+const getElementById = id => IO(() => document.getElementById(id));
 
 var thisIsAnIONotAnIOx =
     getElementById("my-btn")
@@ -533,9 +749,9 @@ IOx reactive instances can temporarily be paused (using `stop()`), or permanentl
 
 ## Other Helpful IO/IOx Variants
 
-Monio also includes some other variants and helpers of `IO` / `IOx`:
+**Monio** also includes some other variants and helpers of `IO` / `IOx`:
 
-* `AllIO` and `AnyIO` are IO monad variants that are suitable -- as monoids, both have an "empty" boolean-holding IO value (`AllIO.empty()` and `AnyIO.empty()`) and a `concat(..)` method -- to perform short-circuited `&&` and `||` operations, respectively, over the eventually-resolved values in the IO instances. For additional convenience, common FP utilities like `fold(..)` and `foldMap(..)` (included in Monio's `Util` module) abstract the `concat(..)` calls across such concatable moniod instances.
+* `AllIO` and `AnyIO` are IO monad variants that are suitable -- as monoids, both have an "empty" boolean-holding IO value (`AllIO.empty()` and `AnyIO.empty()`) and a `concat(..)` method -- to perform short-circuited `&&` and `||` operations, respectively, over the eventually-resolved values in the IO instances. For additional convenience, common FP utilities like `fold(..)` and `foldMap(..)` (included in **Monio**'s `Util` module) abstract the `concat(..)` calls across such concatable moniod instances.
 
     For example:
 

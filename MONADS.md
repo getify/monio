@@ -483,13 +483,263 @@ By the way, `Maybe` is also [Foldable](#foldable), so to "exit" from it (as we s
 
 You're hopefully starting to see a *little bit* more benefit to representing our values/expressions with monads rather than *just* using bare values.
 
+### Reader Monad
+
+One of the key principles of FP is avoiding side-effects; in JS, the global object (`window`, `globalThis`) is one of the most tempting sources of side-effects. If we can isolate our program and "parameterize" the global-context -- aka, the "environment" -- that it runs in, we can go a long way toward avoiding unwanted side-effects. It also makes our programs easier to test.
+
+But nobody wants to pass around `window` as an argument to every single operation.
+
+Let's first re-visit an earlier monad, `Just`. It might seem like we could just put our *environment* (e.g., `window`, etc) into a `Just` instance, and automatically we'd have that value passed in when we `map(..)` / `chain(..)` off our monad instance(s).
+
+```js
+var baseCtx = Just(window);
+
+// later:
+
+baseCtx.map(global => {
+    // ..
+    return global;
+});
+```
+
+Of course, if we `return` a different (or modified!) value from a `map(..)` / `chain(..)` step, we've *propagated* our modified environment forward to the next operation.
+
+#### From Eager To Lazy
+
+But one key limitation of this approach is that we have to hard-code this *environment* value **at the initial step** of our operations. That makes it much more awkward to re-use that sequence of operations (i.e., our program) in different contexts -- for example, running in production versus running unit tests against a "mock" global object context.
+
+A great solution here is *laziness*. This means we can define a monadic chain of operations, but none of them are eagerly evaluated at definition time; evaluation is deferred by design. We can then later trigger the evaluation of these operations (e.g., calling a method like `run(..)` or `evaluate(..)`), and passing in the *environment* value to be carried through all the operations.
+
+For example, consider an imagined `LazyJust` (not actually part of **Monio**):
+
+```js
+var baseCtx = LazyJust();
+
+baseCtx.map(global => {
+    // ..
+});
+
+// later:
+baseCtx.evaluate(window);
+
+// in tests:
+baseCtx.evaluate(mockWindow);
+```
+
+Notice that we can actually evaluate our `baseCtx` chain independently as many times as necessary, and each invocation we specify what *environment* to use for that invocation. This is a simple but big improvement!
+
+So far, we've seen monads that represent (contain, hold!) concrete values like `42` or a shipping address object. While the lazily-provided *environment* value itself is obviously a concrete value, this imagined `LazyJust` conceptually is not a "container" for a value. It's more of a template, or an abstract-placeholder container, whose value is not concretely filled in until each `evaluate(..)` invocation.
+
+#### Beyond Value Containers
+
+Fortunately, monads are far more than just "value wrappers". Monads can also be thought of as "behavior wrappers", representing operations (functions) for various purposes.
+
+**Note:** If those operations are impure (have side effects), I'd strongly suggest a more advanced lazy monad, [IO](#i-know-io) (more on that later).
+
+While **Monio** does not define an explicit `Reader` monad, we can imagine one with this minimal proof-of-concept code:
+
+```js
+// not officially included in Monio, just a POC sketch for illustration purposes:
+function Reader(evaluate = env => env) {
+  return { map, chain, evaluate };
+
+  function map(mapFn) {
+    return chain(env => Reader(() => mapFn(env)));
+  }
+
+  function chain(chainFn) {
+    return Reader(env => {
+      var env2 = evaluate(env);
+      return chainFn(env2).evaluate(env2);
+    });
+  }
+}
+```
+
+As illustrated here, `Reader` takes an *optional* function (called `evaluate(..)` here). It should be a pure function that performs any necessary processing (if any) to transform -- remember, always avoid mutation if possible! -- the *environment* value as passed in. By default, the evaluation function is the *identity* function and passes the value through untouched.
+
+Reader is a useful monad for multiple tasks. As mentioned above, it can carry a global-like object (e.g., `window`) as its *environment*, even if no transformation to the *environment* is necessary.
+
+But Reader can actually carry any value (object, etc) you want. And if there are multiple steps in the Reader chain, each step can choose to transform the value as it cascades down the chain, as shown here:
+
+```js
+// not officially included in Monio, see above
+var r = Reader();
+
+r.evaluate({ x: 1 });
+// { x: 1 }
+
+r
+  .map(env => ({ ...env, y: 2 }))
+  .chain(env => Reader(env => ({ ...env, z: 3 })))
+  .evaluate({ x: 1 });
+// { x: 1, y: 2, z: 3 }
+```
+
+**Note:** The `chain(..)` call above includes (for illustration purposes) two references to `env`, one passed directly to the chain callback, and one that's implicitly wired into the returned `Reader` instance. They're both the same value, and if you use the same `env` name as above for both, the inner `env` lexically shadows (hides from access) the outer `env`. To make the code clearer, pick one or the other to use in such a situation.
+
+### `State`fully Monadic
+
+**Monio Reference: [`State`](MONIO.md#state-monad)**
+
+It's no surprise to assert that the most important task in our programs it to manage state. And there's no shortage of patterns for state management. Surely, monads offer some assistance!?
+
+At the outset, you might consider *just* holding a state object in a `Just`, and modifying it as necessary. Of course, mutation of an object not only violates FP purity rules, but also violates the assumed foundations of all monadic operations. You can avoid that mutation no-no with a little bit of extra discipline:
+
+```js
+var state = Just({ counter: 4 });
+
+// later:
+state = state.map(st => ({ ...st, counter: st.counter + 3 }));
+
+state;   // Just{{ counter: 7 }}
+```
+
+We keep our state object in a monad, and whenever we want to change it, we call `map(..)` or `chain(..)`, and copy the current state's contents to a new state object, including any updates to state properties as necessary. But is that actually doing anything useful (or monadic!?) for us? Honestly, no. There's nothing there you can't get from having `state` hold an object directly without any monad wrapper.
+
+The [Reader monad](#reader-monad) we illustrated previously is a bit more ergonomic for simple object-like state management than `Just`, as shown here:
+
+```js
+// using the hypothetical (non-Monio) Reader utility:
+var state = Reader();
+
+// later:
+state = state.map(st => ({ ...st, counter: st.counter + 3 }));
+
+state.evaluate({ counter: 4 });
+// { counter: 7 }
+```
+
+Why then is there a dedicated State monad type, if Reader seems perfectly simple and straightforward for the task?
+
+State is lazy like Reader, and the implicitly carried value is usually referred to as *state* instead of *environment*. But unlike Reader, State also produces an optional *output value* along with each usage/transformation of its *state*.
+
+State is like `Just` + `Reader`. In other words, State is a more feature-ful Reader.
+
+In practical terms, this means that a `State` instance will optionally hold a value (of any type) that it passes directly to `map(..)` and `chain(..)` callbacks. And it will also carry in parallel a *state* (again, of any type, but often an object), which can be transformed (using `chain(..)` only).
+
+And when you `evaluate(..)` the lazy `State` operation(s), the result is a *pairing* (object-tuple) of both the *output* `value` and the carried `state`.
+
+```js
+var state = State();
+
+// later:
+state = state
+  .map(v => v ?? 21)
+  .chain(v => (
+    State(st => ({
+        value: v * 2,
+        state: { ...st, counter: st.counter + 3 }
+    }))
+  ));
+
+state.evaluate({ counter: 4 });
+// {
+//   value: 42,
+//   state: {
+//     counter: 7
+//   }
+// }
+```
+
+**Note:** The above snippet initializes the instance with `undefined` value, but then effectively injects the value `21` via the `map(..)` step. You can more directly construct a `State` instance with a value using `State(st => ({ value: 21 , state: st }))`, or the convenience-preferred `State.of(21)`.
+
+#### Why `State` Though?
+
+`State` is more powerful than Reader. But you may be wondering why we'd use it, especially if we don't immediately conceive of a reason for the separate tracking of the *output value* alongside tracking *state*?
+
+Let's look at one more example where the *pairing* in `State`'s tracking can be helpful. We're collecting a list of user `records`, each with its own uniquely assigned (automatically incrementing integer) ID. The state we need to track as we compile the user records is an incrementing counter for each *type* of user ("author", "reader").
+
+We *could* keep `records` in the same *state* object as the counters. But conceptually, the *state* is secondary (i.e., supporting) to the main purpose of the operation, the list of records. Beyond conceptual separation, we also avoid any accidental naming collisions in the *state* object.
+
+Moreover, at the end of the `evaluate(..)` call, we might be ready to discard that temporary coutners state and only keep/use the `value` (list of records). It thus hopefully makes *sense* to keep them separate.
+
+Consider:
+
+```js
+const getID = type => State(st => {
+    var newState = {
+        ...st,
+        [type]: (st[type] ?? 0) + 1
+    };
+    var id = `${type}-${newState[type]}`;
+    return {
+        value: id,
+        state: newState
+    };
+});
+const newRecord = (type,name) => records => (
+    getID(type))
+    .map(id => ([
+        ...records,
+        { id, name }
+    ]));
+
+State.of(/*records=*/[])
+.chain(newRecord("author","Kyle"))
+.chain(newRecord("reader","Frank"))
+.chain(newRecord("author","Sarah"))
+.chain(newRecord("reader","Bob"))
+.chain(newRecord("reader","Beth"))
+.evaluate(/*idCounters=*/{});
+// {
+//   value: [
+//     { id: "author-1", name: "Kyle" },
+//     { id: "reader-1", name: "Frank" },
+//     { id: "author-2", name: "Sarah" },
+//     { id: "reader-2", name: "Bob" },
+//     { id: "reader-3", name: "Beth" }
+//   ],
+//   state: { author: 2, reader: 3 }
+// }
+```
+
+Each `chain(..)` call passes in the current compounding value of the `records` list. The `newRecord(..)` function invokes `getID(..)` to produce a new `State` instance, which will ultimately be evaluated in the *state* context ("idCounters"-labeled object). `map(..)` turns the returned string `id` value into the now-appended `records` list, which is then passed along to the next `chain(..)` step.
+
+The evaluator function passed to `State(..)` takes care of amending the state (into `newState`) with the updated counter, and also assembling the new `id` value for that `getID(..)` invocation.
+
+As an exercise for the *reader*, consider trying the above code with only the `Reader` or `Just` monads, and then compare the approach to what's presented here. Hopefully that helps solidify the *value* of `State`.
+
+#### Async Transformer
+
+**Monio** provides `State` instead of a Reader implementation, in part because `State` is basically a transformer (aka, `StateT`) that augments `State` with async-capable behavior (over JS promises). That's far less common/idiomatic to transform Reader as such, but async state transformation is quite ubiquitous in our programs.
+
+If any state transformation step returns a promise, `State` evaluation automatically lifts to async promises for the result of the `evaluate(..)` call.
+
+Consider the previous record-generating snippet, but imagine for some (here, contrived) reason the assembly of the `id` needs to be async:
+
+```js
+// assume:
+// formatID(string) -> Promise
+
+const getID = type => State(async st => {
+    var newState = {
+        ...st,
+        [type]: (st[type] ?? 0) + 1
+    };
+    var id = await formatID(`${type}-${newState[type]}`);
+    return {
+        value: id,
+        state: newState
+    };
+});
+
+// ..
+
+State.of(/*records=*/[])
+.chain(newRecord("author","Kyle"))
+// ..
+.evaluate(/*idCounters=*/{});
+// Promise<..>
+```
+
+The absorption of any promise in the `State` chain lifts the `evaluate(..)` call to be promise-returning, eventually fulfilling with the same expected *pairing* object value.
+
 ### I Know, IO
 
 **Monio Reference: [`IO` (and variants)](MONIO.md#io-monad-one-monad-to-rule-them-all)**
 
-So far, we've seen monads that represent concrete primitive values like `42` or a shipping address object. But monads are far more than just "value wrappers".
-
-Monads can also be thought of as "behavior wrappers", representing operations (functions), like the sort of operations that either rely on, or cause, side effects. That's what the `IO` monad is all about!
+Similar to the [Reader monad type](#reader-monad) or [State monad type](#statefully-monadic) representing an operation to compute a new state (and optional output value), IO monads implicitly carry a value across (lazily-evaluated) operations, but specifically ones that either rely on, or cause, side effects.
 
 The heart of **Monio** is its `IO` monad implementation. It's designed as an uber-powerful *Sum Type* that incorporates a variety of useful behaviors, similar in spirit to [Scala's ZIO](https://zio.dev/). I claim that **Monio**'s `IO` is the "most powerful IO implementation in JS (and possibly any language)". But I know that's quite a daunting claim.
 
@@ -536,7 +786,6 @@ const renderTextValue = id => val => (
     getElement(id).map( assignProp("innerText")(val) )
 );
 
-
 const renderCustomerNameIO = (
     getInputValue("customer-name-input")
     .chain( renderTextValue("customer-name-display") )
@@ -568,7 +817,7 @@ I strongly believe the most complex side-effects in our programs come from async
 
 And if that's not enough to intrigue you, there's another challenge that programs face (whether you realize it or not) that **Monio**'s `IO` addresses like a champ: how do you isolate a set of operations from the environment (like DOM, etc) around it, so that you can provide an environment/context for the code to run against? This is critical for preventing unintended side-effects in the program, but it's also the most effective way to create **TESTABLE** side-effect code.
 
-**Monio**'s `IO` also holds the `Reader` monad type's behavior. This means that an `IO` (no matter how long/involved the chain is) carries with it a provided "environment", passed as an argument to `run(..)`.
+Like [State](#statefully-monadic), **Monio**'s `IO` also holds the [Reader monad type's](#reader-monad) behavior. This means that an `IO` (no matter how long/involved the chain is) carries with it a provided "environment", passed as an argument to `run(..)`.
 
 You could define your entire program to boil down to a single `IO` instance, and if you call `run(window)`, you're running your program in the context of the browser's DOM. But in your test suite, you could call `run(fakeDOMglobal)` on the same `IO`, and now all of the code and side-effects are automatically threaded through that alternate environment.
 
@@ -586,9 +835,9 @@ Taken together with all its facets, **Monio**'s `IO` (and `IOx` superset) is the
 
 OK, if you've made it this far, take a deep breath. Seriously, maybe go for a walk to let some of this settle in. Maybe re-read it, a few times.
 
-We've already seen a decent, if basic, illustration of the idea of monads. And we didn't cover `Either` -- another *Sum Type* like `Maybe` but which holds values on both sides. `Either` is typically used to represent synchronous `try..catch` style exception handling. We also didn't cover `AsyncEither`, which extends `Either` to operate asynchronously (over promises), the same way `IO` transforms/handles them. `AsyncEither` is essentially **Monio**'s representation of a Promise/Future type.
+We've already seen a decent, if basic, illustration of the idea of monads. And we didn't cover `Either` -- another *Sum Type* like `Maybe` but which holds values on both sides. `Either` is typically used to represent synchronous `try..catch` style exception handling. We also didn't cover `AsyncEither`, which extends `Either` to operate asynchronously (over promises), the same way `IO` transforms/handles them. `AsyncEither` is essentially **Monio**'s representation of a Promise/Future type. We also discussed the Reader monad type, and at **Monio**'s `State`.
 
-But compared to the expanse of Category Theory that *monad* fits in, it's a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts that come from Category Theory, and more specifically, "Algebraic Data Types" (ADTs) -- or are at least adapted from parts of it. These "friends" include:
+But compared to the expanse of Category Theory that *monad* fits in, monad is a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts that come from Category Theory, and more specifically, "Algebraic Data Types" (ADTs) -- or are at least adapted from parts of it. These "friends" include:
 
 * Foldable
 * Concatable (aka, Semigroup)

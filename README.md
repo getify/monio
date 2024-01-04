@@ -138,7 +138,13 @@ To use monads/helpers from Monio, `require(..)` or `import ..` them [by name](#i
 
 * <a name="esm-in-browser">ESM in browser</a> (requires browser with ES6+ support):
 
+    ```html
+    <script type="module" src="/path/to/my-app.mjs"></script>
+    ```
+
     ```js
+    // my-app.mjs:
+
     import { Maybe, IO } from "/path/to/monio/dist/esm/index.mjs";
 
     // or:
@@ -151,7 +157,7 @@ To use monads/helpers from Monio, `require(..)` or `import ..` them [by name](#i
 
     To use an Import-Map, include an inline `<script type="importmap">..</script>` block in each HTML page of your site, with the Import-Map JSON contents inside the block.
 
-    If you'd like to use **Monio** ESM-format in the browser with the same friendly `import` names that are available for Node `import` / `require`, and if Import-Maps [are supported](https://caniuse.com/import-maps) in your target browser environment, you can start with the contents of the provided `dist/esm/import-map-template.json` file
+    If you'd like to use **Monio** ESM-format in the browser with the same friendly `import` names that are available for Node `import` / `require`, and if Import-Maps [are supported](https://caniuse.com/import-maps) in your target browser environment, you can start with the contents of the provided `dist/esm/import-map-template.json` file:
 
     ```html
     <!-- your HTML page -->
@@ -388,4 +394,4 @@ Then open up `coverage/lcov-report/index.html` in a browser to view the report.
 
 [![License](https://img.shields.io/badge/license-MIT-a1356a)](LICENSE.txt)
 
-All code and documentation are (c) 2022 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).
+All code and documentation are (c) 2024 Kyle Simpson and released under the [MIT License](http://getify.mit-license.org/). A copy of the MIT License [is also included](LICENSE.txt).

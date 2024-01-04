@@ -1,9 +1,9 @@
 "use strict";
 
+function EMPTY_FUNC() {}
 const IS_CONT = Symbol("is-continuation");
 const RET_CONT = Symbol("return-continuation");
 const CONT_VAL = Symbol("continuation-value");
-const EMPTY_FUNC = () => {};
 const EMPTY_SLOT = Object.freeze(Object.create(null));
 const builtInFunctions = Object.freeze(new Set(
 	// list of candidates (may or may not be real functions)
