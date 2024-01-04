@@ -153,15 +153,33 @@ In addition to the guide I present here, I recommend checking out a [recording o
 
 ----
 
-*Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe Category Theory as a way to categorize/group things based on how they behave with respect to composition and transformation.
+*Monad* is a funny word, let's admit it. It's a mathematical term more than a programming term. It's not even close to what most of us would reach for if we were coming up with a name for a powerful thing we hoped everyone around us would adopt!
 
-The Monad type is a way to represent a value or operation in your program, which associates some specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
+Before we get to a more technical definition, let me try to ease you in. It may end up seeming a bit anti-climatic once you've read the next several sections of this guide, because you may be expecting it to be a big, complex topic. And in some ways it is. You may spend months or years revisiting *monads* (and related topics) and building a deeper understanding. I certainly am still learning them, several years on.
 
-That definition is the *WHAT* of monads, conceptually. But you probably also want to see code.
+But at the outset, I hope you feel somewhat comfortable with the basics of this topic in *just a few more minutes* of reading here. I hope your reaction is, "Oh, is that all a monad is?!"
+
+The formalism, the terminology, the mathematical notation, it can really start to overblow the concepts to an intimidating level. I stayed away from *monads* for a long time. But now I'm hooked. And I hope you get there, too.
+
+### What Is Monad?
+
+Here's the simplest way I know how to describe what a monad is without getting into code. A monad isn't actually a specific *thing* so much as it is a *pattern*. In our programs, we can use *things* that behave according to this pattern (called "Monad", capitalized). These *things* in our programs are often referred to as "monads" (lowercased), but that's a bit informal. Instead, it might be more appropriate to think of those *things* in your program as instances of a *monad type*, kind of like the number `42` is a specific instance (value) of the number type.
+
+The point of the monad pattern is to describe some behaviors we can expect with these instances when we interact with them. It's to give them a predictability, much like we know that the number `39` and the number `3` can be added to make the number `42`.
+
+But it goes beyond that. Monad can perhaps more accurately be described as a pattern for a group of other patterns, like a higher-level type or a meta-type. A really simplistic way of illustrating might be pointing out that in JS, several different *types* of values (numbers, strings, booleans, etc) all are described as "primitive" values (aka, not the "object" value type).
+
+So the plural of Monad, Monads, would refer collectively to a variety of different *types* of values -- which, again, we can define instances of in our programs -- each of which has their own unique individual pattern (behavior, etc). But all of these different Monads -- aka, "monad types", "monad subtypes", "monad kinds", or however works best for your brain -- *also* conform to the core Monad pattern (with its specific behaviors).
+
+Definitionally, *Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe Category Theory as a way to categorize/group ideas based on how they behave with respect to composition and transformation, including as you mix them with each other.
+
+The Monad type, as it appears in programming, is a way to represent a value or operation that associates the required specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
+
+Your head may already be swimming with the abstractiveness of all that. Take a few minutes to let it sink in, then let's move on to illustrating them with some JS code.
 
 ### Simplest JS Illustration
 
-What's the most stripped-down way we could do something like that in JS? How about this:
+What's the most stripped-down way we could implement the Monad type in JS? How about this:
 
 ```js
 function Identity(v) {
@@ -173,15 +191,15 @@ function chain(m,fn) {
 }
 ```
 
-That's it, that's a monad at its most basic. In particular, it's the "Identity" monad, which means that it will merely hold onto a value, and let you use that value untouched when you want to.
+That's it, that's a monad at its most basic. In particular, it's the "Identity" monad, which means that it will merely hold onto a value, and let you use that value, untouched, whenever you want to.
 
 ```js
 const myAge = Identity(41);   // { val: 41 }
 ```
 
-We put a value inside an object container only so we could recognize the value as having been represented monadically. This "container"ness is one convenient way of implementing a monad, but it's not actually required.
+We put a value inside an object container here only so we could recognize the value as *being monadic* (behaving according the Monad type). This "container"ness is one convenient way of implementing a monad, but it's not actually required.
 
-The `chain(..)` function provides a minimum basic capability to interact with our monad instance. For example, imagine we wanted to take the monadic representation of `41` and produce another monad instance where `41` was incremented to `42`?
+The `chain(..)` function provides a minimum basic capability to interact with our monad instance. For example, imagine we wanted to take the monadic representation of `41` and produce another monad instance where `41` had been incremented to `42`?
 
 ```js
 const myAge = Identity(41);   // { val: 41 }
@@ -189,23 +207,27 @@ const myAge = Identity(41);   // { val: 41 }
 const myNextAge = chain( myAge, v => Identity(v + 1) );   // { val: 42 }
 ```
 
-It's important to note that even though I use the names `Identity` and `chain` here, those are just plain choices. There's nothing explicitly required by the concept of *Monad* in terms of what we name these things. But if we use names that others have regularly chosen, it helps create a familiarity that improves our communications.
+We have two distinct, concrete values (held in `myAge` and `myNextAge`), both of which are instances of the "Identity" monad (as represented by this `Identity(..)` function and its `chain(..)` function). Again, people often call these instances "monads" (plural), but it's better to think of them as instances of a single type of Monad, "Identity".
 
-That `chain(..)` function looks pretty basic, but it's really important (whatever it's called). We'll dig more into it in a bit.
+It's important to note that even though I use the function names `Identity` and `chain` here, those are simply just artistic choices. There's nothing explicitly required by the concept of *Monad* in terms of what we name these things. But like any good programming discipline, if we use names that others have regularly chosen, it helps create a familiarity that improves our communications.
 
-I'm sure that code snippet seems pretty underwhelming to most readers. Why not just stick with `41` and `42` instead of `{ val: 41 }` and `{ val: 42 }`? The *WHY* of monads is likely not at all apparent yet. You'll have to hang with me for a bit to start to uncover the *WHY*.
+That `chain(..)` function looks pretty basic, but it's really important (whatever it's called). We'll dig more into it much more in a bit.
 
-But hopefully I've at least shown you that down at the very core, a monad is not a mystical or complex *thing*.
+But for now, I'm sure that code snippet seems pretty underwhelming to most readers. Why not just stick with `41` and `42` instead of `{ val: 41 }` and `{ val: 42 }`? The *WHY* of monads is likely not at all apparent yet. You'll have to hang with me for a bit to start to uncover the *WHY*.
+
+Hopefully I've at least shown you that down at the very core, a monad is not a mystical or complex *thing*.
+
+Perhaps you just had that "Oh, is that it!?" moment.
 
 ### Building Up Monads
 
-Monads have somewhat (in)famously been described with a variety of silly-sounding metaphors, like burritos. Others call monads "wrappers" or "boxes", or "data structures" or... the truth is, all these ways of describing a monad are partial descriptions. It's like looking at a Rubik's Cube. You can look at one face of the cube, then turn it around and look at a different face, and get more of the whole thing.
+Monads have somewhat (in)famously been described with a variety of silly-sounding metaphors, like "burritos". Others call monads "wrappers" or "boxes", or "data structures" or... the truth is, all these ways of describing a monad are partial descriptions. It's like looking at a Rubik's Cube. You can look at one face of the cube, then turn it around and look at a different face, and get more of the whole thing.
 
 A complete understanding requires being familiar with all sides. But complete understanding is not a single atomic event. It's often built up by lots of smaller bits of understanding, like looking at each face of the cube one at a time.
 
-For now, I just want you to focus on the idea that you could take a value like `42` or an operation like `console.log("Hello, friend!")` and attach/associate additional behaviors to them which will give them super powers.
+For now, I just want you to focus on the idea that you could take a value like `42`, or an operation like `console.log("Hello, friend!")`, and attach/associate additional behaviors to them which will give them super powers. That's what the *Monad* type/pattern will do.
 
-Here's another possible way of expressing monads, using capabilities provided by **Monio**:
+Here's another possible way of expressing monad instances in JS, using capabilities provided by the **Monio** library:
 
 ```js
 const myAge = Just(41);
@@ -223,11 +245,15 @@ const printGreeting = IO(() => console.log("Hello, friend!"));
 
 Here we see another **Monio** function called `IO(..)`, which acts as a constructor for the `IO` monad (which holds functions).
 
-Thinking of our sketch in the previous section, you could sort of think of `myAge` as `{ val: 41 }` and `printGreeting` as `{ val: () => console.log("Hello, friend!") }`. **Monio**'s representation is more sophisticated than just an object like that. But under the covers, it's not that far different.
+Thinking of our sketch in the previous section, you could sort of think of `myAge` as `{ val: 41 }` and `printGreeting` as `{ val: () => console.log("Hello, friend!") }`. **Monio**'s representation is actually a bit more sophisticated than just an object like that. But under the covers, it's not *that far* different.
 
-I'm going to use **Monio** throughout the rest of the guide. The convenient affordances are nice to use, and easier to illustrate with. But just keep in mind that under all the trappings, we could be doing something as straight-forward as making an object like `{ val: 41 }`.
+I'm going to use **Monio** throughout the rest of the guide, so that we don't have to keep inventing all our own monad implementations. The convenient affordances are nice to use, and easier to illustrate with.
+
+Keep in mind, however, that under all the trappings, we could be doing something as straight-forward as defining an object like `{ val: 41 }`.
 
 #### Digging Into Map
+
+Instances of `Just(..)` as shown above come with some methods on them, namely `chain(..)` (like we saw earlier) and also `map(..)`, which we'll look at now.
 
 Consider the notion of an array's `map(..)` method. Its job is to apply a mapping (value translation) operation against all the contents of the associated array.
 
@@ -237,13 +263,15 @@ Consider the notion of an array's `map(..)` method. Its job is to apply a mappin
 
 **Note:** the technical term for this capability is Functor. In fact, all monads are Functors, but don't worry too much about that term for now. Just file in the back of your head.
 
+We started with one array (`[ 1, 2, 3 ]`) and produced a new distinct array (`[ 2, 4, 6 ]`) by mapping each element in the original array to a new value that was doubled.
+
 This mapping on arrays of course works even if our array has a single element, right?
 
 ```js
 [ 41 ].map(v => v + 1);   // [ 42 ]
 ```
 
-An extremely important detail there, that's easy to miss, is that the `map(..)` function didn't just give us `42` but gave us `[ 42 ]`. Why? Because `map(..)`'s job is to produce a new instance of the same type of "container" it was invoked against. In other words, if you use array's `map(..)`, you're going to always get back an array.
+An extremely important detail there, that's easy to miss, is that the `map(..)` function didn't just give us `42` (a number) but gave us `[ 42 ]` (array holding a number). Why? Because `map(..)`'s job is to produce a new instance of the same type of "container" it was invoked against. In other words, if you use array's `map(..)`, you're going to always get back an array.
 
 But what if our "container" is a monad instance, and what if there's only one underlying value, like `41` in it? Since the monad is also a functor (able to be "mapped"), we should still expect the same kind of outcome, right?
 

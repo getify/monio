@@ -45,7 +45,7 @@ else if (process.env.TEST_UMD) {
 /* istanbul ignore next */
 else if (process.env.TEST_ESM) {
 	let { spawn, } = require("child_process");
-	let child = spawn("node",[ path.join(__dirname,"node-esm-tests.mjs"), ]);
+	let child = spawn("node",[ "--trace-warnings", "--max-old-space-size=2000", path.join(__dirname,"node-esm-tests.mjs") ]);
 	child.stdout.pipe(process.stdout);
 	child.stderr.pipe(process.stderr);
 	child.on("exit",function onExit(code){

@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "The most powerful IO monad implementation in JS",
-	"version": "0.52.1",
+	"version": "0.52.2",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "npm run build-all",
@@ -9,9 +9,9 @@
 		"test": "node --trace-warnings --max-old-space-size=2000 scripts/node-tests.js",
 		"test:package": "TEST_PACKAGE=true npm test",
 		"test:umd": "TEST_UMD=true npm test",
-		"test:esm": "TEST_ESM=true npm test",
+		"test:esm": "TEST_ESM=true node --trace-warnings --max-old-space-size=2000 scripts/node-tests.js",
 		"test:all": "npm test && npm run test:package && npm run test:umd && npm run test:esm && scripts/test-all-complete",
-		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text --exclude=**/tests --exclude=**/node-tests.js --exclude=**/load-tests.js node scripts/node-tests.js",
+		"coverage": "nyc -t './coverage/.nyc_output' --reporter=lcov --reporter=html --reporter=text --exclude=**/tests --exclude=**/node-tests.js --exclude=**/load-tests.js node --max-old-space-size=2000 scripts/node-tests.js",
 		"coverage:report": "npm run coverage && cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js",
 		"build-all": "node scripts/build-all.js"
 	},
