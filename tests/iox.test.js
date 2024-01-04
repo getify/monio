@@ -1709,12 +1709,12 @@ qunit.test("*.pipe:very-long", async (assert) => {
 	assert.equal(
 		IOx.of(0).map.pipe(...incFns).run(),
 		stackDepth,
-		"map.pipe()"
+		"map.pipe() ran very long without RangeError"
 	);
 
 	assert.equal(
 		IOx.of(0).chain.pipe(...incIOFns).run(),
 		stackDepth,
-		"chain.pipe()"
+		"chain.pipe() ran very long without RangeError"
 	);
 });

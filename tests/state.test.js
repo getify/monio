@@ -85,6 +85,27 @@ qunit.test("#map", (assert) => {
 	);
 });
 
+qunit.test("#map:very-long", (assert) => {
+	var st = State.of(1);
+
+	for (var i = 0; i < 150000; i++) {
+		st = st.map(inc);
+	}
+
+	try {
+		var res = st.evaluate(2);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.deepEqual(
+		res,
+		{ value: i + 1, state: 2 },
+		"map() call stack ran very long without RangeError"
+	);
+});
+
 qunit.test("#map:async", async (assert) => {
 	const incPr = v => Promise.resolve(inc(v));
 	const twicePr = v => Promise.resolve(twice(v));
@@ -139,6 +160,27 @@ qunit.test("#chain", (assert) => {
 		State.of({ name: "john" }).bind(stateProp("name")).evaluate(2),
 		{ value: "john", state: 2 },
 		"should return a state with 'john' as value (bind)"
+	);
+});
+
+qunit.test("#chain:very-long", (assert) => {
+	var st = State.of(1);
+
+	for (var i = 0; i < 150000; i++) {
+		st = st.chain(v => State.of(v + 1));
+	}
+
+	try {
+		var res = st.evaluate(2);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.deepEqual(
+		res,
+		{ value: i + 1, state: 2 },
+		"chain() call stack ran very long without RangeError"
 	);
 });
 
@@ -220,6 +262,27 @@ qunit.test("#concat", async (assert) => {
 	);
 });
 
+qunit.test("#concat:very-long", (assert) => {
+	var st = State.of([ 1 ]);
+
+	for (var i = 0; i < 25000; i++) {
+		st = st.concat(State.of([ i + 2 ]));
+	}
+
+	try {
+		var res = st.evaluate(2);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.deepEqual(
+		res,
+		{ value: Array.from({ length: 25001 }).map((v,i) => i + 1), state: 2 },
+		"concat() call stack ran very long without RangeError"
+	);
+});
+
 qunit.test("*.pipe", (assert) => {
 	assert.deepEqual(
 		State.of(2).map.pipe(inc,twice).evaluate(2),
@@ -243,6 +306,25 @@ qunit.test("*.pipe", (assert) => {
 		).evaluate(2),
 		{ value: [1,2,3,4,5,6], state: 2 },
 		"concat.pipe()"
+	);
+});
+
+qunit.test("*.pipe:very-long", async (assert) => {
+	var stackDepth = 10000;
+
+	var incFns = Array(stackDepth).fill(inc);
+	var incStateFns = Array(stackDepth).fill(v => State.of(inc(v)));
+
+	assert.deepEqual(
+		State.of(0).map.pipe(...incFns).evaluate(2),
+		{ value: stackDepth, state: 2 },
+		"map.pipe() ran very long without RangeError"
+	);
+
+	assert.deepEqual(
+		State.of(0).chain.pipe(...incStateFns).evaluate(2),
+		{ value: stackDepth, state: 2 },
+		"chain.pipe() ran very long without RangeError"
 	);
 });
 

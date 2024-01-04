@@ -1,12 +1,12 @@
 {
 	"name": "monio",
 	"description": "The most powerful IO monad implementation in JS",
-	"version": "0.52.0",
+	"version": "0.52.1",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "npm run build-all",
 		"prepare": "npm run build",
-		"test": "node --trace-warnings scripts/node-tests.js",
+		"test": "node --trace-warnings --max-old-space-size=2000 scripts/node-tests.js",
 		"test:package": "TEST_PACKAGE=true npm test",
 		"test:umd": "TEST_UMD=true npm test",
 		"test:esm": "TEST_ESM=true npm test",
