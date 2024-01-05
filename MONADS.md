@@ -680,7 +680,7 @@ Let's look at one more example where the *pairing* in `State`'s tracking can be 
 
 We *could* keep `records` in the same *state* object as the counters. But conceptually, the *state* is secondary (i.e., supporting) to the main purpose of the operation, the list of records. Beyond conceptual separation, we also avoid any accidental naming collisions in the *state* object.
 
-Moreover, at the end of the `evaluate(..)` call, we might be ready to discard that temporary coutners state and only keep/use the `value` (list of records). It thus hopefully makes *sense* to keep them separate.
+Moreover, at the end of the `evaluate(..)` call, we might be ready to discard that temporary counters state and only keep/use the `value` (list of records). It thus hopefully makes *sense* to keep them separate.
 
 Consider:
 
