@@ -167,11 +167,13 @@ Here's the simplest way I know how to describe what a monad is without getting i
 
 The point of the monad pattern is to describe some behaviors we can expect with these instances when we interact with them. It's to give them a predictability, much like we know that the number `39` and the number `3` can be added to make the number `42`.
 
-But it goes beyond that. Monad can perhaps more accurately be described as a pattern for a group of other patterns, like a higher-level type or a meta-type. A really simplistic way of illustrating might be pointing out that in JS, several different *types* of values (numbers, strings, booleans, etc) all are described as "primitive" values (aka, not the "object" value type).
+But it goes beyond that. Monad can perhaps more accurately be described as a pattern for a group of other patterns, like a higher-level type or a meta-type.
 
-So the plural of Monad, Monads, would refer collectively to a variety of different *types* of values -- which, again, we can define instances of in our programs -- each of which has their own unique individual pattern (behavior, etc). But all of these different Monads -- aka, "monad types", "monad subtypes", "monad kinds", or however works best for your brain -- *also* conform to the core Monad pattern (with its specific behaviors).
+**Tip:** A simplified way of illustrating such a higher-level type / meta-type concept: in JS, several different *types* of values (numbers, strings, booleans, etc) all are described as "primitive" values (aka, not the "object" value type). Each individual type has its own respective behaviors, but all primitive values (of any primitive type) also share a common set of behavior; specifically, all JS primitive values held by-value and assigned/passed by-value-copy -- as opposed to object value types being held by-reference and assigned/passed by-reference-copy.
 
-Definitionally, *Monad* is a (small) part (formally, a Type) in a broad mathematical concept called "Category Theory". You could briefly and incompletely describe Category Theory as a way to categorize/group ideas based on how they behave with respect to composition and transformation, including as you mix them with each other.
+So *Monads* (plural) would refer collectively to a variety of different *types* of monads -- which, again, we can define instances of in our programs -- each of which has their own unique individual pattern (behavior, etc). But all of these different Monads -- aka, "monad types", "monad subtypes", "monad kinds", or however works best for your brain -- *also* conform to the core Monad pattern (with its specific behaviors).
+
+Formally, *Monad* is a part (Type) of a broad mathematical concept called "Category Theory". You could briefly and incompletely describe Category Theory as a way to categorize/group ideas based on how they behave with respect to composition and transformation, including as you mix them with each other.
 
 The Monad type, as it appears in programming, is a way to represent a value or operation that associates the required specific behaviors with/around that (underlying) value/operation. These additional behaviors augment (i.e., improve!) the original value/operation with some "guarantees" about how it will interact predictably with other monad-represented values/operations in the program.
 
