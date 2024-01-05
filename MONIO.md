@@ -275,6 +275,26 @@ Now the state has been updated to have `counter: 3`, and the value slot has been
 
 ----
 
+`State` is also an [Applicative](MONADS.md#applicative):
+
+```js
+var A = State.of(x => y => x + y)
+var B = State.of(4);
+var C = State.of(3);
+
+A.ap(B).ap(C).evaluate(42);
+// {
+//   value: 7,
+//   state: 42
+// }
+```
+
+The `ap(..)` method (from instance `A`) on `State` expects to be passed another `State` instance (instance `B`). The function (held in `A`) is passed into `map(..)` (on `B`), which passes the value from `B` into the function from `A`, producing a new `State` instance.
+
+In the above snippet, the first `ap(B)` call causes the `4` (held in `B`) to be passed in as the `x` argument of the function (`x => y => x + y`), storing the resulting function value (`y => 4 + y`) back in a new `State` instance. The second `ap(C)` call causes the `3` (held in `C`) to be passed in as the `y` argument, with the computed result (`4 + 3`... `7`) again stored in a new `State` instance.
+
+----
+
 `State` is also a [Concatable/Semigroup](MONADS.md#concatable-semigroup):
 
 ```js
@@ -288,6 +308,8 @@ State.of([ "a", "b" ])
 ```
 
 The `concat(..)` method on `State` expects another `State` instance, both of which should themselves be holding Concatable/Semigroup values (e.g., strings, arrays, or even other semigroup-conforming monads, like `Just` or `State`).
+
+In the above snippet, the `["a", "b"]` held in the first `State` instance, is concatenated with the `["c, "d"]` array held in the second `State` instance, producing a new state instance holding the concatenated `["a", "b", "c", "d"]` array value.
 
 ----
 

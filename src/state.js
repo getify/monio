@@ -24,13 +24,13 @@ module.exports = Object.assign(State,{
 function State(stateFn = function stateFn(st) { return { value: undefined, state: st, }; }) {
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		evaluate,
-		/*fold, */concat, _inspect, _is,
+		evaluate, ap, concat, _inspect, _is,
 		[Symbol.toStringTag]: "State",
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithAsyncFunctionComposition(publicAPI,"map");
 	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
 	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
@@ -74,18 +74,35 @@ function State(stateFn = function stateFn(st) { return { value: undefined, state
 
 		function next(res2) {
 			var res3 = fn(res2.value);
-			// note: if you don't return a State to the
-			// `chain(fn)` function, as required by the
-			// implied type signature of `chain(..)`, one
-			// of these two lines will throw as we try to
-			// `evaluate(..)` the expected State
 			return (
 				isPromise(res3) ?
+					// note: if you don't return a State to the
+					// `chain(fn)` function, as required by the
+					// implied type signature of `chain(..)`, one
+					// of these two lines will throw as we try to
+					// `evaluate(..)` the expected State
 					res3.then(res4 => res4.evaluate(res2.state)) :
 
 					res3.evaluate(returnSignal(res2.state))
 			);
 		}
+	}
+
+	function ap(m) {
+		return State(st => continuation(
+			() => stateFn(st),
+			res1 => (
+				isPromise(res1) ?
+					// note: if you don't provide a State
+					// monad to `ap(m)`, as the implied type
+					// signature requires, one of these two
+					// lines will throw as we try to `evaluate(..)`
+					// the expected State
+					res1.then(res2 => m.map(res2.value).evaluate(res2.state)) :
+
+					m.map(res1.value).evaluate(returnSignal(res1.state))
+			)
+		));
 	}
 
 	function concat(m) {
@@ -95,8 +112,8 @@ function State(stateFn = function stateFn(st) { return { value: undefined, state
 				// note: if you don't provide a State
 				// monad to `concat(m)`, as the implied
 				// type signature requires, this line will
-				// throw as we try to `evaluate(..)` the expected
-				// State
+				// throw as we try to `evaluate(..)` the
+				// expected State
 				() => m.evaluate(returnSignal(st)),
 				res2 => (
 					(isPromise(res1) || isPromise(res2)) ?

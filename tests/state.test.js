@@ -236,6 +236,65 @@ qunit.test("#chain:state-change", async (assert) => {
 	);
 });
 
+qunit.test("#ap", async (assert) => {
+	assert.deepEqual(
+		State.of(inc).ap(State.of(2)).evaluate(2),
+		{ value: 3, state: 2 },
+		"sync+sync: should apply the state inc monad to the state 2 monad"
+	);
+
+	assert.deepEqual(
+		await asyncStateVal(inc).ap(State.of(2)).evaluate(2),
+		{ value: 3, state: 2 },
+		"async+sync: should apply the state inc monad to the state 2 monad"
+	);
+
+	assert.deepEqual(
+		await State.of(inc).ap(asyncStateVal(2)).evaluate(2),
+		{ value: 3, state: 2 },
+		"sync+async: should apply the state inc monad to the state 2 monad"
+	);
+
+	assert.deepEqual(
+		await asyncStateVal(inc).ap(asyncStateVal(2)).evaluate(2),
+		{ value: 3, state: 2 },
+		"async+async: should apply the state inc monad to the state 2 monad"
+	);
+});
+
+qunit.test("#ap:very-long", async (assert) => {
+	function addMany(v1) {
+		var total = v1;
+		return function next(v){
+			if (v === null) return total;
+			total += v;
+			return next;
+		};
+	}
+
+	var st = State.of(addMany);
+
+	for (var i = 0; i < 100000; i++) {
+		st = st.ap(State.of(1));
+	}
+
+	// finalize the adding
+	st = st.ap(State.of(null));
+
+	try {
+		var res = st.evaluate(2);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.deepEqual(
+		res,
+		{ value: 100000, state: 2 },
+		"ap() call stack ran very long without RangeError"
+	);
+});
+
 qunit.test("#concat", async (assert) => {
 	assert.deepEqual(
 		State.of([1, 2]).concat(State.of([3])).evaluate(2),
@@ -300,6 +359,15 @@ qunit.test("*.pipe", (assert) => {
 	);
 
 	assert.deepEqual(
+		State.of(x => y => x + y).ap.pipe(
+			State.of(3),
+			State.of(4)
+		).evaluate(2),
+		{ value: 7, state: 2 },
+		"ap.pipe()"
+	);
+
+	assert.deepEqual(
 		State.of([1,2]).concat.pipe(
 			State.of([3,4]),
 			State.of([5,6])
@@ -310,10 +378,20 @@ qunit.test("*.pipe", (assert) => {
 });
 
 qunit.test("*.pipe:very-long", async (assert) => {
+	function addMany(v1) {
+		var total = v1;
+		return function next(v){
+			if (v === null) return total;
+			total += v;
+			return next;
+		};
+	}
+
 	var stackDepth = 10000;
 
 	var incFns = Array(stackDepth).fill(inc);
 	var incStateFns = Array(stackDepth).fill(v => State.of(inc(v)));
+	var oneStates = Array(stackDepth).fill(State.of(1));
 	var arrayVStates = Array.from({ length: stackDepth }).map((v,i) => State.of([ i + 2 ]))
 
 	assert.deepEqual(
@@ -326,6 +404,12 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		State.of(0).chain.pipe(...incStateFns).evaluate(2),
 		{ value: stackDepth, state: 2 },
 		"chain.pipe() ran very long without RangeError"
+	);
+
+	assert.deepEqual(
+		State.of(addMany).ap.pipe(...oneStates, State.of(null)).evaluate(2),
+		{ value: stackDepth, state: 2 },
+		"ap.pipe() ran very long without RangeError"
 	);
 
 	assert.deepEqual(
@@ -388,6 +472,39 @@ qunit.test("*.pipe:async", async (assert) => {
 		),
 		{ value: 6, state: 2 },
 		"async+async: chain.pipe()"
+	);
+
+	assert.deepEqual(
+		await (asyncStateVal(x => y => x + y)
+			.ap.pipe(
+				State.of(4),
+				State.of(3)
+			).evaluate(2)
+		),
+		{ value: 7, state: 2 },
+		"async+sync: ap.pipe()"
+	);
+
+	assert.deepEqual(
+		await (State.of(x => y => x + y)
+			.ap.pipe(
+				asyncStateVal(4),
+				asyncStateVal(3)
+			).evaluate(2)
+		),
+		{ value: 7, state: 2 },
+		"sync+async: ap.pipe()"
+	);
+
+	assert.deepEqual(
+		await (asyncStateVal(x => y => x + y)
+			.ap.pipe(
+				asyncStateVal(4),
+				asyncStateVal(3)
+			).evaluate(2)
+		),
+		{ value: 7, state: 2 },
+		"async+async: ap.pipe()"
 	);
 
 	assert.deepEqual(
