@@ -314,6 +314,7 @@ qunit.test("*.pipe:very-long", async (assert) => {
 
 	var incFns = Array(stackDepth).fill(inc);
 	var incStateFns = Array(stackDepth).fill(v => State.of(inc(v)));
+	var arrayVStates = Array.from({ length: stackDepth }).map((v,i) => State.of([ i + 2 ]))
 
 	assert.deepEqual(
 		State.of(0).map.pipe(...incFns).evaluate(2),
@@ -325,6 +326,12 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		State.of(0).chain.pipe(...incStateFns).evaluate(2),
 		{ value: stackDepth, state: 2 },
 		"chain.pipe() ran very long without RangeError"
+	);
+
+	assert.deepEqual(
+		State.of([ 1 ]).concat.pipe(...arrayVStates).evaluate(2),
+		{ value: Array.from({ length: stackDepth + 1 }).map((v,i) => i + 1), state: 2 },
+		"concat.pipe() ran very long without RangeError"
 	);
 });
 
