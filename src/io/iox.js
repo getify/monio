@@ -105,7 +105,7 @@ function IOx(iof,deps = []) {
 	var io = IO(effect);
 	var publicAPI = Object.assign(IOx$,{
 		map, chain, flatMap: chain, bind: chain,
-		concat, run, stop, close, isClosed, never,
+		ap, concat, run, stop, close, isClosed, never,
 		isNever, toString, onError,	offError,
 		_chain_with_IO, _inspect, _bind: origBind, _is,
 		[Symbol.toStringTag]: TAG,
@@ -113,6 +113,7 @@ function IOx(iof,deps = []) {
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithAsyncFunctionComposition(publicAPI,"map");
 	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
 	definePipeWithMethodChaining(publicAPI,"concat");
 	// register listener hooks
 	registerHooks.set(publicAPI,[ registerListener, unregisterListener, ]);
@@ -429,6 +430,25 @@ function IOx(iof,deps = []) {
 				outerChainedIOx = returnedIOx = null;
 			}
 		}
+	}
+
+	function ap(m) {
+		return (
+			// IOx already marked as never?
+			currentVal === NEVER ?
+				// short-circuit out to the no-op dead IOx
+				NeverIOx :
+
+				// otherwise, run the ap normally
+				IOx((env,res1) => (
+					// note: if you don't provide an IO/IOx
+					// monad to `ap(m)`, as the implied type
+					// signature requires, the next line will
+					// throw as we try to `run(..)`
+					// the expected IO/IOx
+					m.map(res1).run(returnSignal(env))
+				), [ publicAPI, ])
+		);
 	}
 
 	function concat(m) {

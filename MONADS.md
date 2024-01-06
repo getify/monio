@@ -1124,7 +1124,7 @@ We put `add(..)` by itself into a `Just`. The first `ap(..)` call "extracts" tha
 
 As with `chain(..)` and `concat(..)`, **Monio**'s `ap(..)` *should* be passed the same kind of monad as the method is invoked on. But there's no explicit type enforcement to prevent crossing kinds (e.g. between `Maybe` and `Either`).
 
-All of **Monio**'s non-`IO` monads are Applicatives. Again, you may not use such behavior very frequently, but hopefully you may now be able to recognize the need when it arises.
+Most of **Monio**'s monads (except for `AllIO` / `AnyIO`) are Applicatives. Again, you may not use such behavior very frequently, but hopefully you may now be able to recognize the need when it arises.
 
 ## *Wrap*ping Up
 

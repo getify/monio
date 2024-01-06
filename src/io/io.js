@@ -37,12 +37,13 @@ function IO(effect) {
 	const TAG = "IO";
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		concat, run, _inspect, _is,
+		ap, concat, run, _inspect, _is,
 		[Symbol.toStringTag]: TAG,
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithAsyncFunctionComposition(publicAPI,"map");
 	definePipeWithMethodChaining(publicAPI,"chain");
+	definePipeWithMethodChaining(publicAPI,"ap");
 	definePipeWithMethodChaining(publicAPI,"concat");
 	return publicAPI;
 
@@ -70,6 +71,23 @@ function IO(effect) {
 					res2.run(returnSignal(env))
 				);
 			}
+		));
+	}
+
+	function ap(m) {
+		return IO(env => continuation(
+			() => effect(env),
+			res1 => (
+				isPromise(res1) ?
+					// note: if you don't provide an IO/IOx
+					// monad to `ap(m)`, as the implied type
+					// signature requires, one of these two
+					// lines will throw as we try to `run(..)`
+					// the expected IO/IOx
+					res1.then(res2 => m.map(res2).run(env)) :
+
+					m.map(res1).run(returnSignal(env))
+			)
 		));
 	}
 

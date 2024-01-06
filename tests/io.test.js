@@ -284,6 +284,68 @@ qunit.test("#map:async", async (assert) => {
 	);
 });
 
+qunit.test("#ap", async (assert) => {
+	var ioEnvTimesTwo = IO(env => env * 2);
+	var ioEnvTimesTwoAsync = IO(env => Promise.resolve(env * 2));
+
+	assert.equal(
+		IO.of(inc).ap(ioEnvTimesTwo).run(5),
+		11,
+		"sync+sync: should apply the io inc monad to the io (5 * 2) monad"
+	);
+
+	assert.equal(
+		await IO.of(Promise.resolve(inc)).ap(ioEnvTimesTwo).run(5),
+		11,
+		"async+sync: should apply the io inc monad to the io (5 * 2) monad"
+	);
+
+	assert.equal(
+		await IO.of(inc).ap(ioEnvTimesTwoAsync).run(5),
+		11,
+		"sync+async: should apply the io inc monad to the io (5 * 2) monad"
+	);
+
+	assert.equal(
+		await IO.of(Promise.resolve(inc)).ap(ioEnvTimesTwoAsync).run(5),
+		11,
+		"async+async: should apply the io inc monad to the io (5 * 2) monad"
+	);
+});
+
+qunit.test("#ap:very-long", async (assert) => {
+	function addMany(v1) {
+		var total = v1;
+		return function next(v){
+			if (v === null) return total;
+			total += v;
+			return next;
+		};
+	}
+
+	var io = IO.of(addMany);
+
+	for (var i = 0; i < 100000; i++) {
+		io = io.ap(IO.of(1));
+	}
+
+	// finalize the adding
+	io = io.ap(IO(identity));
+
+	try {
+		var res = io.run(null);
+	}
+	catch (err) {
+		var res = err.toString();
+	}
+
+	assert.equal(
+		res,
+		100000,
+		"ap() call stack ran very long without RangeError"
+	);
+});
+
 qunit.test("#concat", (assert) => {
 	assert.equal(
 		IO.of("Hello").concat(IO.of(" World!")).run(),
@@ -874,6 +936,15 @@ qunit.test("*.pipe", async (assert) => {
 		"chain.pipe()"
 	);
 
+	assert.equal(
+		IO.of(x => y => x + y).ap.pipe(
+			IO.of(4),
+			IO.of(3)
+		).run(),
+		7,
+		"ap.pipe()"
+	);
+
 	assert.deepEqual(
 		IO.of([1,2]).concat.pipe(
 			IO.of([3,4]),
@@ -909,10 +980,20 @@ qunit.test("*.pipe", async (assert) => {
 });
 
 qunit.test("*.pipe:very-long", async (assert) => {
+	function addMany(v1) {
+		var total = v1;
+		return function next(v){
+			if (v === null) return total;
+			total += v;
+			return next;
+		};
+	}
+
 	var stackDepth = 10000;
 
 	var incFns = Array(stackDepth).fill(inc);
 	var incIOFns = Array(stackDepth).fill(v => IO.of(inc(v)));
+	var oneIOs = Array(stackDepth).fill(IO.of(1));
 	var arrayVIOs = Array.from({ length: stackDepth }).map((v,i) => IO.of([ i + 2 ]))
 
 	assert.equal(
@@ -925,6 +1006,12 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		IO.of(0).chain.pipe(...incIOFns).run(),
 		stackDepth,
 		"chain.pipe() ran very long without RangeError"
+	);
+
+	assert.equal(
+		IO.of(addMany).ap.pipe(...oneIOs, IO.of(null)).run(),
+		stackDepth,
+		"ap.pipe() ran very long without RangeError"
 	);
 
 	assert.deepEqual(
