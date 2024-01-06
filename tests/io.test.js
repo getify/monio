@@ -913,6 +913,7 @@ qunit.test("*.pipe:very-long", async (assert) => {
 
 	var incFns = Array(stackDepth).fill(inc);
 	var incIOFns = Array(stackDepth).fill(v => IO.of(inc(v)));
+	var arrayVIOs = Array.from({ length: stackDepth }).map((v,i) => IO.of([ i + 2 ]))
 
 	assert.equal(
 		IO.of(0).map.pipe(...incFns).run(),
@@ -924,5 +925,11 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		IO.of(0).chain.pipe(...incIOFns).run(),
 		stackDepth,
 		"chain.pipe() ran very long without RangeError"
+	);
+
+	assert.deepEqual(
+		IO.of([ 1 ]).concat.pipe(...arrayVIOs).run(),
+		Array.from({ length: stackDepth + 1 }).map((v,i) => i + 1),
+		"concat.pipe() ran very long without RangeError"
 	);
 });
