@@ -443,7 +443,7 @@ The `Maybe` monad -- sometimes referred to by different names like `Option` or `
 
 To understand `Maybe`, let's first add another monad kind besides `Just` (identity) we discussed previously: the trivial-and-unimpressive monad we'll call `Nothing` (empty). `Nothing` does even less than `Just`: it short-circuits out of any methods you invoke on it. It's like a blackhole where operations are safely skipped as no-ops. `Nothing` is the safe, monadic equivalent of empty values like `null` or `undefined`.
 
-`Maybe` is a *Sum Type*, in that it represents a "duality" of these two monad kinds (`Just` and `Nothing`). That's not to say a `Maybe` instance is *both* simultaneously, but rather that it can *either* be one or the other.
+`Maybe` is a *Sum Type*, in that it multiple (two) monad kinds (`Just` and `Nothing`). That's not to say a `Maybe` instance is *both* simultaneously, but rather that it can *either* be one or the other.
 
 **Note:** Most monad implementations would not expose `Just` and `Nothing` as separate monad kinds, but rather only as part of `Maybe`. **Monio** choose to present them separately as well as combined in `Maybe`, for convenience of illustration purposes.
 
@@ -558,9 +558,9 @@ baseCtx.evaluate(mockWindow);
 
 Notice that we can actually evaluate our `baseCtx` chain independently as many times as necessary, and each invocation we specify what *environment* to use for that invocation. This is a simple but big improvement!
 
-So far, we've seen monads that represent (contain, hold!) concrete values like `42` or a shipping address object. While the lazily-provided *environment* value itself is obviously a concrete value, this imagined `LazyJust` conceptually is not a "container" for a value. It's more of a template, or an abstract-placeholder container, whose value is not concretely filled in until each `evaluate(..)` invocation.
-
 #### Beyond Value Containers
+
+So far, we've seen monads that represent (contain, hold!) concrete values like `42` or a shipping address object. While the lazily-provided *environment* value itself is obviously a concrete value, this imagined `LazyJust` conceptually is not a "container" for such a value. It's more of a template, or an abstract-placeholder container, whose value is not concretely filled in until each `evaluate(..)` invocation.
 
 Fortunately, monads are far more than just "value wrappers". Monads can also be thought of as "behavior wrappers", representing operations (functions) for various purposes.
 
@@ -588,7 +588,7 @@ function Reader(evaluate = env => env) {
 
 As illustrated here, `Reader` takes an *optional* function (called `evaluate(..)` here). It should be a pure function that performs any necessary processing (if any) to transform -- remember, always avoid mutation if possible! -- the *environment* value as passed in. By default, the evaluation function is the *identity* function and passes the value through untouched.
 
-Reader is a useful monad for multiple tasks. As mentioned above, it can carry a global-like object (e.g., `window`) as its *environment*, even if no transformation to the *environment* is necessary.
+Reader is a useful monad for multiple tasks. As mentioned above, it can carry (implicitly pass along) a global-like object (e.g., `window`) as its *environment*, even if no transformation to the *environment* is necessary.
 
 But Reader can actually carry any value (object, etc) you want. And if there are multiple steps in the Reader chain, each step can choose to transform the value as it cascades down the chain, as shown here:
 
@@ -607,6 +607,8 @@ r
 ```
 
 **Note:** The `chain(..)` call above includes (for illustration purposes) two references to `env`, one passed directly to the chain callback, and one that's implicitly wired into the returned `Reader` instance. They're both the same value, and if you use the same `env` name as above for both, the inner `env` lexically shadows (hides from access) the outer `env`. To make the code clearer, pick one or the other to use in such a situation.
+
+So keep in mind that Reader is not really a *container* for an environment value. It's a lazy way to access and carry along a value (*environment*) implicitly. We'll revisit this non-container-ness later, in the `IO` section.
 
 ### `State`fully Monadic
 
@@ -732,7 +734,7 @@ As an exercise for the *reader*, consider trying the above code with only the `R
 
 #### Async Transformer
 
-**Monio** provides `State` instead of a Reader implementation, in part because `State` is basically a transformer (aka, `StateT`) that augments `State` with async-capable behavior (over JS promises). That's far less common/idiomatic to transform Reader as such, but async state transformation is quite ubiquitous in our programs.
+**Monio** provides `State` instead of a Reader implementation, in part because `State` is basically a transformer (aka, "StateT") that augments `State` with async-capable behavior (over JS promises). That's far less common/idiomatic to transform Reader as such, but async state transformation is quite ubiquitous in our programs.
 
 If any state transformation step returns a promise, `State` evaluation automatically lifts to async promises for the result of the `evaluate(..)` call.
 
@@ -763,7 +765,7 @@ State.of(/*records=*/[])
 // Promise<..>
 ```
 
-The absorption of any promise in the `State` chain lifts the `evaluate(..)` call to be promise-returning, eventually fulfilling with the same expected *pairing* object value.
+The absorption of any promise in the `State` chain, lifts the `evaluate(..)` call to be promise-returning, eventually fulfilling with the same expected *pairing* object value.
 
 ### I Know, IO
 
@@ -771,13 +773,11 @@ The absorption of any promise in the `State` chain lifts the `evaluate(..)` call
 
 Similar to the [Reader monad type](#reader-monad) or [State monad type](#statefully-monadic) representing an operation to compute a new state (and optional output value), IO monads implicitly carry a value across (lazily-evaluated) operations, but specifically ones that either rely on, or cause, side effects.
 
-The heart of **Monio** is its `IO` monad implementation. It's designed as an uber-powerful *Sum Type* that incorporates a variety of useful behaviors, similar in spirit to [Scala's ZIO](https://zio.dev/). I claim that **Monio**'s `IO` is the "most powerful IO implementation in JS (and possibly any language)". But I know that's quite a daunting claim.
+The heart of **Monio** is its `IO` monad implementation, an uber-powerful *Product Type* (as opposed to *Sum Type*) that composes a variety of useful behaviors, similar in spirit and form to [Scala's ZIO](https://zio.dev/). I claim that **Monio**'s `IO` is the "most powerful IO implementation in JS (and possibly any language)". But I know that's a dubious-sounding claim.
 
-Don't worry: to continue, we're just going to focus on a small part of what `IO` can do, just so we don't get too overwhelmed.
+We're only going to focus on a small part of what `IO` can do, just so we don't get too overwhelmed.
 
-What you put in `IO` is (typically) a function, which when executed will perform some sort of operation, (again, typically) of a side-effect nature. It doesn't *have to be* a side-effect operation; it can be static and pure, like simply returning a value.
-
-The key idea behind the `IO` monad type is that it's lazy; it doesn't *do* anything -- like execute the function you put in it -- automatically. You have to evaluate the IO to perform the operation (and thus *apply* the side-effect to the program).
+Because IO is lazy (like State and Reader), you represent its side effect(s) with a function -- though the function may be pure and simply return a value. When you `run(..)` an IO instance, the side effect(s), if any, are applied to your program, and the result, if any, is returned.
 
 For example:
 
@@ -789,7 +789,9 @@ greeting.run();
 // Hello, friend!
 ```
 
-An IO, once evaluated, can also produce a value:
+**Note:** Yes, even something so mundane as printing a message to the developer console, *is* I/O, a program side effect! It *belongs* in an `IO`, if you're following monadic design.
+
+An IO, once evaluated, may also produce a value:
 
 ```js
 const customerName = IO(() => (
@@ -799,9 +801,9 @@ const customerName = IO(() => (
 customerName.run();  // "Kyle"
 ```
 
-The `run(..)` method can be thought of kinda like the `fold(..)` method we saw on `Just(..)` and `Maybe(..)`. It's how you "exit" the `IO` monad, in applying its behavior (side-effects) to the surrounding program.
+The `run(..)` method is analogous to the `evaluate(..)` of `State`, or the `fold(..)` method we saw on `Just(..)` and `Maybe(..)`. It's how you "exit" the `IO` monad, applying its behavior (side-effects) to the surrounding program.
 
-Like we've already asserted a few times, the "best practice" key idea is to keep all our program's side-effect operations as `IO`s, and only reduce/apply them at the last moment, when our program needs them to be applied.
+But you don't get much out of IO if you put a single operation into it and then immediately execute/apply that operation. The key benefit of IO is to represent all of your program's side-effect operations as IO instances, chained together, and only evaluate the composition of them as the final step of program execution.
 
 Here's a more sophisticated example that chains `IO` instances together:
 
@@ -827,9 +829,25 @@ renderCustomerNameIO.run();
 
 As you can see, here we're composing side-effect operations together as predictably as we composed numbers and objects earlier. Monads truly are a transformative, revolutionary way of thinking about our programs.
 
-As a convenience, `IO.of(..)` is generally the equivalent of `IO(() => ..)`; in both cases, you get a lazy IO. But take note of a nuance/gotcha: in the `IO.of(..)` case, whatever expression (the `..` here) provided is evaluated right away, whereas when you do `IO(() => ..)`, you've manually wrapped the `..` expression, whatever it is, into a function, so it won't be evaluated until that function is called (at the time the IO is evaluated).
+#### Non-Value-Container?
 
-As such, `IO.of(..)` should only be used when you already have a fixed, non-side-effecting value expression. Always use the `IO(() => ..)` form when the `..` expression is actually a side-effect.
+Recall earlier in the Reader discussion, we pointed out that `Reader` monad instances are not really value containers. The same is true of `State` and now `IO`. Yes, we instantiate `IO` *with* a function, but... this function is not *the value* that's "held" by the instance in the most meaningful sense..
+
+Consider `IO(() => 4)`, or the convenience equivalent `IO.of(4)`. Do either of those ways of expressing an `IO` instance actually *hold* the value `4`? No. They both *reference* a function that will do something, in this case return the value `4`.
+
+**Warning:** Take note of a nuance/gotcha: in the `IO.of(..)` case, whatever expression (the `..` here) provided is evaluated right away, whereas when you do `IO(() => ..)`, you've manually wrapped the `..` expression, whatever it is, into a function, so it won't be evaluated until that function is called (at the time the IO is evaluated). As such, `IO.of(..)` should only be used when you have a fixed, non-side-effecting value expression. Always use the `IO(() => ..)` form when the `..` expression actually includes a side effect, to *defer* that side effect until it should be performed.
+
+So `IO(() => 4)` (or `IO.of(4)`) doesn't *hold* the value `4`, but it also doesn't *hold* the function `() => 4` either, because there's no way to *get* that function value itself back out. There's only a way to cause that function to be evaluated, and then get *its* return value (if any): the `run()` method.
+
+Contrast that with `Just(() => 4)`, which *is indeed* concretely holding the `() => 4` function value, and that function value can be used itself, directly.
+
+So do IO (and Reader and State) instances *hold* anything? Not really, not concretely anyway. These types of monads are not containers in a direct sense.
+
+They abstractly "hold" the *capability* to perform some action, which may or may not produce some tangible value (as return from `evaluate()` / `run()`).
+
+For Reader, the *capability* is to carry (implicitly pass along) an environment. For State, the *capability* is to carry a state, and compute a new state from it, optionally with another output value. And for IO, the *capability* is to perform (and read) side effects on a context/environment.
+
+These monad types are capability representations, not value containers.
 
 #### But Why IO?
 
@@ -845,29 +863,69 @@ I strongly believe the most complex side-effects in our programs come from async
 
 **Monio**'s `IO` automatically transforms/consumes JS promises and lifts the evaluation of an `IO` chain to a promise if any asynchronous operation is encountered. And for event streams (where a single promise doesn't adequately represent the asynchrony), `IOx` is like `IO` plus Observables (e.g., `RxJS`, etc).
 
-And if that's not enough to intrigue you, there's another challenge that programs face (whether you realize it or not) that **Monio**'s `IO` addresses like a champ: how do you isolate a set of operations from the environment (like DOM, etc) around it, so that you can provide an environment/context for the code to run against? This is critical for preventing unintended side-effects in the program, but it's also the most effective way to create **TESTABLE** side-effect code.
+And if that's not enough to intrigue you, there's another challenge that programs face (whether you realize it or not) that **Monio**'s `IO` addresses: how do you isolate a set of operations from the environment (like DOM, etc) around it, so that you can provide an environment/context for the code to run against? This is critical for preventing unintended side-effects in the program, but it's also the most effective way to create **TESTABLE** side-effect code.
 
 Like [State](#statefully-monadic), **Monio**'s `IO` also holds the [Reader monad type's](#reader-monad) behavior. This means that an `IO` (no matter how long/involved the chain is) carries with it a provided "environment", passed as an argument to `run(..)`.
 
-You could define your entire program to boil down to a single `IO` instance, and if you call `run(window)`, you're running your program in the context of the browser's DOM. But in your test suite, you could call `run(fakeDOMglobal)` on the same `IO`, and now all of the code and side-effects are automatically threaded through that alternate environment.
+You could define your entire program to boil down to a single `IO` instance, and if you call `run(window)`, you're running your program in the context of the browser's DOM. But in your test suite, you could call `run(fakeDOMglobal)` on the same `IO`, and now all of the code and side-effects are automatically applied against that alternate environment.
 
 It's effectively passing the entire "global" (aka, universe/scope-of-concern) into your program, whatever appropriate value that is, instead of the program automatically assuming which "global" it should apply against.
 
 But ultimately, the *real power* of **Monio**'s `IO` is not even encompassed by what we've thus far discussed. The *pièce de résistance* is that `IO` provides a bridge back to your familiar and comfortable more-imperative style coding.
 
-Do you like to use `if` and `try..catch` and `for..of` loops? You may have noticed that FP and monads seem to throw all that stuff out the window, in favor of long chains of curried and composed function calls. What if you could get all the power of `IO` but opt-in to the more typically-imperative style of code where helpful?
+Do you like to use `if` and `try..catch` and `for..of` loops? You may have noticed that FP and monads seem to throw all that stuff out the window, in favor of long chains of curried and composed function calls. What if you could get all the power of `IO` (and other monads!) but opt-in to the more typically-imperative style of code where helpful?
 
-`IO.do(..)` takes a JS generator, whose code looks like the `async..await` style that most JS devs are so familiar with. When you `yield` a value, if its monadic, it's automatically chained and unwrapped (just as if you had an `IO` to `chain(..)` from). And if the result is asynchronous (a promise), the code inside the generator automatically pauses to "await" the completion.
+Various FP languages like Haskell provide what's called a "do syntax" for monads like IO to accomplish such a feat.
 
-Taken together with all its facets, **Monio**'s `IO` (and `IOx` superset) is the "one monad to rule them all".
+**Monio**'s do-syntax for JS comes through `IO.do(..)`, which takes a JS generator whose code looks like the `async..await` style that most JS devs are so familiar with. When you `yield` a value, if its monadic, it's automatically chained and unwrapped (just as if you had an `IO` to `chain(..)` from). And if the result is asynchronous (a promise), the code inside the generator automatically pauses to "await" the completion.
+
+Here's the previous IO snippet, expressed with `IO.do(..)`:
+
+```js
+// helpers:
+const getProp = prop => obj => obj[prop];
+const assignProp = prop => val => obj => obj[prop] = val;
+const getElement = id => IO(() => document.getElementById(id));
+const getInputValue = id => getElement(id).map( getProp("value") );
+const renderTextValue = id => val => (
+    getElement(id).map( assignProp("innerText")(val) )
+);
+
+// do-style instead of chaining-style:
+const renderCustomerNameIO = IO.do(function *renderCustomerNameIO(env){
+    var val = yield getInputValue("customer-name-input");
+    return renderTextValue("customer-name-display")(val);
+});
+
+// later:
+renderCustomerNameIO.run();
+```
+
+The `IO.do(..)` replaces the IO `.chain(..)` style with a more familiar imperative style, but with all the monadic guarantees underneath. It's the best of both worlds!
+
+Taken together with all its facets, that's why I claim **Monio**'s `IO` (and `IOx` superset) is the "one monad to rule them all".
+
+### Monad *Sum*mary
+
+We've now explored the ideas behind several monads, from Identity (e.g., `Just`) through Maybe, Reader, State, and finally IO.
+
+We skipped over Either -- another *Sum Type* like Maybe, but which holds values on both sides (typically called "Left" and "Right"). Either is typically used to represent synchronous `try..catch` style exception handling. **Monio** provides `Either` (as `Left` and `Right`), as well as a monad transformer called `AsyncEither`, which extends `Either` to operate asynchronously (over promises), the same way `IO` transforms/handles them. `AsyncEither` is essentially **Monio**'s representation of a Promise/Future monad type.
+
+Remember that *Monad* is a pattern that unifies all these specific monad types. What's common among them?
+
+1. They all provide a "unit constructor" to produce values (i.e., construct instances) of that monad type.
+
+2. They all define a "chain" operation (exposed as a `chain(..)` method on the instance).
+
+These two characteristics together satisfy the **3 Monad Laws**.
+
+Our main take-away is that if we obey the monad laws in an implementation of some data structure, as the **Monio**-provided monad types (`Just`, `IO`, etc) do, we can rely on predictable behaviors and interactions among them. That allows us to assemble our programs much more reliably and soundly, than the often quite imperative equivalents that most programs are built with.
 
 ## ... And Friends
 
-OK, if you've made it this far, take a deep breath. Seriously, maybe go for a walk to let some of this settle in. Maybe re-read it, a few times.
+That's a lot we've covered. Time to take a deep breath. Seriously, maybe go for a walk to let some of this settle in. *Maybe* re-read it, a few times.
 
-We've already seen a decent, if basic, illustration of the idea of monads. And we didn't cover `Either` -- another *Sum Type* like `Maybe` but which holds values on both sides. `Either` is typically used to represent synchronous `try..catch` style exception handling. We also didn't cover `AsyncEither`, which extends `Either` to operate asynchronously (over promises), the same way `IO` transforms/handles them. `AsyncEither` is essentially **Monio**'s representation of a Promise/Future type. We also discussed the Reader monad type, and at **Monio**'s `State`.
-
-But compared to the expanse of Category Theory that *monad* fits in, monad is a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts that come from Category Theory, and more specifically, "Algebraic Data Types" (ADTs) -- or are at least adapted from parts of it. These "friends" include:
+Now, compared to the expanse of Category Theory, *Monad* is a fairly narrow concept itself. There are a variety of adjacent (and somewhat related) concepts -- more specifically, "Algebraic Data Types" (ADTs) -- that are helpful companions to monads. These "friends" include:
 
 * Foldable
 * Concatable (aka, Semigroup)
@@ -877,7 +935,7 @@ There are many, many other topics out there, but these are the main three "frien
 
 To be clear, these three are *not* monad behaviors. I call them "friends of monads" because I find monads mixed with these other behaviors to be more useful/practical in my JS code than monads (or any of these other types) standing alone; it's the combination of these type behaviors that I think makes monads attractive and powerful solutions for our programs.
 
-I know many in the FP space prefer to think of each type completely independently. That's OK if it works well for them. But I find the combinations much more compelling.
+I know many in the FP space prefer to think of each type completely independently. That's OK if it works well for them. But I find the combinations below much more compelling.
 
 ### Foldable
 
@@ -901,13 +959,13 @@ Just(42).fold(identity);   // 42
 
 Now, if you're looking closely, for a single value monad kind like `Just`, `fold(..)` and `chain(..)` seem to have the same behavior (and even implemented virtually identically). You may then wonder why we should provide the seemingly duplicative `fold(..)` on `Just` instead of *just* providing `chain(..)`?
 
-As [explained earlier](#monadic-chain), the implied *type* intent is that a function provided to `chain(..)` always returns the same kind of monad as the one the `chain(..)` method was invoked on. In other words, the (Haskell'ish) type signature is essentially, `chain: m a -> (a -> m b) -> m b`. The monad of type/kind `m` may under the covers be associated to a different type value (`a` vs `b`) from before to after the `chain(..)` call, but it's still supposed to be an `m` kind monad.
+As [explained earlier](#monadic-chain), the implied *type* intent is that a function provided to `chain(..)` always returns the same kind of monad as the one the `chain(..)` method was invoked on. In other words, the (Haskell'ish) type signature is essentially, `chain: m a -> (a -> m b) -> m b`. The monad of type/kind `m` may under the covers be associated with (hold) a different type value (`a` vs `b`) from before to after the `chain(..)` call, but it's still supposed to be an `m` kind monad.
 
 So calling `Just(42).chain(identity)` violates this implied type signature -- though **Monio** doesn't enforce it and the operation would work just fine. `fold(..)` on the other hand does not have that sort of implied type signature, as it's intended for you to "fold down" to any arbitrary type, not just another monad instance. `fold(..)` then is a more flexible route that would allow us to "extract" the associated/underlying value.
 
 Moreover, Foldable's `fold(..)` on the *Sum Types* `Maybe` and `Either` has a very different signature from their `chain(..)` method, so they're not at all duplicative of each other.
 
-Rather than using Foldable to extract the value itself, we'll more often prefer to use `fold(..)` to define a natural transformation from one kind of monad to another. To illustrate, let's revisit this example from earlier:
+Rather than using Foldable to extract the value itself, we'll more often prefer to use `fold(..)` to define a *natural transformation* from one kind of monad to another. To illustrate, let's revisit this example from earlier:
 
 ```js
 // assumed:
