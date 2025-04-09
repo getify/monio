@@ -701,11 +701,12 @@ const getID = type => State(st => {
     };
 });
 const newRecord = (type,name) => records => (
-    getID(type))
+    getID(type)
     .map(id => ([
         ...records,
         { id, name }
-    ]));
+    ]))
+);
 
 State.of(/*records=*/[])
 .chain(newRecord("author","Kyle"))
@@ -999,7 +1000,7 @@ const assignProp = prop => val => obj => (
 );
 const getElement = id => IO(() => document.getElementById(id));
 const renderTextValue = id => val => (
-    getElement(id).map(el => (
+    getElement(id).chain(el => (
         Maybe.from(el).fold(
             IO.of,
             assignProp("innerText")(val)
