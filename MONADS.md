@@ -2,6 +2,14 @@
 
 If you're already comfortable with Functional Programming (FP), especially side effects and pure functions and such, you can [skip to "Expansive Intro To Monads"](#expansive-intro-to-monads) below.
 
+----
+----
+
+**NOTE: This guide's content is also available in ebook (PDF/EPUB) form for easier reading, as ["Unwrapping Monads & Friends" on Leanpub](https://leanpub.com/monads-and-friends). Download for free (or purchase at suggested price of $2.99 USD).**
+
+----
+----
+
 ## Functional Programming (FP)
 
 FP is a topic that often carries with it a fair bit of "baggage", and that goes even more for monads. It's quite easy to get lost out in the web-of-google-searches when bombarded by the formalized terminology or math behind these topics, especially since so many FP fans believe that the formalism and math *are basically required* to get anything out of them.
