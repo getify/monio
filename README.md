@@ -82,7 +82,7 @@ Monio balances the power of monads -- often dismissed by the non-FP programmer a
 
 The driving inspiration behind Monio is the `IO` monad -- useful for managing side-effects -- that additionally supports "do-style" syntax with JS-ergonomic asynchrony (based on promises) in the style of familiar `async..await` code. IOs are lazy, so their operations are not triggered until the `run(..)` method is called.
 
-Monio's `IO` is a transformer over promises, which means that when promises are produced in an IO, they are automatically unwrapped; of course, that means subsequent IO operations are deferred. If any IO in a chain produces a promise, `run(..)`'s result will be "lifted" to a promise that resolves when the entire IO chain is complete. Otherwise, the IO instance and its `run(..)` call will operate synchronously and immediately produce the result.
+Monio's `IO` comes pre-transformed for promises, which means that when promises are produced in an IO, they are automatically unwrapped; of course, that means subsequent IO operations are deferred. If any IO in a chain produces a promise, `run(..)`'s result will be "lifted" to a promise that resolves when the entire IO chain is complete. Otherwise, the IO instance and its `run(..)` call will operate synchronously and immediately produce the result.
 
 Monio intentionally chooses to model asynchrony over promises instead of Future monads, because of its goal of balancing FP with pragmatic and idomatic non-FP JS. However, there's nothing that should prevent you from using a Future monad with Monio if you prefer.
 
@@ -90,7 +90,7 @@ Monio intentionally chooses to model asynchrony over promises instead of Future 
 
 `IO`'s `do(..)` is JS-ergonomic for exception handling: uncaught JS exceptions become promise rejections, and IO-produced promise rejections are `try..catch`'able. `IO` also supports modeling exception handling through Either monads: `doEither(..)` transforms uncaught exceptions into *Either:Left* values, and recognizes IO-produced *Either:Left* values as `try..catch`'able exceptions.
 
-Monio's `IO` is also a Reader monad, which carries side-effect read environments alongside IO operations.
+Monio's `IO` is also comes pre-transformed with Reader, which carries side-effect read environments alongside IO operations.
 
 ### For the FP savvy
 
