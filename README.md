@@ -1,6 +1,5 @@
 # Monio
 
-[![Build Status](https://travis-ci.org/getify/monio.svg?branch=master)](https://travis-ci.org/getify/monio)
 [![npm Module](https://badge.fury.io/js/monio.svg)](https://www.npmjs.org/package/monio)
 [![Coverage Status](https://coveralls.io/repos/github/getify/monio/badge.svg?branch=master)](https://coveralls.io/github/getify/monio?branch=master)
 [![Modules](https://img.shields.io/badge/modules-ESM%2BUMD%2BCJS-a1356a)](https://nodejs.org/api/packages.html#dual-commonjses-module-packages)
@@ -53,6 +52,10 @@ To see how writing **Monio**-based code looks and feels, especially the use of I
 Here's a full demo app (client and server) featuring **Monio**:
 
 **[Monio Demo App](https://github.com/DrBoolean/monio-demo-app)**
+
+Here's a preview of some code for a Todo app called "ToDoovy", built with Monio:
+
+**[ToDoovy App - code preview](https://gist.github.com/getify/e1837be7f3084e6ece78e9031b59bd68)
 
 In addition, here's some live codepen demos:
 
