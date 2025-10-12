@@ -9,6 +9,7 @@ var {
 	isReturnSignal,
 	trampoline,
 } = require("./lib/util.js");
+var Either = require("./either.js");
 
 const BRAND = {};
 
