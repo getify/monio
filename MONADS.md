@@ -661,16 +661,16 @@ In practical terms, this means that a `State` instance will optionally hold a va
 And when you `evaluate(..)` the lazy `State` operation(s), the result is a *pairing* (object-tuple) of both the *output* `value` and the carried `state`.
 
 ```js
-var state = State();
+var state = State.of();
 
 // later:
 state = state
   .map(v => v ?? 21)
   .chain(v => (
-    State(st => ({
+     State(st => ({
         value: v * 2,
         state: { ...st, counter: st.counter + 3 }
-    }))
+     }))
   ));
 
 state.evaluate({ counter: 4 });
@@ -741,41 +741,6 @@ The evaluator function passed to `State(..)` takes care of amending the state (i
 
 As an exercise for the *reader*, consider trying the above code with only the `Reader` or `Just` monads, and then compare the approach to what's presented here. Hopefully that helps solidify the *value* of `State`.
 
-#### Async Transformer
-
-**Monio** provides `State` instead of a Reader implementation, in part because `State` is basically a transformer (aka, "StateT") that augments `State` with async-capable behavior (over JS promises). That's far less common/idiomatic to transform Reader as such, but async state transformation is quite ubiquitous in our programs.
-
-If any state transformation step returns a promise, `State` evaluation automatically lifts to async promises for the result of the `evaluate(..)` call.
-
-Consider the previous record-generating snippet, but imagine for some (here, contrived) reason the assembly of the `id` needs to be async:
-
-```js
-// assume:
-// formatID(string) -> Promise
-
-const getID = type => State(async st => {
-    var newState = {
-        ...st,
-        [type]: (st[type] ?? 0) + 1
-    };
-    var id = await formatID(`${type}-${newState[type]}`);
-    return {
-        value: id,
-        state: newState
-    };
-});
-
-// ..
-
-State.of(/*records=*/[])
-.chain(newRecord("author","Kyle"))
-// ..
-.evaluate(/*idCounters=*/{});
-// Promise<..>
-```
-
-The absorption of any promise in the `State` chain, lifts the `evaluate(..)` call to be promise-returning, eventually fulfilling with the same expected *pairing* object value.
-
 ### I Know, IO
 
 **Monio Reference: [`IO` (and variants)](MONIO.md#io-monad-one-monad-to-rule-them-all)**
@@ -786,7 +751,7 @@ The heart of **Monio** is its `IO` monad implementation, an uber-powerful *Produ
 
 We're only going to focus on a small part of what `IO` can do, just so we don't get too overwhelmed.
 
-Because IO is lazy (like State and Reader), you represent its side effect(s) with a function -- though the function may be pure and simply return a value. When you `run(..)` an IO instance, the side effect(s), if any, are applied to your program, and the result, if any, is returned.
+Because IO is lazy (like State and Reader), you represent its side effect(s) with a function -- though the function may be pure and simply return a value. When you `run(..)` an IO instance, the side effect(s), if any, are applied to your program (specifically, the environment passed in), and the result, if any, is returned.
 
 For example:
 
@@ -903,6 +868,7 @@ const renderTextValue = id => val => (
 // do-style instead of chaining-style:
 const renderCustomerNameIO = IO.do(function *renderCustomerNameIO(env){
     var val = yield getInputValue("customer-name-input");
+
     return renderTextValue("customer-name-display")(val);
 });
 

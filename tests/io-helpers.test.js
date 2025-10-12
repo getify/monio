@@ -140,6 +140,63 @@ qunit.test("maybeFromIO / eitherFromIO", async (assert) => {
 	);
 });
 
+qunit.test("tap (runs side effect and returns original value)", async (assert) => {
+	var seen = [];
+	var side = function(x){
+		// side effect: record x; return any IO (its value should be ignored by tap)
+		return IO.do(function*(){
+			seen.push(x);
+			return "ignored";
+		});
+	};
+
+	var prog = IO.of(5).chain(IOHelpers.tap(side));	// tap(side) should return original 5
+
+	try {
+		var val = await prog.run({});
+		assert.equal(val, 5, "tap returns the original value");
+		assert.deepEqual(seen, [5], "side effect ran with the correct argument");
+	}
+	catch (err) {
+		assert.ok(false, "unexpected rejection: " + err);
+	}
+});
+
+qunit.test("tap (propagates failures from the side-effect IO)", async (assert) => {
+	var sideErr = function(x){
+		return IO.do(function*(){
+			throw new Error("boom");
+		});
+	};
+
+	var prog = IO.of(1).chain(IOHelpers.tap(sideErr));
+
+	try {
+		await prog.run({});
+		assert.ok(false, "expected rejection, but got fulfillment");
+	}
+	catch (err) {
+		assert.equal(err.message, "boom", "tap propagates error from side-effect IO");
+	}
+});
+
+qunit.test("tap (ignores side-effect IO value, preserves original)", (assert) => {
+	var sideVal = function(x){
+		return IO.of(99);		// tap must NOT pass 99 through; it must preserve original
+	};
+
+	var prog = IO.of(7).chain(IOHelpers.tap(sideVal));
+
+	try {
+		var val = prog.run({});
+
+		assert.equal(val, 7, "tap preserves original value, ignoring side-effect IO's value");
+	}
+	catch (err) {
+		assert.ok(false, "unexpected rejection: " + err);
+	}
+});
+
 qunit.test("applyIO", (assert) => {
 	var env = {};
 	var res = IOHelpers.applyIO(IO(v => v),env).run();

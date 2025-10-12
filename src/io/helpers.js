@@ -25,6 +25,7 @@ var returnedValues = new WeakSet();
 
 module.exports = {
 	log,
+	tap,
 	getReader,
 	waitAll,
 	maybeFromIO,
@@ -52,6 +53,7 @@ module.exports = {
 	assignPropIO,
 };
 module.exports.log = log;
+module.exports.tap = tap;
 module.exports.getReader = getReader;
 module.exports.waitAll = waitAll;
 module.exports.maybeFromIO = maybeFromIO;
@@ -83,6 +85,10 @@ module.exports.assignPropIO = assignPropIO;
 
 function log(...args) {
 	return IO(() => console.log(...args));
+}
+
+function tap(fn) {
+	return v => fn(v).map(() => v);
 }
 
 function getReader() {

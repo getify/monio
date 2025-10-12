@@ -2,9 +2,8 @@
 
 var {
 	isFunction,
-	isPromise,
 	definePipeWithMethodChaining,
-	definePipeWithAsyncFunctionComposition,
+	definePipeWithFunctionComposition,
 	continuation,
 	returnSignal,
 	isReturnSignal,
@@ -15,7 +14,8 @@ const BRAND = {};
 
 module.exports = Object.assign(State,{
 	of, pure: of, unit: of, is,
-	"get": get, put,
+	"get": get, gets, put, modify,
+	do: $do, doEither
 });
 
 
@@ -28,7 +28,7 @@ function State(stateFn = function stateFn(st) { return { value: undefined, state
 		[Symbol.toStringTag]: "State",
 	};
 	// decorate API methods with `.pipe(..)` helper
-	definePipeWithAsyncFunctionComposition(publicAPI,"map");
+	definePipeWithFunctionComposition(publicAPI,"map");
 	definePipeWithMethodChaining(publicAPI,"chain");
 	definePipeWithMethodChaining(publicAPI,"ap");
 	definePipeWithMethodChaining(publicAPI,"concat");
@@ -39,69 +39,25 @@ function State(stateFn = function stateFn(st) { return { value: undefined, state
 	function map(fn) {
 		return State(st => continuation(
 			() => stateFn(st),
-			res => (isPromise(res) ? res.then(next) : next(res))
+			res => ({
+				state: res.state,
+				value: fn(res.value)
+			})
 		));
-
-
-		// *********************
-
-		function next(res) {
-			var res2 = fn(res.value);
-			return (
-				isPromise(res2) ?
-					res2.then(res3 => ({
-						value: res3,
-						state: res.state,
-					})) :
-
-					{
-						value: res2,
-						state: res.state,
-					}
-			);
-		}
 	}
 
 	// aka: bind, flatMap
 	function chain(fn) {
 		return State(st => continuation(
 			() => stateFn(st),
-			res => (isPromise(res) ? res.then(next) : next(res))
+			res => fn(res.value).evaluate(returnSignal(res.state))
 		));
-
-
-		// *********************
-
-		function next(res2) {
-			var res3 = fn(res2.value);
-			return (
-				isPromise(res3) ?
-					// note: if you don't return a State to the
-					// `chain(fn)` function, as required by the
-					// implied type signature of `chain(..)`, one
-					// of these two lines will throw as we try to
-					// `evaluate(..)` the expected State
-					res3.then(res4 => res4.evaluate(res2.state)) :
-
-					res3.evaluate(returnSignal(res2.state))
-			);
-		}
 	}
 
 	function ap(m) {
 		return State(st => continuation(
 			() => stateFn(st),
-			res1 => (
-				isPromise(res1) ?
-					// note: if you don't provide a State
-					// monad to `ap(m)`, as the implied type
-					// signature requires, one of these two
-					// lines will throw as we try to `evaluate(..)`
-					// the expected State
-					res1.then(res2 => m.map(res2.value).evaluate(res2.state)) :
-
-					m.map(res1.value).evaluate(returnSignal(res1.state))
-			)
+			res => m.map(res.value).evaluate(returnSignal(res.state))
 		));
 	}
 
@@ -115,21 +71,10 @@ function State(stateFn = function stateFn(st) { return { value: undefined, state
 				// throw as we try to `evaluate(..)` the
 				// expected State
 				() => m.evaluate(returnSignal(st)),
-				res2 => (
-					(isPromise(res1) || isPromise(res2)) ?
-						(
-							Promise.all([ res1, res2, ])
-							.then(([ v1, v2, ]) => ({
-								value: v1.value.concat(v2.value),
-								state: v1.state,
-							}))
-						) :
-
-						{
-							value: res1.value.concat(res2.value),
-							state: res1.state,
-						}
-				)
+				res2 => ({
+					value: res1.value.concat(res2.value),
+					state: res2.state
+				})
 			)
 		));
 	}
@@ -174,9 +119,189 @@ function get() {
 	}));
 }
 
+function gets(fn) {
+	return State(st => ({
+		value: fn(st),
+		state: st
+	}))
+}
+
 function put(st) {
 	return State(() => ({
 		value: undefined,
 		state: st,
 	}));
+}
+
+function modify(fn) {
+	return State(st => ({
+		value: undefined,
+		state: fn(st),
+	}));
+}
+
+function processNext(next,respVal,outerState,throwEither) {
+	if (throwEither && Either.Left.is(respVal)) {
+		return next(respVal,"error",outerState);
+	}
+
+	if (!State.is(respVal)) {
+		return next(respVal,"value",outerState);
+	}
+
+	return continuation(
+		() => {
+			try {
+				return respVal.evaluate(returnSignal(outerState));
+			}
+			catch (err) {
+				return next(
+					(
+						(throwEither && !Either.Left.is(err)) ?
+							Either.Left(err) :
+							err
+					),
+					"error",
+					outerState
+				);
+			}
+		},
+
+		({ value, state: innerState }) => (
+			processNext(next,value,innerState,throwEither)
+		)
+	);
+}
+
+function $do($V,...args) {
+	return State(outerState => {
+		var it = getIterator($V,outerState,/*outerThis=*/this,args);
+		return next(undefined,"value",outerState);
+
+
+		// ************************************************
+
+		function next(v,type,innerState) {
+			return continuation(
+				() => (
+					type === "error" ?
+						it.throw(v) :
+						it.next(v)
+				),
+
+				resp => {
+					// is the iterator done?
+					if (resp.done) {
+						// if a State was returned, automatically run it
+						// as if it was yielded before returning
+						return (
+							State.is(resp.value) ?
+								resp.value.evaluate(returnSignal(innerState)) :
+
+								{
+									value: resp.value,
+									state: innerState
+								}
+						);
+					}
+					// otherwise, move onto the next step
+					else {
+						return (
+							processNext(next,resp.value,innerState,/*throwEither=*/false)
+						);
+					}
+				}
+			);
+		}
+	});
+}
+
+function doEither($V,...args) {
+	return State(outerState => {
+		var it = getIterator($V,outerState,/*outerThis=*/this,args);
+		return next(undefined,"value",outerState);
+
+
+		// ************************************************
+
+		function next(v,type,innerState) {
+			return continuation(
+				() => {
+					if (Either.is(v)) {
+						// extract from Either
+						v.fold(
+							left => v = left,
+							right => v = right
+						);
+					}
+					try {
+						return (
+							type === "error" ?
+								it.throw(v) :
+								it.next(v)
+						);
+					}
+					catch (err) {
+						throw (
+							Either.Left.is(err) ?
+								err :
+								Either.Left(err)
+						);
+					}
+				},
+
+				resp => {
+					// is the iterator done?
+					if (resp.done) {
+						try {
+							// if a State was returned, automatically run it
+							// as if it was yielded before returning
+							let out = (
+								State.is(resp.value) ?
+									resp.value.evaluate(returnSignal(innerState)) :
+
+									{
+										value: resp.value,
+										state: innerState
+									}
+							);
+							if (Either.Left.is(out.value)) {
+								throw out.value;
+							}
+							return {
+								...out,
+								value: (
+									Either.Right.is(out.value) ?
+										out.value :
+										Either.Right(out.value)
+								),
+							};
+						}
+						catch (err) {
+							throw (
+								Either.Left.is(err) ?
+									err :
+									Either.Left(err)
+							);
+						}
+					}
+					// otherwise, move onto the next step
+					else {
+						return (
+							processNext(next,resp.value,innerState,/*throwEither=*/true)
+						);
+					}
+				}
+			);
+		}
+	});
+}
+
+function getIterator(v,state,outerThis,args) {
+	return (
+		isFunction(v) ? v.call(outerThis,state,...args) :
+		(v && isFunction(v.next)) ? v :
+		/* istanbul ignore next */
+		undefined
+	);
 }

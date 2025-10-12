@@ -19,8 +19,6 @@ const justProp = (key) => (obj) => just(obj[key]);
 const maybeProp = (key) => (obj) => maybe.Just(obj[key]);
 const eitherProp = (key) => (obj) => either(obj[key]);
 const stateProp = (key) => (obj) => state.of(obj[key]);
-const asyncStateProp = (key) => (obj) => asyncStateVal(obj[key]);
-const asyncStateVal = v => state(async st => ({ value: v, state: st }));
 const ioProp = (key) => (obj) => IO.of(obj[key]);
 const delayPr = (ms) => new Promise(r => setTimeout(r,ms));
 const delayIO = (v,ms) => IO(() => delayPr(ms).then(() => v));
@@ -58,8 +56,6 @@ module.exports = {
 	maybeProp,
 	eitherProp,
 	stateProp,
-	asyncStateProp,
-	asyncStateVal,
 	ioProp,
 	delayPr,
 	delayIO,

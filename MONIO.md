@@ -55,8 +55,6 @@ msg.fold(
 );
 ```
 
-In addition to `Either`, **Monio** provides `AsyncEither`, which is basically, a `Future` monad, with the same opaque promise-transforming behavior as [IO](#io-monad-one-monad-to-rule-them-all).
-
 ### `pipe(..)`
 
 All monads in **Monio** have a `.pipe(..)` method exposed as a sub-property method on some of their API methods; these `.pipe(..)` helpers provide convenience (and optimization) over making equivalent multiple subsequent top-level method calls.
@@ -240,7 +238,7 @@ initial.evaluate({ counter: 3 });
 // }
 ```
 
-Finally, `State.get(..)` produces a state instance that marshals (copies) the carried *state* value over into the *value* slot of that same instance; this is useful in times when you need to access the carried *state* directly without explicitly chaining an explicit `State(..)` constructor.
+`State.get(..)` produces a state instance that marshals (copies) the carried *state* value over into the *value* slot of that same instance; this is useful in times when you need to access the carried *state* directly without explicitly chaining a `State(..)` constructor.
 
 ```js
 var info = State.get();
@@ -272,6 +270,33 @@ info
 ```
 
 Now the state has been updated to have `counter: 3`, and the value slot has been emptied (by `State.put(..)`).
+
+There's also a `State.gets(..)` helper that's a little bit like a `getMap()` (not actually); it takes a function, passes state into it, and populates the *value* slot with the return value of the function. You'd often use this to pick out part of the state:
+
+```js
+State.gets(st => st.counter)
+.map(counter => counter + 1)
+.evaluate({ greeting: "Hello!", counter: 2 });
+// {
+//     value: 3,
+//     state: { greeting: "Hello!", counter: 2 }
+// }
+```
+
+Similar to how `State.gets(..)` operates a bit like mapping (functor) the *state* slot into the *value* slot, `State.modify(..)` is like a mapping (functor) for the *state* slot that then *puts* (i.e., `State.put()`) the *modified* state back into the *state* slot:
+
+```js
+State.modify(st => ({
+    ...st,
+    greeting: st.greeting.toUpperCase()
+}))
+.map(() => 3)
+.evaluate({ greeting: "Hello!", counter: 2 });
+// {
+//     value: 3,
+//     state: { greeting: "HELLO!", counter: 2 }
+// }
+```
 
 ----
 
@@ -313,30 +338,45 @@ In the above snippet, the `["a", "b"]` held in the first `State` instance, is co
 
 ----
 
-**Monio**'s `State` is technically a monadic transformer over the standard State monad type; it automatically and opaquely unwraps/transforms JS promises.
+`State` also comes with two "do-syntax" helpers: `State.do(..)` and `State.doEither(..)`.
 
-That means if any state computation step is asynchronous (via JS promise), the State evaluation will be lifted to an asynchronously completing promise:
+These helpers take a `function*` (generator function), and inside the function, `yield ..` of a `State` instance automatically binds/chains it.
+
+So instead of manually `chain`ing States together, you can opt for a friendlier, more familiar/approachable, more imperative "do-style" (while maintaining the monadic binding guarantees undeneath):
 
 ```js
-// normal synchronous adder
-const add = x => y => x + y;
-// silly asynchronous multiplication (with State)
-const asyncMultS = x => async y => State.of(x * y);
-// silly asynchronous decrement (with State)
-const asyncDecS = v => State(async st => ({
-    value: v - 1,
-    state: st
-}));
+function incCounter() {
+    return State(st => ({
+        value: undefined,
+        state: {
+            ...st,
+            counter: st.counter + 1
+        }
+    }));
+}
 
-State.of(1)
-.map(add(2))
-.chain(asyncMultS(5))
-.chain(asyncDecS)
-.evaluate();
-// Promise<{ value: 14, state: undefined }>
+State.do(function *main(){
+    yield incCounter();
+    var { greeting, counter } = yield State.get();
+    yield State.put(greeting.toUpperCase());
+    return counter;
+})
+.evaluate({ greeting: "Hello!", counter: 2 });
+// { value: 3, state: 'HELLO!' }
 ```
 
-In this snippet, the first `map(..)` step completes synchronously, but then the next `chain(..)` step completes asynchronously (with a promise). Thus, the rest of the state evaluation is lifted to operate asynchronously, and returns a promise for the final result.
+The equivalent `chain()` form of that program is:
+
+```js
+incCounter()
+.chain(() => State.get())
+.chain(({ greeting, counter }) => (
+    State.put(greeting.toUpperCase())
+    .map(() => counter)
+))
+.evaluate({ greeting: "Hello!", counter: 2 });
+// { value: 3, state: 'HELLO!' }
+```
 
 ## IO Monad ("one monad to rule them all")
 
@@ -362,7 +402,7 @@ HELLO
 
 **Note:** The IO-wrapped `log(..)` function shown above is an commonly-needed utility in JS development. As such, it's provided in the `IOHelpers` module of this package, as `IOHelpers.log`. You can put `log = IOHelpers.log` in your app, and then use `log(..)` anywhere in your IO code that you would normally use `console.log(..)`. Just remember, `log(..)` returns an IO, it doesn't automatically produce the logging (side effects!). You have to `chain(..)` (or `yield` in a do-routine) the IO-wrapped `log(..)` to actually cause the effect to happen!
 
-Instead of manually `chain`ing IOs together, you can opt for a friendlier, more familiar, more imperative "do-style" -- which resembles what JS developers will recognize as `async..await` style code -- by using `IO.do(..)` and a generator:
+Like `State`, `IO` comes with `IO.do(..)` and `IO.doEither(..)` helpers, which provide the more familiar/approachable, more imperative "do-style" -- which resembles what JS developers will recognize as `async..await` style code:
 
 ```js
 const getData = url => IO(() => fetch(url).then(r => r.json()));
@@ -386,7 +426,7 @@ IO.do(function *main(){
 // Promise<..>
 ```
 
-Like `State`, `IO` is technically a monadic transformer over the IO type; it automatically and opaquely unwraps/transforms JS promises, encountered via `chain(..)` or `do(..)` operations. The result of `do(..)` is automatically lifted to this asynchronous (promise) type, similar to how `async function` functions are always promise-returning.
+`IO` is also technically a monadic transformer over the IO type; it automatically and opaquely unwraps/transforms JS promises, encountered via `chain(..)` or `do(..)` operations. The result of `do(..)` is automatically lifted to this asynchronous (promise) type, similar to how `async function` functions are always promise-returning.
 
 That also means the `yield getData(..)` expression above acts like a familiar `await promiseVal` expression, in that it locally pauses to resolve the eventual value (from the `fetch(..)` call in this case).
 

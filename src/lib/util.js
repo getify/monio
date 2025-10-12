@@ -224,7 +224,7 @@ function possiblyAsyncPipe(v,[ nextFn, ...nextFns ]) {
 	);
 }
 
-// used internally by IO/IOx, marks a tuple
+// used internally by IO/IOx/State, marks a tuple
 // as a continuation that trampoline(..)
 // should process
 function continuation(left,right) {
@@ -241,9 +241,10 @@ function continuation(left,right) {
 	return cont;
 }
 
-// used internally by IO/IOx, signals to
-// `run(..)` call that it should return any
-// continuation rather than processing it
+// used internally by IO/IOx/State, signals to
+// `run(..)` / `evaluate(..)` call that it should
+// return any continuation rather than processing
+// it
 function returnSignal(val) {
 	// signal already marked?
 	if (isReturnSignal(val)) {
@@ -258,17 +259,17 @@ function returnSignal(val) {
 	}
 }
 
-// used internally by IO/IOx, determines
-// if the reader-env passed into `run(..)`
-// was a signal to return any continuation
-// rather than processing it
+// used internally by IO/IOx/State, determines
+// if the reader-env passed into `run(..)` /
+// `evaluate(..)` was a signal to return any
+// continuation rather than processing it
 function isReturnSignal(v) {
 	return (v && v[RET_CONT] === true);
 }
 
-// used internally by IO/IOx, prevents
+// used internally by IO/IOx/State, prevents
 // RangeError call-stack overflow when
-// composing many IO/IOx's together
+// composing many IO/IOx/States together
 function trampoline(res) {
 	var stack = [];
 

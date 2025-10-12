@@ -285,13 +285,13 @@ Here are the individual `import` / `require` named-entity paths:
 
     CJS: `const Either = require("monio/either")`
 
-* `AsyncEither`: `"monio/async-either"`
+* `State`: `"monio/state"`
 
-    ESM (Node): `import AsyncEither from "monio/async-either"`
+    ESM (Node): `import State from "monio/state"`
 
-    ESM (Browser): `import AsyncEither from "/path/to/monio/dist/esm/async-either.mjs"`
+    ESM (Browser): `import State from "/path/to/monio/dist/esm/state.mjs"`
 
-    CJS: `const AsyncEither = require("monio/async-either")`
+    CJS: `const State = require("monio/state")`
 
 * `IO`: `"monio/io"`
 

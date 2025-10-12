@@ -414,6 +414,7 @@ function getIterator(v,env,outerThis,args) {
 	return (
 		isFunction(v) ? v.call(outerThis,env,...args) :
 		(v && isFunction(v.next)) ? v :
+		/* istanbul ignore next */
 		undefined
 	);
 }
