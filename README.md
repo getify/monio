@@ -53,9 +53,7 @@ Here's a full demo app (client and server) featuring **Monio**:
 
 **[Monio Demo App](https://github.com/DrBoolean/monio-demo-app)**
 
-Here's a preview of some code for a Todo app called "ToDoovy", built with Monio:
-
-**[ToDoovy App - code preview](https://gist.github.com/getify/e1837be7f3084e6ece78e9031b59bd68)
+**[ToDoovy Demo App](https://codepen.io/getify/pen/zxrEWzr?editors=0010)**
 
 In addition, here's some live codepen demos:
 
