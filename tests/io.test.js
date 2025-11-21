@@ -542,6 +542,15 @@ qunit.test("IO.do", async (assert) => {
 		yield IO(() => Promise.reject("seven 1"));
 	}
 
+	function *eight() {
+		return IO.of("eight 1");
+	}
+
+	function *nine() {
+		var msg = yield IO.of("nine 1");
+		return IO.of(msg);
+	}
+
 	var r1 = [];
 	var r2 = [];
 	var r3 = [];
@@ -552,6 +561,8 @@ qunit.test("IO.do", async (assert) => {
 	var io5 = IO.do(five);
 	var io6 = IO.do(six);
 	var io7 = IO.do(seven);
+	var io8 = IO.do(eight);
+	var io9 = IO.do(nine);
 
 	var r4 = io1.run(2);
 	var r5 = io2.run();
@@ -560,6 +571,8 @@ qunit.test("IO.do", async (assert) => {
 	var r8 = io5.run();
 	var r9 = io6.run();
 	var r10 = io7.run();
+	var r11 = io8.run();
+	var r12 = io9.run();
 
 	assert.ok(
 		(r4 instanceof Promise) && (r5 instanceof Promise) && (r6 instanceof Promise),
@@ -583,7 +596,7 @@ qunit.test("IO.do", async (assert) => {
 	);
 
 	try {
-		await r6;
+		r3 = `oops: ${await r6}`;
 	}
 	catch (err) {
 		r3.push(err.toString());
@@ -596,7 +609,7 @@ qunit.test("IO.do", async (assert) => {
 	);
 
 	try {
-		await r7;
+		r7 = `oops: ${await r7}`;
 	}
 	catch (err) {
 		r7 = err;
@@ -609,7 +622,7 @@ qunit.test("IO.do", async (assert) => {
 	);
 
 	try {
-		await r8;
+		r8 = `oops: ${await r8}`;
 	}
 	catch (err) {
 		r8 = err;
@@ -622,7 +635,7 @@ qunit.test("IO.do", async (assert) => {
 	);
 
 	try {
-		await r9;
+		r9 = `oops: ${await r9}`;
 	}
 	catch (err) {
 		r9 = err;
@@ -635,7 +648,7 @@ qunit.test("IO.do", async (assert) => {
 	);
 
 	try {
-		await r10;
+		r10 = `oops: ${await r10}`;
 	}
 	catch (err) {
 		r10 = err;
@@ -645,6 +658,30 @@ qunit.test("IO.do", async (assert) => {
 		r10,
 		"seven 1",
 		"do routine returns promise rejection from yielded IO holding rejected promise"
+	);
+
+	try {
+		r11 = await r11;
+	}
+	catch (err) {
+		r11 = `oops: ${err}`;
+	}
+
+	assert.ok(
+		r11 === "eight 1",
+		"do routine returns IO holding value"
+	);
+
+	try {
+		r12 = await r12;
+	}
+	catch (err) {
+		r12 = `oops: ${err}`;
+	}
+
+	assert.ok(
+		r12 === "nine 1",
+		"do routine returns IO (after previous yield) holding value"
 	);
 });
 
@@ -768,6 +805,15 @@ qunit.test("IO.doEither", async (assert) => {
 		yield IO(() => Promise.reject("seven 1"));
 	}
 
+	function *eight() {
+		return IO.of("eight 1");
+	}
+
+	function *nine() {
+		var msg = yield IO.of("nine 1");
+		return IO.of(msg);
+	}
+
 	var r1 = [];
 	var r2 = [];
 	var io1 = IO.doEither(one,3);
@@ -777,6 +823,8 @@ qunit.test("IO.doEither", async (assert) => {
 	var io5 = IO.doEither(five);
 	var io6 = IO.doEither(six);
 	var io7 = IO.doEither(seven);
+	var io8 = IO.doEither(eight);
+	var io9 = IO.doEither(nine);
 
 	var r3 = io1.run(2);
 	var r4 = io2.run();
@@ -785,13 +833,20 @@ qunit.test("IO.doEither", async (assert) => {
 	var r7 = io5.run();
 	var r8 = io6.run();
 	var r9 = io7.run();
+	var r10 = io8.run();
+	var r11 = io9.run();
 
 	assert.ok(
 		(r3 instanceof Promise) && (r4 instanceof Promise),
 		"IO.do() returns a promise"
 	);
 
-	r3 = await r3;
+	try {
+		r3 = await r3;
+	}
+	catch (err) {
+		r3 = `oops: ${err}`;
+	}
 
 	assert.ok(
 		Either.Right.is(r3) && r3.fold(EMPTY_FUNC,identity) === 12,
@@ -805,8 +860,7 @@ qunit.test("IO.doEither", async (assert) => {
 	);
 
 	try {
-		await r4;
-		r4 = "oops";
+		r4 = `oops: ${await r4}`;
 	}
 	catch (err) {
 		r4 = err;
@@ -824,8 +878,7 @@ qunit.test("IO.doEither", async (assert) => {
 	);
 
 	try {
-		await r5;
-		r5 = "oops";
+		r5 = `oops: ${await r5}`;
 	}
 	catch (err) {
 		r5 = err;
@@ -837,8 +890,7 @@ qunit.test("IO.doEither", async (assert) => {
 	);
 
 	try {
-		await r6;
-		r6 = "oops";
+		r6 = `oops: ${await r6}`;
 	}
 	catch (err) {
 		r6 = err;
@@ -848,8 +900,9 @@ qunit.test("IO.doEither", async (assert) => {
 		Either.Left.is(r6) && r6.fold(identity,EMPTY_FUNC) === "four 1",
 		"do-either routine lifts and throws Promise<Either:Left> as promise rejection"
 	);
+
 	try {
-		await r7;
+		r7 = `oops: ${await r7}`;
 	}
 	catch (err) {
 		r7 = err;
@@ -861,7 +914,7 @@ qunit.test("IO.doEither", async (assert) => {
 	);
 
 	try {
-		await r8;
+		r8 = `oops: ${await r8}`;
 	}
 	catch (err) {
 		r8 = err;
@@ -873,7 +926,7 @@ qunit.test("IO.doEither", async (assert) => {
 	);
 
 	try {
-		await r9;
+		r9 = `oops: ${await r9}`;
 	}
 	catch (err) {
 		r9 = err;
@@ -882,6 +935,30 @@ qunit.test("IO.doEither", async (assert) => {
 	assert.ok(
 		Either.Left.is(r9) && r9.fold(identity,EMPTY_FUNC) === "seven 1",
 		"do-either routine returns promise rejection from yielded IO holding rejected promise"
+	);
+
+	try {
+		r10 = await r10;
+	}
+	catch (err) {
+		r10 = `oops: ${err}`;
+	}
+
+	assert.ok(
+		Either.Right.is(r10) && r10.fold(EMPTY_FUNC,identity) === "eight 1",
+		"do-either routine returns IO holding value"
+	);
+
+	try {
+		r11 = await r11;
+	}
+	catch (err) {
+		r11 = `oops: ${err}`;
+	}
+
+	assert.ok(
+		Either.Right.is(r11) && r11.fold(EMPTY_FUNC,identity) === "nine 1",
+		"do-either routine returns IO (after previous yield) holding value"
 	);
 });
 
