@@ -502,7 +502,7 @@ qunit.test("IO.do", async (assert) => {
 		r2.push("two 1",10);
 		yield delayPr(10);
 		r2.push("two 2",11);
-		return IO.of(Promise.resolve(12));
+		return yield IO.of(Promise.resolve(12));
 	}
 
 	function *three() {
@@ -531,7 +531,7 @@ qunit.test("IO.do", async (assert) => {
 	}
 
 	function *five() {
-		return IO(() => { throw "five 1"; });
+		return yield IO(() => { throw "five 1"; });
 	}
 
 	function *six() {
@@ -543,12 +543,12 @@ qunit.test("IO.do", async (assert) => {
 	}
 
 	function *eight() {
-		return IO.of("eight 1");
+		return yield IO.of("eight 1");
 	}
 
 	function *nine() {
 		var msg = yield IO.of("nine 1");
-		return IO.of(msg);
+		return yield IO.of(msg);
 	}
 
 	var r1 = [];
@@ -794,7 +794,7 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	function *five() {
-		return IO(() => { throw "five 1"; });
+		return yield IO(() => { throw "five 1"; });
 	}
 
 	function *six() {
@@ -806,12 +806,12 @@ qunit.test("IO.doEither", async (assert) => {
 	}
 
 	function *eight() {
-		return IO.of("eight 1");
+		return yield IO.of("eight 1");
 	}
 
 	function *nine() {
 		var msg = yield IO.of("nine 1");
-		return IO.of(msg);
+		return yield IO.of(msg);
 	}
 
 	var r1 = [];
@@ -985,6 +985,186 @@ qunit.test("IO.doEither:very-long", async (assert) => {
 		res.fold(EMPTY_FUNC,identity),
 		sumArithSeries(stackDepth),
 		"IO.doEither() call stack ran very long without RangeError"
+	);
+});
+
+qunit.test("IO.do/doEither: yield* delegation", async (assert) => {
+	function *one(r) {
+		r.push(yield IO.of("one 1"));
+		r.push(
+			yield *((function*(){
+				r.push(yield IO.of("one 2"));
+				r.push(yield IO.of("one 3"));
+				return yield IO.of("one 4");
+			})())
+		);
+		r.push(yield IO.of("one 5"));
+		return yield IO(() => (r.push("one 6"), "one 7"));
+	}
+
+	function *two(r) {
+		return (
+			yield *((function*(){
+				r.push(yield IO.of("two 1"));
+				r.push(yield IO.of("two 2"));
+				return yield IO.of("two 3");
+			})())
+		);
+	}
+
+	function *three() {
+		return (
+			yield *((function*(){
+				throw "three 1";
+			})())
+		);
+	}
+
+	function *four() {
+		return (
+			yield *((function*(){
+				return yield IO(() => { throw "four 1"; });
+			})())
+		);
+	}
+
+	var r1 = [];
+	var r2 = [];
+	var r3;
+	var r4;
+	var r5 = [];
+	var r6 = [];
+	var r7;
+	var r8;
+	var io1 = IO.do(one(r1));
+	var io2 = IO.do(two(r2));
+	var io3 = IO.do(three());
+	var io4 = IO.do(four());
+	var io5 = IO.doEither(one(r5));
+	var io6 = IO.doEither(two(r6));
+	var io7 = IO.doEither(three());
+	var io8 = IO.doEither(four());
+
+	try {
+		r1.push(await io1.run());
+	}
+	catch (err) {
+		r1 = `oops: ${err._inspect()}`;
+	}
+
+	assert.deepEqual(
+		r1,
+		[ "one 1", "one 2", "one 3", "one 4", "one 5", "one 6", "one 7", ],
+		"do routine with yield* delegation to do routine"
+	);
+
+	try {
+		r2.push(await io2.run());
+	}
+	catch (err) {
+		r2 = `oops: ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r2,
+		[ "two 1", "two 2", "two 3", ],
+		"do routine with return yield* delegation to do routine"
+	);
+
+	try {
+		r3 = `oops: ${await io3.run()}`;
+	}
+	catch (err) {
+		r3 = err;
+	}
+
+	assert.deepEqual(
+		r3,
+		"three 1",
+		"do routine with return yield* delegation to do routine that throws"
+	);
+
+	try {
+		r4 = `oops: ${await io4.run()}`;
+	}
+	catch (err) {
+		r4 = err;
+	}
+
+	assert.deepEqual(
+		r4,
+		"four 1",
+		"do routine with return yield* delegation to do routine that returns an IO that throws"
+	);
+
+	try {
+		let ev = await io5.run();
+		r5.push(
+			ev.fold(
+				err => `oops(1): ${err}`,
+				identity
+			)
+		);
+	}
+	catch (err) {
+		r5 = `oops(2): ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r5,
+		[ "one 1", "one 2", "one 3", "one 4", "one 5", "one 6", "one 7", ],
+		"do-either routine with yield* delegation to do-either routine"
+	);
+
+	try {
+		let ev = await io6.run();
+		r6.push(
+			ev.fold(
+				err => `oops(1): ${err}`,
+				identity
+			)
+		);
+	}
+	catch (err) {
+		r6 = `oops(2): ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r6,
+		[ "two 1", "two 2", "two 3", ],
+		"do-either routine with return yield* delegation to do-either routine"
+	);
+
+	try {
+		r7 = `oops(1): ${await io7.run()}`;
+	}
+	catch (err) {
+		r7 = err.fold(
+			identity,
+			v => `oops(2): ${v}`
+		);
+	}
+
+	assert.deepEqual(
+		r7,
+		"three 1",
+		"do-either routine with return yield* delegation to do-either routine that throws"
+	);
+
+	try {
+		r8 = `oops(1): ${await io8.run()}`;
+	}
+	catch (err) {
+		r8 = err.fold(
+			identity,
+			v => `oops(2): ${v}`
+		);
+	}
+
+	assert.deepEqual(
+		r8,
+		"four 1",
+		"do-either routine with return yield* delegation to do-either routine that returns an IO that throws"
 	);
 });
 

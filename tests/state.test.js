@@ -291,7 +291,7 @@ qunit.test("State.do (returned State at completion is auto-evaluated)", (assert)
 	var res = State.do(function*(){
 		yield State.put({ c: 1 });
 		// return a State; driver should evaluate it with current state
-		return State.do(function*(){
+		return yield State.do(function*(){
 			var s = yield State.get();
 			yield State.put({ c: s.c + 1 });
 			return "ok";
@@ -337,7 +337,7 @@ qunit.test("State.do (returned State that throws during evaluation bubbles error
 	try {
 		State.do(function*(){
 			// returning a State that will throw when auto-evaluated in 'done'
-			return State(_ => { throw new Error("eval-fail"); });
+			return yield State(_ => { throw new Error("eval-fail"); });
 		}).evaluate({});
 		assert.ok(false, "should have thrown");
 	}
@@ -560,7 +560,7 @@ qunit.test("State.doEither (yielded State returning Right continues; returning L
 qunit.test("State.doEither (final returned State is evaluated; preserves Either if present)", (assert) => {
 	// returns a State that returns plain value -> wrapped to Right
 	var res1 = State.doEither(function*(){
-		return State(st => ({
+		return yield State(st => ({
 			state: { ...st, k: 1 },
 			value: "done"
 		}));
@@ -571,7 +571,7 @@ qunit.test("State.doEither (final returned State is evaluated; preserves Either 
 
 	// returns a State that returns Either.Right -> preserved
 	var res2 = State.doEither(function*(){
-		return State(st => ({
+		return yield State(st => ({
 			state: { ...st, k: 2 },
 			value: Either.Right(99)
 		}));
@@ -583,7 +583,7 @@ qunit.test("State.doEither (final returned State is evaluated; preserves Either 
 	// returns a State that returns Either.Left -> throws Left
 	try {
 		State.doEither(function*(){
-			return State(st => ({
+			return yield State(st => ({
 				state: { ...st, k: 3 },
 				value: Either.Left("nope")
 			}));
@@ -703,7 +703,7 @@ qunit.test("State.doEither (returning plain Either.Left at done throws Left)", (
 qunit.test("State.doEither (returning State that synchronously throws plain error)", (assert) => {
 	try {
 		State.doEither(function*(){
-			return State(() => { throw new Error("end"); });
+			return yield State(() => { throw new Error("end"); });
 		}).evaluate({});
 		assert.ok(false, "should have thrown Left");
 	}
@@ -809,6 +809,192 @@ qunit.test("State.doEither:very-long (throws Left somewhere; ensure no stack ove
 		assert.equal(e._inspect(), "Either:Left(\"fail\")", "correct failure payload");
 		// Note: state commit at the failing step cannot be observed via evaluate (throws by contract).
 	}
+});
+
+qunit.test("State.do/doEither: yield* delegation", async (assert) => {
+	function *one(r) {
+		r.push(yield State.of("one 1"));
+		r.push(
+			yield *((function*(){
+				r.push(yield State.of("one 2"));
+				r.push(yield State.of("one 3"));
+				return yield State.of("one 4");
+			})())
+		);
+		r.push(yield State.of("one 5"));
+		return yield State(() => {
+			r.push("one 6");
+			return {
+				value: "one 7",
+				state: null,
+			};
+		});
+	}
+
+	function *two(r) {
+		return (
+			yield *((function*(){
+				r.push(yield State.of("two 1"));
+				r.push(yield State.of("two 2"));
+				return yield State.of("two 3");
+			})())
+		);
+	}
+
+	function *three() {
+		return (
+			yield *((function*(){
+				throw "three 1";
+			})())
+		);
+	}
+
+	function *four() {
+		return (
+			yield *((function*(){
+				return yield State(() => { throw "four 1"; });
+			})())
+		);
+	}
+
+	var r1 = [];
+	var r2 = [];
+	var r3;
+	var r4;
+	var r5 = [];
+	var r6 = [];
+	var r7;
+	var r8;
+	var st1 = State.do(one(r1));
+	var st2 = State.do(two(r2));
+	var st3 = State.do(three());
+	var st4 = State.do(four());
+	var st5 = State.doEither(one(r5));
+	var st6 = State.doEither(two(r6));
+	var st7 = State.doEither(three());
+	var st8 = State.doEither(four());
+
+	try {
+		r1.push((await st1.evaluate()).value);
+	}
+	catch (err) {
+		r1 = `oops: ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r1,
+		[ "one 1", "one 2", "one 3", "one 4", "one 5", "one 6", "one 7", ],
+		"do routine with yield* delegation to do routine"
+	);
+
+	try {
+		r2.push((await st2.evaluate()).value);
+	}
+	catch (err) {
+		r2 = `oops: ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r2,
+		[ "two 1", "two 2", "two 3", ],
+		"do routine with return yield* delegation to do routine"
+	);
+
+	try {
+		r3 = `oops: ${await st3.evaluate()}`;
+	}
+	catch (err) {
+		r3 = err;
+	}
+
+	assert.deepEqual(
+		r3,
+		"three 1",
+		"do routine with return yield* delegation to do routine that throws"
+	);
+
+	try {
+		r4 = `oops: ${await st4.evaluate()}`;
+	}
+	catch (err) {
+		r4 = err;
+	}
+
+	assert.deepEqual(
+		r4,
+		"four 1",
+		"do routine with return yield* delegation to do routine that returns a State that throws"
+	);
+
+	try {
+		let ev = await st5.evaluate();
+		r5.push(
+			ev.value.fold(
+				err => `oops(1): ${err}`,
+				identity
+			)
+		);
+	}
+	catch (err) {
+		r5 = `oops(2): ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r5,
+		[ "one 1", "one 2", "one 3", "one 4", "one 5", "one 6", "one 7", ],
+		"do-either routine with yield* delegation to do-either routine"
+	);
+
+	try {
+		let ev = await st6.evaluate();
+		r6.push(
+			ev.value.fold(
+				err => `oops(1): ${err}`,
+				identity
+			)
+		);
+	}
+	catch (err) {
+		r6 = `oops(2): ${err._inspect ? err._inspect() : err}`;
+	}
+
+	assert.deepEqual(
+		r6,
+		[ "two 1", "two 2", "two 3", ],
+		"do-either routine with return yield* delegation to do-either routine"
+	);
+
+	try {
+		r7 = `oops(1): ${await st7.evaluate()}`;
+	}
+	catch (err) {
+		r7 = err.fold(
+			identity,
+			v => `oops(2): ${v}`
+		);
+	}
+
+	assert.deepEqual(
+		r7,
+		"three 1",
+		"do-either routine with return yield* delegation to do-either routine that throws"
+	);
+
+	try {
+		r8 = `oops(1): ${await st8.evaluate()}`;
+	}
+	catch (err) {
+		r8 = err.fold(
+			identity,
+			v => `oops(2): ${v}`
+		);
+	}
+
+	assert.deepEqual(
+		r8,
+		"four 1",
+		"do-either routine with return yield* delegation to do-either routine that returns a State that throws"
+	);
 });
 
 qunit.test("*.pipe", (assert) => {

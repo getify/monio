@@ -336,60 +336,61 @@ function doEither($V,...args) {
 
 						handleResp(resp)
 				);
-
-				// ***********************************************
-
-				function handleResp(resp) {
-					// is the iterator done?
-					if (resp.done) {
-						return continuation(
-							() => {
-								try {
-									return (
-										// if an IO was returned, automatically run it
-										// as if it was yielded before returning
-										IO.is(resp.value) ?
-											resp.value.run(returnSignal(outerEnv)) :
-											resp.value
-									);
-								}
-								catch (err) {
-									return liftDoEitherError(err);
-								}
-							},
-							respVal => {
-								return (isPromise(respVal) ?
-									respVal.then(handleRespVal) :
-									handleRespVal(respVal)
-								);
-							}
-						);
-					}
-					// otherwise, move onto the next step
-					else {
-						return processNext(next,resp.value,outerEnv,/*throwEither=*/true);
-					}
-				}
-
-				function handleRespVal(respVal) {
-					// already an Either:Right?
-					if (Either.Right.is(respVal)) {
-						return respVal;
-					}
-					// returned an Either:Left (to treat as an
-					// exception)?
-					else if (Either.Left.is(respVal)) {
-						return liftDoEitherError(respVal);
-					}
-					// otherwise, wrap the final value as an
-					// Either:Right
-					else {
-						return Either.Right(respVal);
-					}
-				}
 			}
 			catch (err) {
 				return liftDoEitherError(err);
+			}
+
+
+			// ***********************************************
+
+			function handleResp(resp) {
+				// is the iterator done?
+				if (resp.done) {
+					return handleRespVal(resp.value);
+				}
+				// otherwise, move onto the next step
+				else {
+					return processNext(next,resp.value,outerEnv,/*throwEither=*/true);
+				}
+			}
+
+			function handleRespVal(respVal) {
+				// received a promise we need to unwrap?
+				if (isPromise(respVal)) {
+					return respVal.then(handleRespVal);
+				}
+
+				// IO returned as the final value of
+				// the do-routine?
+				if (IO.is(respVal)) {
+					return continuation(
+						() => {
+							try {
+								return respVal.run(returnSignal(outerEnv));
+							}
+							catch (err) {
+								return liftDoEitherError(err);
+							}
+						},
+						handleRespVal
+					);
+				}
+
+				// already an Either:Right?
+				if (Either.Right.is(respVal)) {
+					return respVal;
+				}
+				// returned an Either:Left (to treat as an
+				// exception)?
+				else if (Either.Left.is(respVal)) {
+					return liftDoEitherError(respVal);
+				}
+				// otherwise, wrap the final value as an
+				// Either:Right
+				else {
+					return Either.Right(respVal);
+				}
 			}
 		}
 	});
