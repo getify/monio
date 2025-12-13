@@ -11,7 +11,7 @@ process.on("rejectionHandled",()=>{});
 
 
 const qunit = require("qunit");
-const { EMPTY_FUNC, identity, } = MonioUtil;
+const { EMPTY_FUNC, identity, $, } = MonioUtil;
 const {
 	INJECT_MONIO,
 	inc,
@@ -47,6 +47,18 @@ qunit.test("#_inspect", (assert) => {
 
 qunit.test("#unit", (assert) => {
 	assert.equal(
+		IO.of(1).toString(),
+		"IO(anonymous function)",
+		"toString value is as expected"
+	);
+
+	assert.equal(
+		"" + IO.of(1),
+		"IO(anonymous function)",
+		"toPrimitive value is as expected"
+	);
+
+	assert.equal(
 		IO.of(1).run(),
 		1,
 		"should create an IO functor via #of"
@@ -69,13 +81,25 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		IO.is(IO.of(1)),
 		true,
-		"should return true if the object passed is an IO monad"
+		"is() should return true if the object passed is an IO monad"
+	);
+
+	assert.equal(
+		IO.of(1) instanceof IO,
+		true,
+		"instanceof should return true if the object passed is an IO monad"
 	);
 
 	assert.equal(
 		IO.is({}),
 		false,
-		"should return false if the object is not an IO monad"
+		"is should return false if the object is not an IO monad"
+	);
+
+	assert.equal(
+		{} instanceof IO,
+		false,
+		"instanceof should return false if the object is not an IO monad"
 	);
 });
 
@@ -1275,5 +1299,39 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		IO.of([ 1 ]).concat.pipe(...arrayVIOs).run(),
 		Array.from({ length: stackDepth + 1 }).map((v,i) => i + 1),
 		"concat.pipe() ran very long without RangeError"
+	);
+});
+
+qunit.test("Symbol.iterator", async (assert) => {
+	function *iter() {
+		res.push(yield *(IO.of(1)));
+		res.push(yield *(IO.of(2)));
+		return yield *(IO.of(3));
+	}
+
+	var res = [];
+	res.push(await IO.do(iter).run());
+
+	assert.deepEqual(
+		res,
+		[ 1, 2, 3 ],
+		"IO() is a yield* delegatable iterable"
+	);
+});
+
+qunit.test("$", async (assert) => {
+	function *iter() {
+		res.push(yield *$(Promise.resolve(1)));
+		res.push(yield *$(IO.of(2)));
+		return yield *$(Promise.resolve(3));
+	}
+
+	var res = [];
+	res.push(await IO.do(iter).run());
+
+	assert.deepEqual(
+		res,
+		[ 1, 2, 3 ],
+		"$() ensures a yield* delegatable iterable"
 	);
 });

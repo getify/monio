@@ -8,6 +8,44 @@ INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("maybe");
 
+qunit.test("#_inspect", (assert) => {
+	assert.equal(
+		Maybe(1)._inspect(),
+		"Maybe:Just(1)",
+		"_inspect() value is as expected (Just)"
+	);
+
+	assert.equal(
+		Maybe(1).toString(),
+		"Maybe:Just(1)",
+		"toString() value is as expected (Just)"
+	);
+
+	assert.equal(
+		"" + Maybe(1),
+		"Maybe:Just(1)",
+		"toPrimitive value is as expected (Just)"
+	);
+
+	assert.equal(
+		Maybe.Nothing()._inspect(),
+		"Maybe:Nothing()",
+		"_inspect() value is as expected (Nothing)"
+	);
+
+	assert.equal(
+		Maybe.Nothing().toString(),
+		"Maybe:Nothing()",
+		"toString() value is as expected (Nothing)"
+	);
+
+	assert.equal(
+		"" + Maybe.Nothing(),
+		"Maybe:Nothing()",
+		"toPrimitive value is as expected (Nothing)"
+	);
+});
+
 qunit.test("#unit", (assert) => {
 	assert.equal(
 		Maybe(1)._inspect(),
@@ -218,19 +256,37 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		Maybe.is(Maybe.Just(1)),
 		true,
-		"should return true if a Maybe:Just monad is passed as argument"
+		"is() should return true if a Maybe:Just monad is passed as argument"
+	);
+
+	assert.equal(
+		Maybe.Just(1) instanceof Maybe,
+		true,
+		"instanceof should return true if a Maybe:Just monad is used"
 	);
 
 	assert.equal(
 		Maybe.is(Maybe.Nothing()),
 		true,
-		"should return true if a Maybe:Nothing monad is passed as argument"
+		"is() should return true if a Maybe:Nothing monad is passed as argument"
+	);
+
+	assert.equal(
+		Maybe.Nothing() instanceof Maybe,
+		true,
+		"instanceof should return true if a Maybe:Nothing monad is used"
 	);
 
 	assert.equal(
 		Maybe.is({}),
 		false,
-		"should return false if a Maybe monad is not passed as argument"
+		"is() should return false if a Maybe monad is not passed as argument"
+	);
+
+	assert.equal(
+		{} instanceof Maybe,
+		false,
+		"instanceof should return false if a Maybe monad is not used"
 	);
 });
 
@@ -280,5 +336,34 @@ qunit.test("*.pipe", (assert) => {
 		).fold(identity,identity),
 		[1,2,3,4,5,6],
 		"concat.pipe()"
+	);
+});
+
+qunit.test("Symbol.iterator", (assert) => {
+	function *iter1() {
+		yield *(Maybe.Nothing(1));
+		yield *(Maybe.Nothing(2));
+		return yield *(Maybe.Nothing(3));
+	}
+
+	function *iter2() {
+		yield *(Maybe.from(1));
+		yield *(Maybe.from(2));
+		return yield *(Maybe.from(3));
+	}
+
+	var res1 = [ ...iter1() ].map(v => v.toString());
+	var res2 = [ ...iter2() ].map(v => v.toString());
+
+	assert.deepEqual(
+		res1,
+		[ "Maybe:Nothing()", "Maybe:Nothing()", "Maybe:Nothing()", ],
+		"Maybe:Nothing() is a yield* delegatable iterable"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "Maybe:Just(1)", "Maybe:Just(2)", "Maybe:Just(3)", ],
+		"Maybe:Just() is a yield* delegatable iterable"
 	);
 });

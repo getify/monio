@@ -8,6 +8,26 @@ INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("nothing");
 
+qunit.test("#_inspect", (assert) => {
+	assert.equal(
+		Nothing.of(1)._inspect(),
+		"Nothing()",
+		"_inspect() value is as expected"
+	);
+
+	assert.equal(
+		Nothing.of(1).toString(),
+		"Nothing()",
+		"toString() value is as expected"
+	);
+
+	assert.equal(
+		"" + Nothing.of(1),
+		"Nothing()",
+		"toPrimitive value is as expected"
+	);
+});
+
 qunit.test("#unit", (assert) => {
 	assert.equal(
 		Nothing.of(1)._inspect(),
@@ -40,13 +60,25 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		Nothing.is(Nothing()),
 		true,
-		"should return true if the object passed is a Nothing functor"
+		"is() should return true if the object passed is a Nothing functor"
+	);
+
+	assert.equal(
+		Nothing() instanceof Nothing,
+		true,
+		"instanceof should return true if the object is a Nothing functor"
 	);
 
 	assert.equal(
 		Nothing.is({}),
 		false,
-		"should return false if the object is not a Nothing functor"
+		"is() should return false if the object is not a Nothing functor"
+	);
+
+	assert.equal(
+		{} instanceof Nothing,
+		false,
+		"instanceof should return false if the object is not a Nothing functor"
 	);
 });
 
@@ -134,5 +166,21 @@ qunit.test("*.pipe", (assert) => {
 		)._inspect(),
 		Nothing()._inspect(),
 		"concat.pipe()"
+	);
+});
+
+qunit.test("Symbol.iterator", (assert) => {
+	function *iter() {
+		yield *(Nothing(1));
+		yield *(Nothing(2));
+		return yield *(Nothing(3));
+	}
+
+	var res = [ ...iter() ].map(v => v.toString());
+
+	assert.deepEqual(
+		res,
+		[ "Nothing()", "Nothing()", "Nothing()", ],
+		"Nothing() is a yield* delegatable iterable"
 	);
 });

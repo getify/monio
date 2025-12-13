@@ -14,6 +14,10 @@ const BRAND = {};
 Object.assign(MaybeJust,Just);
 Object.assign(MaybeNothing,Nothing);
 
+Object.defineProperty(Maybe,Symbol.hasInstance,{
+	value: is,
+});
+
 module.exports = Object.assign(Maybe,{
 	Just: MaybeJust, Nothing: MaybeNothing, of: Maybe,
 	pure: Maybe, unit: Maybe, is, from,
@@ -49,10 +53,12 @@ function Maybe(val) {
 
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		ap, concat, fold, _inspect, _is,
+		ap, concat, fold, _inspect, _is, toString: _inspect,
 		get [Symbol.toStringTag]() {
 			return `Maybe:${mn[Symbol.toStringTag]}`;
 		},
+		[Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithFunctionComposition(publicAPI,"map");

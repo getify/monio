@@ -7,6 +7,26 @@ INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("just");
 
+qunit.test("#_inspect", (assert) => {
+	assert.equal(
+		Just.of(1)._inspect(),
+		"Just(1)",
+		"_inspect() value is as expected"
+	);
+
+	assert.equal(
+		Just.of(1).toString(),
+		"Just(1)",
+		"toString() value is as expected"
+	);
+
+	assert.equal(
+		"" + Just.of(1),
+		"Just(1)",
+		"toPrimitive value is as expected"
+	);
+});
+
 qunit.test("#unit", (assert) => {
 	assert.equal(
 		Just.of(1)._inspect(),
@@ -57,13 +77,25 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		Just.is(Just(1)),
 		true,
-		"should return true if the object passed is a just monad"
+		"is() should return true if the object passed is a just monad"
+	);
+
+	assert.equal(
+		Just(1) instanceof Just,
+		true,
+		"instanceof should return true if the object is a just monad"
 	);
 
 	assert.equal(
 		Just.is({}),
 		false,
-		"should return false if the object is not a just monad"
+		"is() should return false if the object is not a just monad"
+	);
+
+	assert.equal(
+		{} instanceof Just,
+		false,
+		"instanceof should return false if the object is not a just monad"
 	);
 });
 
@@ -143,5 +175,21 @@ qunit.test("*.pipe", (assert) => {
 		).fold(identity),
 		[1,2,3,4,5,6],
 		"concat.pipe()"
+	);
+});
+
+qunit.test("Symbol.iterator", (assert) => {
+	function *iter() {
+		yield *(Just(1));
+		yield *(Just(2));
+		return yield *(Just(3));
+	}
+
+	var res = [ ...iter() ].map(v => v.toString());
+
+	assert.deepEqual(
+		res,
+		[ "Just(1)", "Just(2)", "Just(3)", ],
+		"Just() is a yield* delegatable iterable"
 	);
 });

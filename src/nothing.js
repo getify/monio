@@ -4,6 +4,10 @@ var { isFunction, } = require("./lib/util.js");
 
 const BRAND = {};
 
+Object.defineProperty(Nothing,Symbol.hasInstance,{
+	value: is,
+});
+
 module.exports = Object.assign(Nothing,{
 	of: Nothing, pure: Nothing, unit: Nothing,
 	is, isEmpty,
@@ -15,8 +19,9 @@ module.exports = Object.assign(Nothing,{
 function Nothing() {
 	var publicAPI = {
 		map: noop, chain: noop, flatMap: noop, bind: noop,
-		fold, ap: noop, concat: noop, _inspect, _is,
-		[Symbol.toStringTag]: "Nothing",
+		fold, ap: noop, concat: noop, _inspect, _is, toString: _inspect,
+		[Symbol.toStringTag]: "Nothing", [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	noop.pipe = noop;

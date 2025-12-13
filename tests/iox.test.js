@@ -62,8 +62,14 @@ qunit.test("#_inspect", (assert) => {
 qunit.test("#unit", (assert) => {
 	assert.equal(
 		IOx.of(1).toString(),
-		"[function IOx]",
+		"IOx(anonymous function)",
 		"toString value is as expected"
+	);
+
+	assert.equal(
+		"" + IOx.of(1),
+		"IOx(anonymous function)",
+		"toPrimitive value is as expected"
 	);
 
 	assert.equal(
@@ -89,13 +95,25 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		IOx.is(IOx.of(1)),
 		true,
-		"should return true if the object passed is an IOx monad"
+		"is() should return true if the object passed is an IOx monad"
+	);
+
+	assert.equal(
+		IOx.of(1) instanceof IOx,
+		true,
+		"instanceof should return true if the object is an IOx monad"
 	);
 
 	assert.equal(
 		IOx.is({}),
 		false,
-		"should return false if the object is not an IOx monad"
+		"is() should return false if the object passed is not an IOx monad"
+	);
+
+	assert.equal(
+		{} instanceof IOx,
+		false,
+		"instanceof should return false if the object is not an IOx monad"
 	);
 });
 
@@ -1216,8 +1234,26 @@ qunit.test("NeverIOx", (assert) => {
 
 	assert.equal(
 		neviox.toString(),
-		"[function NeverIOx]",
+		"NeverIOx()",
 		"toString() shows proper output"
+	);
+
+	assert.equal(
+		"" + neviox,
+		"NeverIOx()",
+		"toPrimitive shows proper output"
+	);
+
+	assert.equal(
+		IOx.is(neviox),
+		true,
+		"is() should return true if the object passed is an IOx monad"
+	);
+
+	assert.equal(
+		neviox instanceof IOx,
+		true,
+		"instanceof should return true if the object is an IOx monad"
 	);
 
 	var res1 = neviox._chain_with_IO(v => IO.of(v + 1));
@@ -1601,7 +1637,7 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 
 	assert.deepEqual(
 		res3,
-		[ "IOx(-closed-)", 10, 10, undefined ],
+		[ "IOx(-closed-)", 10, 10, null ],
 		"(1) IOx.do() properly handles yields of already-run and already-closed IOxs"
 	);
 
@@ -1617,7 +1653,7 @@ qunit.test("IOx.do/doEither", async (assert) =>{
 
 	assert.deepEqual(
 		res3,
-		[ "IOx(-closed-)", 10, 10, undefined, "IOx(-closed-)", 100, 100, undefined ],
+		[ "IOx(-closed-)", 10, 10, null, "IOx(-closed-)", 100, 100, null ],
 		"(2) IOx.do() properly handles yields of already-run and already-closed IOxs"
 	);
 });
@@ -1810,5 +1846,22 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		IOx.of([ 1 ]).concat.pipe(...arrayVIOs).run(),
 		Array.from({ length: Math.floor(stackDepth / 2) + 1 }).map((v,i) => i + 1),
 		"concat.pipe() ran very long without RangeError"
+	);
+});
+
+qunit.test("Symbol.iterator", async (assert) => {
+	function *iter() {
+		res.push(yield *(IOx.of(1)));
+		res.push(yield *(IOx.of(2)));
+		return yield *(IOx.of(3));
+	}
+
+	var res = [];
+	res.push(await IO.do(iter).run());
+
+	assert.deepEqual(
+		res,
+		[ 1, 2, 3 ],
+		"IOx() is a yield* delegatable iterable"
 	);
 });

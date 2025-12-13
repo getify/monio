@@ -12,6 +12,16 @@ const BRAND = {};
 Left.is = LeftIs;
 Right.is = RightIs;
 
+Object.defineProperty(Either,Symbol.hasInstance,{
+	value: is,
+});
+Object.defineProperty(Left,Symbol.hasInstance,{
+	value: LeftIs,
+});
+Object.defineProperty(Right,Symbol.hasInstance,{
+	value: RightIs,
+});
+
 module.exports = Object.assign(Either,{
 	Left, Right, of: Right, pure: Right,
 	unit: Right, is, fromFoldable,
@@ -47,6 +57,8 @@ function LeftOrRight(val,isRight) {
 		get [Symbol.toStringTag]() {
 			return `Either:${isRight ? "Right" : "Left"}`;
 		},
+		toString: _inspect, [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithFunctionComposition(publicAPI,"map");

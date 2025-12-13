@@ -21,11 +21,23 @@ INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("io-any");
 
-qunit.test("#unit", (assert) => {
+qunit.test("#_inspect", (assert) => {
 	assert.equal(
 		AnyIO.of(1)._inspect(),
 		"AnyIO(anonymous function)",
-		"should create an AnyIO instance via #of"
+		"inspect() should create an AnyIO with anonymous function"
+	);
+
+	assert.equal(
+		AnyIO.of(1).toString(),
+		"AnyIO(anonymous function)",
+		"toString() value is as expected"
+	);
+
+	assert.equal(
+		"" + AnyIO.of(1),
+		"AnyIO(anonymous function)",
+		"toPrimitive value is as expected"
 	);
 });
 
@@ -33,25 +45,43 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		AnyIO.is(AnyIO.of(1)),
 		true,
-		"should return true if the object passed is an AnyIO monad"
+		"is() should return true if the object passed is an AnyIO monad"
 	);
 
 	assert.equal(
 		IO.is(AnyIO.of(1)),
 		true,
-		"AnyIO is an IO monad"
+		"AnyIO is() an IO monad"
+	);
+
+	assert.equal(
+		AnyIO.of(1) instanceof IO,
+		true,
+		"AnyIO is instanceof an IO monad"
 	);
 
 	assert.equal(
 		AnyIO.is(IO.of(1)),
 		false,
-		"IO is not an AnyIO monad"
+		"IO is() not an AnyIO monad"
+	);
+
+	assert.equal(
+		IO.of(1) instanceof AnyIO,
+		false,
+		"IO is not instanceof an AnyIO monad"
 	);
 
 	assert.equal(
 		AnyIO.is({}),
 		false,
-		"should return false if the object is not an AnyIO monad"
+		"is() should return false if the object is not an AnyIO monad"
+	);
+
+	assert.equal(
+		{} instanceof AnyIO,
+		false,
+		"instanceof should return false if the object is not an AnyIO monad"
 	);
 });
 
@@ -169,5 +199,22 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		AnyIO.of(0).chain.pipe(...incIOFns).run(),
 		stackDepth,
 		"chain.pipe()"
+	);
+});
+
+qunit.test("Symbol.iterator", async (assert) => {
+	function *iter() {
+		res.push(yield *(AnyIO.of(1)));
+		res.push(yield *(AnyIO.of(2)));
+		return yield *(AnyIO.of(3));
+	}
+
+	var res = [];
+	res.push(await IO.do(iter).run());
+
+	assert.deepEqual(
+		res,
+		[ 1, 2, 3 ],
+		"AnyIO() is a yield* delegatable iterable"
 	);
 });

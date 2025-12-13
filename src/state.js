@@ -13,10 +13,14 @@ var Either = require("./either.js");
 
 const BRAND = {};
 
+Object.defineProperty(State,Symbol.hasInstance,{
+	value: is,
+});
+
 module.exports = Object.assign(State,{
 	of, pure: of, unit: of, is,
 	"get": get, gets, put, modify,
-	do: $do, doEither
+	do: $do, doEither,
 });
 
 
@@ -25,8 +29,9 @@ module.exports = Object.assign(State,{
 function State(stateFn = function stateFn(st) { return { value: undefined, state: st, }; }) {
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		evaluate, ap, concat, _inspect, _is,
-		[Symbol.toStringTag]: "State",
+		evaluate, ap, concat, _inspect, _is, toString: _inspect,
+		[Symbol.toStringTag]: "State", [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithFunctionComposition(publicAPI,"map");

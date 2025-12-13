@@ -21,11 +21,23 @@ INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("io-all");
 
-qunit.test("#unit", (assert) => {
+qunit.test("#_inspect", (assert) => {
 	assert.equal(
 		AllIO.of(1)._inspect(),
 		"AllIO(anonymous function)",
-		"should create an AllIO instance via #of"
+		"should create an AllIO with anonymous function"
+	);
+
+	assert.equal(
+		AllIO.of(1).toString(),
+		"AllIO(anonymous function)",
+		"toString() value is as expected"
+	);
+
+	assert.equal(
+		"" + AllIO.of(1),
+		"AllIO(anonymous function)",
+		"toPrimitive value is as expected"
 	);
 });
 
@@ -33,25 +45,43 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		AllIO.is(AllIO.of(1)),
 		true,
-		"should return true if the object passed is an AllIO monad"
+		"is() should return true if the object passed is an AllIO monad"
 	);
 
 	assert.equal(
 		IO.is(AllIO.of(1)),
 		true,
-		"AllIO is an IO monad"
+		"AllIO is() an IO monad"
+	);
+
+	assert.equal(
+		AllIO.of(1) instanceof IO,
+		true,
+		"AllIO is instanceof an IO monad"
 	);
 
 	assert.equal(
 		AllIO.is(IO.of(1)),
 		false,
-		"IO is not an AllIO monad"
+		"IO is() not an AllIO monad"
+	);
+
+	assert.equal(
+		IO.of(1) instanceof AllIO,
+		false,
+		"IO is not instanceof an AllIO monad"
 	);
 
 	assert.equal(
 		AllIO.is({}),
 		false,
-		"should return false if the object is not an AllIO monad"
+		"is() should return false if the object is not an AllIO monad"
+	);
+
+	assert.equal(
+		{} instanceof AllIO,
+		false,
+		"instanceof should return false if the object is not an AllIO monad"
 	);
 });
 
@@ -170,5 +200,22 @@ qunit.test("*.pipe:very-long", async (assert) => {
 		AllIO.of(0).chain.pipe(...incIOFns).run(),
 		stackDepth,
 		"chain.pipe()"
+	);
+});
+
+qunit.test("Symbol.iterator", async (assert) => {
+	function *iter() {
+		res.push(yield *(AllIO.of(1)));
+		res.push(yield *(AllIO.of(2)));
+		return yield *(AllIO.of(3));
+	}
+
+	var res = [];
+	res.push(await IO.do(iter).run());
+
+	assert.deepEqual(
+		res,
+		[ 1, 2, 3 ],
+		"AllIO() is a yield* delegatable iterable"
 	);
 });

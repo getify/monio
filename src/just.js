@@ -8,6 +8,10 @@ var {
 
 const BRAND = {};
 
+Object.defineProperty(Just,Symbol.hasInstance,{
+	value: is,
+});
+
 module.exports = Object.assign(Just,{
 	of: Just, pure: Just, unit: Just, is,
 });
@@ -18,8 +22,9 @@ module.exports = Object.assign(Just,{
 function Just(val) {
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		fold, ap, concat, _inspect, _is,
-		[Symbol.toStringTag]: "Just",
+		fold, ap, concat, _inspect, _is, toString: _inspect,
+		[Symbol.toStringTag]: "Just", [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithFunctionComposition(publicAPI,"map");

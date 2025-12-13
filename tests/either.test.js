@@ -8,6 +8,44 @@ INJECT_MONIO({ Just, Maybe, Either, State, IO, IOx });
 
 qunit.module("either");
 
+qunit.test("#_inspect", (assert) => {
+	assert.equal(
+		Either.Right(1)._inspect(),
+		"Either:Right(1)",
+		"_inspect() value is as expected (Right)"
+	);
+
+	assert.equal(
+		Either.Right(1).toString(),
+		"Either:Right(1)",
+		"toString() value is as expected (Right)"
+	);
+
+	assert.equal(
+		"" + Either.Right(1),
+		"Either:Right(1)",
+		"toPrimitive value is as expected (Right)"
+	);
+
+	assert.equal(
+		Either.Left(1).toString(),
+		"Either:Left(1)",
+		"_inspect() value is as expected (Left)"
+	);
+
+	assert.equal(
+		Either.Left(1).toString(),
+		"Either:Left(1)",
+		"toString() value is as expected (Left)"
+	);
+
+	assert.equal(
+		"" + Either.Left(1),
+		"Either:Left(1)",
+		"toPrimitive value is as expected (Left)"
+	);
+});
+
 qunit.test("Either:Right construction/creation", (assert) => {
 	assert.equal(
 		Either(1)._inspect(),
@@ -38,6 +76,12 @@ qunit.test("Either:Right construction/creation", (assert) => {
 		"Either:Right(1)",
 		"should create an Either:Right via #Right"
 	);
+
+	assert.equal(
+		"" + Either.Right(1),
+		"Either:Right(1)",
+		"should create an Either:Right via #Right"
+	);
 });
 
 qunit.test("Either:Left construction/creation", (assert) => {
@@ -48,17 +92,67 @@ qunit.test("Either:Left construction/creation", (assert) => {
 	);
 });
 
+qunit.test("#is", (assert) => {
+	assert.equal(
+		Either.is(Either.Left(1)),
+		true,
+		"is() should return true when the object passsed is an Either:Left monad"
+	);
+
+	assert.equal(
+		Either.Left(1) instanceof Either,
+		true,
+		"instanceof should return true when the object is an Either:Left monad"
+	);
+
+	assert.equal(
+		Either.is(Either.Right(1)),
+		true,
+		"is() should return true when the object passsed is an Either:Right monad"
+	);
+
+	assert.equal(
+		Either.Right(1) instanceof Either,
+		true,
+		"instanceof should return true when the object is an Either:Right monad"
+	);
+
+	assert.equal(
+		Either.is({}),
+		false,
+		"is() should return false when the object passsed is a not an Either monad"
+	);
+
+	assert.equal(
+		{} instanceof Either,
+		false,
+		"instanceof should return false when the object is a not an Either monad"
+	);
+});
+
 qunit.test("#Left.is", (assert) => {
 	assert.equal(
 		Either.Left.is(Either.Left(1)),
 		true,
-		"should return true when the object provided is an Either:Left monad"
+		"is() should return true when the object provided is an Either:Left monad"
+	);
+
+	assert.equal(
+		Either.Left(1) instanceof Either.Left,
+		true,
+		"instanceof should return true when the object provided is an Either:Left monad"
 	);
 
 	assert.equal(
 		Either.Left.is(Either(1)),
 		false,
-		"should return false when the object provided is not an Either:Left monad"
+		"is() should return false when the object provided is not an Either:Left monad"
+	);
+
+	assert.equal(
+		Either(1) instanceof Either.Left,
+		false,
+		"instanceof should return false when the object provided is not an Either:Left monad"
 	);
 });
 
@@ -66,13 +160,25 @@ qunit.test("#Right.is", (assert) => {
 	assert.equal(
 		Either.Right.is(Either(1)),
 		true,
-		"should return true when the object provided is an Either:Right monad"
+		"is() should return true when the object provided is an Either:Right monad"
+	);
+
+	assert.equal(
+		Either(1) instanceof Either.Right,
+		true,
+		"instanceof should return true when the object provided is an Either:Right monad"
 	);
 
 	assert.equal(
 		Either.Right.is(Either.Left(1)),
 		false,
-		"should return false when the object provided is not an Either:Right monad"
+		"is() should return false when the object provided is not an Either:Right monad"
+	);
+
+	assert.equal(
+		Either.Left(1) instanceof Either.Right,
+		false,
+		"instanceof should return false when the object provided is not an Either:Right monad"
 	);
 });
 
@@ -274,5 +380,34 @@ qunit.test("*.pipe", (assert) => {
 		).fold(EMPTY_FUNC,identity),
 		[1,2,3,4,5,6],
 		"concat.pipe()"
+	);
+});
+
+qunit.test("Symbol.iterator", (assert) => {
+	function *iter1() {
+		yield *(Either.Left(1));
+		yield *(Either.Left(2));
+		return yield *(Either.Left(3));
+	}
+
+	function *iter2() {
+		yield *(Either.Right(1));
+		yield *(Either.Right(2));
+		return yield *(Either.Right(3));
+	}
+
+	var res1 = [ ...iter1() ].map(v => v.toString());
+	var res2 = [ ...iter2() ].map(v => v.toString());
+
+	assert.deepEqual(
+		res1,
+		[ "Either:Left(1)", "Either:Left(2)", "Either:Left(3)", ],
+		"Either:Left() is a yield* delegatable iterable"
+	);
+
+	assert.deepEqual(
+		res2,
+		[ "Either:Right(1)", "Either:Right(2)", "Either:Right(3)", ],
+		"Either:Right() is a yield* delegatable iterable"
 	);
 });

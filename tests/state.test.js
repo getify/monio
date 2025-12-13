@@ -35,6 +35,24 @@ qunit.test("#_inspect", (assert) => {
 		"State(null)",
 		"should create a State with (invalid!) null value instead of function"
 	);
+
+	assert.equal(
+		State.of(1)._inspect(),
+		"State(anonymous function)",
+		"_inspect() value is as expected"
+	);
+
+	assert.equal(
+		State.of(1).toString(),
+		"State(anonymous function)",
+		"toString() value is as expected"
+	);
+
+	assert.equal(
+		"" + State.of(1),
+		"State(anonymous function)",
+		"toPrimitive value is as expected"
+	);
 });
 
 qunit.test("#unit", (assert) => {
@@ -108,13 +126,25 @@ qunit.test("#is", (assert) => {
 	assert.equal(
 		State.is(State.of(1)),
 		true,
-		"should return true if the object passed is a state monad"
+		"is() should return true if the object passed is a state monad"
+	);
+
+	assert.equal(
+		State.of(1) instanceof State,
+		true,
+		"instanceof should return true if the object is a state monad"
 	);
 
 	assert.equal(
 		State.is({}),
 		false,
-		"should return false if the object is not a state monad"
+		"is() should return false if the object passed is not a state monad"
+	);
+
+	assert.equal(
+		{} instanceof State,
+		false,
+		"instanceof should return false if the object is not a state monad"
 	);
 });
 
@@ -1212,5 +1242,22 @@ qunit.test("State.modify", (assert) => {
 		State.modify(s => s).evaluate({ a: 1 }),
 		{ value: undefined, state: { a: 1 } },
 		"no-op modify leaves state unchanged"
+	);
+});
+
+qunit.test("Symbol.iterator", async (assert) => {
+	function *iter() {
+		res.push(yield *(State.of(1)));
+		res.push(yield *(State.of(2)));
+		return yield *(State.of(3));
+	}
+
+	var res = [];
+	res.push(await State.do(iter).evaluate({ foo: 1, }));
+
+	assert.deepEqual(
+		res,
+		[ 1, 2, { value: 3, state: { foo: 1, }, }, ],
+		"State() is a yield* delegatable iterable"
 	);
 });

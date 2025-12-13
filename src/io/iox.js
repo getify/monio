@@ -51,6 +51,10 @@ const IOis = IO.is;
 const IO_is = EMPTY_IO._is;
 const NeverIOx = defineNeverIOx();
 
+Object.defineProperty(IOx,Symbol.hasInstance,{
+	value: is,
+});
+
 module.exports = Object.assign(IOx,{
 	of, pure: of, unit: of, is, do: $do, doEither, debounce,
 	onEvent, onceEvent, onTimer, merge, zip, fromIO, fromIter,
@@ -108,7 +112,9 @@ function IOx(iof,deps = []) {
 		ap, concat, run, stop, close, isClosed, never,
 		isNever, toString, onError,	offError,
 		_chain_with_IO, _inspect, _bind: origBind, _is,
-		[Symbol.toStringTag]: TAG,
+		toString: _inspect, [Symbol.toStringTag]: TAG,
+		[Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	});
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithAsyncFunctionComposition(publicAPI,"map");
@@ -1185,7 +1191,6 @@ function IOx(iof,deps = []) {
 	function _is(br) {
 		return !!(br === BRAND || (IO_is(br)));
 	}
-
 }
 
 function is(v) {
@@ -2423,13 +2428,19 @@ function logUnhandledError(err) {
 function defineNeverIOx() {
 	const TAG = "NeverIOx";
 	const origBind = NeverIOx$.bind;
+	Object.defineProperty(NeverIOx$,Symbol.hasInstance,{
+		value: IOx.is,
+	});
+
 	var publicAPI = Object.assign(NeverIOx$,{
 		map: NeverIOx$, chain: NeverIOx$, flatMap: NeverIOx$,
 		bind: NeverIOx$, concat: NeverIOx$, run: EMPTY_FUNC,
 		stop: EMPTY_FUNC, close: EMPTY_FUNC, isClosed,
 		never: NeverIOx$, isNever, toString, onError: EMPTY_FUNC,
 		offError: EMPTY_FUNC, _chain_with_IO, _inspect,
-		_bind: origBind, _is: IOx.is, [Symbol.toStringTag]: TAG,
+		_bind: origBind, toString: _inspect, _is,
+		[Symbol.toStringTag]: TAG, [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	});
 	registerHooks.set(publicAPI,[ EMPTY_FUNC, EMPTY_FUNC ]);
 	NeverIOx$.pipe = NeverIOx$;
@@ -2443,4 +2454,7 @@ function defineNeverIOx() {
 	function toString() { return `[function ${this[Symbol.toStringTag] || this.name}]`; }
 	function _chain_with_IO() { return EMPTY_IO; }
 	function _inspect() { return `${TAG}()`; }
+	function _is(br) {
+		return !!(br === BRAND || (IO_is(br)));
+	}
 }

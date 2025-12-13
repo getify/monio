@@ -18,6 +18,10 @@ var Either = require("../either.js");
 
 const BRAND = {};
 
+Object.defineProperty(IO,Symbol.hasInstance,{
+	value: is,
+});
+
 module.exports = Object.assign(IO,{
 	of, pure: of, unit: of, is, do: $do, doEither, fromIOx,
 });
@@ -37,8 +41,9 @@ function IO(effect) {
 	const TAG = "IO";
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		ap, concat, run, _inspect, _is,
-		[Symbol.toStringTag]: TAG,
+		ap, concat, run, _inspect, _is, toString: _inspect,
+		[Symbol.toStringTag]: TAG, [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithAsyncFunctionComposition(publicAPI,"map");

@@ -11,7 +11,13 @@ var IO = require("./io.js");
 
 const BRAND = {};
 
-module.exports = Object.assign(AnyIO,{ of, is, fromIO, empty, });
+Object.defineProperty(AnyIO,Symbol.hasInstance,{
+	value: is,
+});
+
+module.exports = Object.assign(AnyIO,{
+	of, is, fromIO, empty,
+});
 
 
 // **************************
@@ -20,8 +26,9 @@ function AnyIO(effect) {
 	var io = IO(effect);
 	var publicAPI = {
 		map, chain, flatMap: chain, bind: chain,
-		concat, run, _inspect, _is,
-		[Symbol.toStringTag]: "AnyIO",
+		concat, run, _inspect, _is, toString: _inspect,
+		[Symbol.toStringTag]: "AnyIO", [Symbol.toPrimitive]: _inspect,
+		*[Symbol.iterator]() { return yield this; },
 	};
 	// decorate API methods with `.pipe(..)` helper
 	definePipeWithAsyncFunctionComposition(publicAPI,"map");

@@ -39,6 +39,7 @@ module.exports = {
 	fold,
 	foldMap,
 	getDeferred,
+	$,
 
 	// configure object pooling
 	__GROW_CONTINUATION_POOL,
@@ -64,6 +65,7 @@ module.exports.curry = curry;
 module.exports.fold = fold;
 module.exports.foldMap = foldMap;
 module.exports.getDeferred = getDeferred;
+module.exports.$ = $;
 
 // configure object pooling
 module.exports.__GROW_CONTINUATION_POOL = __GROW_CONTINUATION_POOL;
@@ -161,9 +163,25 @@ function foldMap(f,list,empty) {
 }
 
 function getDeferred() {
-	var next;
-	var pr = new Promise(res => next = res);
-	return { pr, next, };
+	if (Promise.withResolvers != null) {
+		let { promise, resolve, reject, } = Promise.withResolvers();
+		return { pr: promise, next: resolve, reject, };
+	}
+	else {
+		let next, reject;
+		let pr = new Promise((res,rej) => (next = res, reject = rej));
+		return { pr, next, reject, };
+	}
+}
+
+// wrap as single-iterable (if necessary)
+function $(v) {
+	if (v != null && typeof v[Symbol.iterator] == "function") {
+		return v;
+	}
+	return {
+		*[Symbol.iterator]() { return yield v; },
+	};
 }
 
 
