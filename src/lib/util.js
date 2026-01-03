@@ -176,7 +176,12 @@ function getDeferred() {
 
 // wrap as single-iterable (if necessary)
 function $(v) {
-	if (v != null && typeof v[Symbol.iterator] == "function") {
+	if (
+		v != null &&
+		typeof v.next == "function" &&
+		typeof v[Symbol.iterator] == "function" &&
+		v[Symbol.iterator]() == v
+	) {
 		return v;
 	}
 	return {
