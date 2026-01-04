@@ -1,7 +1,7 @@
 {
 	"name": "monio",
 	"description": "The most powerful IO monad implementation in JS",
-	"version": "0.61.0",
+	"version": "0.70.0",
 	"main": "./src/index.js",
 	"scripts": {
 		"build": "npm run build-all",

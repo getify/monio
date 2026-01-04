@@ -1,6 +1,7 @@
 "use strict";
 
 function EMPTY_FUNC() {}
+const MONIO_ITERABLE = Symbol("monio-iterable");
 const IS_CONT = Symbol("is-continuation");
 const RET_CONT = Symbol("return-continuation");
 const CONT_VAL = Symbol("continuation-value");
@@ -49,6 +50,7 @@ module.exports = {
 	definePipeWithMethodChaining,
 	definePipeWithFunctionComposition,
 	definePipeWithAsyncFunctionComposition,
+	getIterator,
 	continuation,
 	returnSignal,
 	isReturnSignal,
@@ -75,6 +77,7 @@ module.exports.__EMPTY_CONTINUATION_POOL = __EMPTY_CONTINUATION_POOL;
 module.exports.definePipeWithMethodChaining = definePipeWithMethodChaining;
 module.exports.definePipeWithFunctionComposition = definePipeWithFunctionComposition;
 module.exports.definePipeWithAsyncFunctionComposition = definePipeWithAsyncFunctionComposition;
+module.exports.getIterator = getIterator;
 module.exports.continuation = continuation;
 module.exports.returnSignal = returnSignal;
 module.exports.isReturnSignal = isReturnSignal;
@@ -178,13 +181,14 @@ function getDeferred() {
 function $(v) {
 	if (
 		v != null &&
-		typeof v.next == "function" &&
-		typeof v[Symbol.iterator] == "function" &&
-		v[Symbol.iterator]() == v
+		isFunction(v.next) &&
+		isFunction(v.throw) &&
+		isFunction(v[Symbol.iterator])
 	) {
 		return v;
 	}
 	return {
+		[MONIO_ITERABLE]: true,
 		*[Symbol.iterator]() { return yield v; },
 	};
 }
@@ -244,6 +248,18 @@ function possiblyAsyncPipe(v,[ nextFn, ...nextFns ]) {
 						possiblyAsyncPipe(nextV,nextFns)
 				)
 			)
+	);
+}
+
+// used internally by IO/State, specifically
+// do() and doEither()
+function getIterator(v,env,outerThis,args) {
+	return (
+		isFunction(v) ? v.call(outerThis,env,...args) :
+		(v && isFunction(v.next) && isFunction(v.throw)) ? v :
+		(v && v[MONIO_ITERABLE] === true) ? v[Symbol.iterator]() :
+		/* istanbul ignore next */
+		undefined
 	);
 }
 

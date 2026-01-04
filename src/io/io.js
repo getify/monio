@@ -6,8 +6,10 @@ var {
 	isPromise,
 	isMonad,
 	getMonadFlatMap,
+
 	definePipeWithMethodChaining,
 	definePipeWithAsyncFunctionComposition,
+	getIterator,
 	continuation,
 	returnSignal,
 	isReturnSignal,
@@ -414,15 +416,6 @@ function liftDoEitherError(err) {
 
 function fromIOx(iox) {
 	return IO(env => iox.run(returnSignal(env)));
-}
-
-function getIterator(v,env,outerThis,args) {
-	return (
-		isFunction(v) ? v.call(outerThis,env,...args) :
-		(v && isFunction(v.next)) ? v :
-		/* istanbul ignore next */
-		undefined
-	);
 }
 
 function monadFlatMap(m,fn) {

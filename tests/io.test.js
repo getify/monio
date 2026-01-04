@@ -1325,8 +1325,9 @@ qunit.test("$", async (assert) => {
 		res.push(yield *$(IO.of(2)));
 		res.push(yield *$([ 3, 4, ]));
 		res.push(yield *$("5"));
-		res.push(yield *((function*(){ return 6; })()))
-		return yield *$(7);
+		res.push(yield *((function*(){ return 6; })()));
+		res.push(yield IO.do($(7)));
+		return yield *$(8);
 	}
 
 	var res = [];
@@ -1334,7 +1335,7 @@ qunit.test("$", async (assert) => {
 
 	assert.deepEqual(
 		res,
-		[ 1, 2, [ 3, 4, ], "5", 6, 7, ],
+		[ 1, 2, [ 3, 4, ], "5", 6, 7, 8, ],
 		"$() ensures a yield* delegatable iterable"
 	);
 });

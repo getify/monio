@@ -2,8 +2,10 @@
 
 var {
 	isFunction,
+
 	definePipeWithMethodChaining,
 	definePipeWithFunctionComposition,
+	getIterator,
 	continuation,
 	returnSignal,
 	isReturnSignal,
@@ -301,13 +303,4 @@ function doEither($V,...args) {
 			);
 		}
 	});
-}
-
-function getIterator(v,state,outerThis,args) {
-	return (
-		isFunction(v) ? v.call(outerThis,state,...args) :
-		(v && isFunction(v.next)) ? v :
-		/* istanbul ignore next */
-		undefined
-	);
 }
