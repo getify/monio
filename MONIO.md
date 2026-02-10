@@ -415,7 +415,7 @@ const renderMessage = msg => IO(() => (
 IO.do(function *main(){
     // `yield` of an IO instance (like `await` with
     // promises in an `async..await` function) will
-    // chain/unwrap the IO, asynchronously if neccessary
+    // chain/unwrap the IO, asynchronously if necessary
     var resp = yield getData("/some/data");
 
     yield renderMessage(resp.msg);
