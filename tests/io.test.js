@@ -1192,6 +1192,118 @@ qunit.test("IO.do/doEither: yield* delegation", async (assert) => {
 	);
 });
 
+qunit.test("IO.do: consecutive-IO-sync-throws", async (assert) => {
+	var log = [];
+	var boom = n => IO(() => { throw new Error(`b${n}`); });
+
+	var res = await IO.do(function*(){
+		try { yield boom(1); } catch (err) { log.push(err.message); }
+		try { yield boom(2); } catch (err) { log.push(err.message); }
+		try { yield boom(3); } catch (err) { log.push(err.message); }
+		return "done";
+	}).run({});
+
+	assert.deepEqual(log,["b1","b2","b3"],"all three catches fire");
+	assert.strictEqual(res,"done","gen runs to completion");
+});
+
+qunit.test("IO.do: consecutive-IO-async-rejections", async (assert) => {
+	var log = [];
+	var rej = n => IO(() => Promise.reject(new Error(`r${n}`)));
+
+	var res = await IO.do(function*(){
+		try { yield rej(1); } catch (err) { log.push(err.message); }
+		try { yield rej(2); } catch (err) { log.push(err.message); }
+		try { yield rej(3); } catch (err) { log.push(err.message); }
+		return "done";
+	}).run({});
+
+	assert.deepEqual(log,["r1","r2","r3"],"all three catches fire");
+	assert.strictEqual(res,"done","gen runs to completion");
+});
+
+qunit.test("IO.do: consecutive-IO-mixed", async (assert) => {
+	var log = [];
+	var syncBoom = () => IO(() => { throw new Error("sync"); });
+	var asyncBoom = () => IO(() => Promise.reject(new Error("async")));
+
+	var res = await IO.do(function*(){
+		try { yield syncBoom(); } catch (err) { log.push(err.message); }
+		try { yield asyncBoom(); } catch (err) { log.push(err.message); }
+		try { yield syncBoom(); } catch (err) { log.push(err.message); }
+		return "done";
+	}).run({});
+
+	assert.deepEqual(log,["sync","async","sync"],"all three catches fire");
+	assert.strictEqual(res,"done","gen runs to completion");
+});
+
+qunit.test("IO.do: last-sync-IO-throw-uncaught", async (assert) => {
+	var log = [];
+	var boom = n => IO(() => { throw new Error(`b${n}`); });
+
+	try {
+		await IO.do(function*(){
+			try { yield boom(1); } catch (err) { log.push(err.message); }
+			yield boom(2); // uncaught
+			log.push("unreachable");
+		}).run({});
+		assert.ok(false,"should have thrown");
+	}
+	catch (err) {
+		log.push(`outer:${err.message}`);
+	}
+
+	assert.deepEqual(log,["b1","outer:b2"],"first caught, second escapes to outer");
+});
+
+qunit.test("IO.doEither: consecutive-IO-sync-throws", async (assert) => {
+	var log = [];
+	var boom = n => IO(() => { throw new Error(`b${n}`); });
+
+	var res = await IO.doEither(function*(){
+		try { yield boom(1); } catch (err) { log.push(err.message || String(err)); }
+		try { yield boom(2); } catch (err) { log.push(err.message || String(err)); }
+		try { yield boom(3); } catch (err) { log.push(err.message || String(err)); }
+		return "done";
+	}).run({});
+
+	assert.deepEqual(log,["b1","b2","b3"],"all three catches fire");
+	assert.ok(Either.Right.is(res),"result is Either:Right");
+	assert.strictEqual(res.fold(()=>null,v=>v),"done","gen runs to completion");
+});
+
+qunit.test("IO.doEither: consecutive-IO-async-rejections", async (assert) => {
+	var log = [];
+	var rej = n => IO(() => Promise.reject(new Error(`r${n}`)));
+
+	var res = await IO.doEither(function*(){
+		try { yield rej(1); } catch (err) { log.push(err.message || String(err)); }
+		try { yield rej(2); } catch (err) { log.push(err.message || String(err)); }
+		try { yield rej(3); } catch (err) { log.push(err.message || String(err)); }
+		return "done";
+	}).run({});
+
+	assert.deepEqual(log,["r1","r2","r3"],"all three catches fire");
+	assert.ok(Either.Right.is(res),"result is Either:Right");
+	assert.strictEqual(res.fold(()=>null,v=>v),"done","gen runs to completion");
+});
+
+qunit.test("IO.doEither: consecutive-Either:Left-yields", async (assert) => {
+	var log = [];
+
+	var res = await IO.doEither(function*(){
+		try { yield Either.Left("l1"); } catch (err) { log.push(String(err)); }
+		try { yield Either.Left("l2"); } catch (err) { log.push(String(err)); }
+		try { yield Either.Left("l3"); } catch (err) { log.push(String(err)); }
+		return "done";
+	}).run({});
+
+	assert.deepEqual(log,["l1","l2","l3"],"all three catches fire");
+	assert.ok(Either.Right.is(res),"result is Either:Right");
+	assert.strictEqual(res.fold(()=>null,v=>v),"done","gen runs to completion");
+});
+
 qunit.test("*.pipe", async (assert) => {
 	const incPr = v => Promise.resolve(inc(v));
 	const twicePr = v => Promise.resolve(twice(v));

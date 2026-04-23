@@ -235,12 +235,23 @@ function processNext(next,respVal,outerEnv,throwEither) {
 function $do($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
+		var iteratorDone = false;
 
 		return (new Promise(res => res(trampoline(next()))))
-			.catch(err => trampoline(next(err,"error")))
+			.catch(recover)
 			.catch(liftDoError);
 
 		// ************************************************
+
+		// recursive feedback: each rejection from `next(..)`
+		// must be fed back via `it.throw(..)` so the gen's
+		// try/catch can handle it; loop until the iterator
+		// actually terminates
+		function recover(err) {
+			if (iteratorDone) return liftDoError(err);
+			return (new Promise(res => res(trampoline(next(err,"error")))))
+				.catch(recover);
+		}
 
 		function next(v,type) {
 			try {
@@ -257,7 +268,11 @@ function $do($V,...args) {
 						// trampoline() here unwraps the continuation
 						// immediately, because we're already in an
 						// async microtask from the promise
-						resp.then(v => trampoline(handleResp(v))) :
+						resp.then(
+							v => trampoline(handleResp(v)),
+							// async-gen rejection: iterator is done
+							err => { iteratorDone = true; throw err; }
+						) :
 
 						handleResp(resp)
 				);
@@ -268,6 +283,7 @@ function $do($V,...args) {
 				function handleResp(resp) {
 					// is the iterator done?
 					if (resp.done) {
+						iteratorDone = true;
 						try {
 							// if an IO was returned, automatically run it
 							// as if it was yielded before returning
@@ -288,6 +304,8 @@ function $do($V,...args) {
 				}
 			}
 			catch (err) {
+				// sync throw from it.next/it.throw: iterator is done
+				iteratorDone = true;
 				return liftDoError(err);
 			}
 		}
@@ -304,15 +322,26 @@ function liftDoError(err) {
 function doEither($V,...args) {
 	return IO(outerEnv => {
 		var it = getIterator($V,outerEnv,/*outerThis=*/this,args);
+		var iteratorDone = false;
 
 		// trampoline()s here unwrap the continuations
 		// immediately, because we're already in an
 		// async microtask from the promise
 		return (new Promise(res => res(trampoline(next()))))
-			.catch(err => trampoline(next(err,"error")))
+			.catch(recover)
 			.catch(liftDoEitherError);
 
 		// ************************************************
+
+		// recursive feedback: each rejection must be fed
+		// back via `it.throw(..)` so the gen's try/catch
+		// can handle it; loop until the iterator
+		// actually terminates
+		function recover(err) {
+			if (iteratorDone) return liftDoEitherError(err);
+			return (new Promise(res => res(trampoline(next(err,"error")))))
+				.catch(recover);
+		}
 
 		function next(v,type) {
 			// lift v to an Either (Left or Right) if necessary
@@ -339,12 +368,18 @@ function doEither($V,...args) {
 						// trampoline() here unwraps the continuation
 						// immediately, because we're already in an
 						// async microtask from the promise
-						resp.then(v => trampoline(handleResp(v))) :
+						resp.then(
+							v => trampoline(handleResp(v)),
+							// async-gen rejection: iterator is done
+							err => { iteratorDone = true; throw err; }
+						) :
 
 						handleResp(resp)
 				);
 			}
 			catch (err) {
+				// sync throw from it.next/it.throw: iterator is done
+				iteratorDone = true;
 				return liftDoEitherError(err);
 			}
 
@@ -354,6 +389,7 @@ function doEither($V,...args) {
 			function handleResp(resp) {
 				// is the iterator done?
 				if (resp.done) {
+					iteratorDone = true;
 					return handleRespVal(resp.value);
 				}
 				// otherwise, move onto the next step
