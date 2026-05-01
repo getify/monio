@@ -40,7 +40,7 @@ Maybe.from(responseData.message)
 );
 ```
 
-The `Either` monad type is similar to `Maybe`, in that it has two possible representations: `Left` and `Right`. `Either` is typically used for modeling exception handling, where the `Left` representation is an exception, and `Right` represents a succesful operation/value. This sort of exception/success duality may be familiar to those who understand JS promises.
+The `Either` monad type is similar to `Maybe`, in that it has two possible representations: `Left` and `Right`. `Either` is typically used for modeling exception handling, where the `Left` representation is an exception, and `Right` represents a successful operation/value. This sort of exception/success duality may be familiar to those who understand JS promises.
 
 For example:
 
@@ -415,7 +415,7 @@ const renderMessage = msg => IO(() => (
 IO.do(function *main(){
     // `yield` of an IO instance (like `await` with
     // promises in an `async..await` function) will
-    // chain/unwrap the IO, asynchronously if neccessary
+    // chain/unwrap the IO, asynchronously if necessary
     var resp = yield getData("/some/data");
 
     yield renderMessage(resp.msg);
